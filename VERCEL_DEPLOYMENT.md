@@ -47,7 +47,6 @@ For Vercel deployment, we will only deploy the frontend since Vercel is optimize
 4. Configure:
    - Build Command: `vite build`
    - Output Directory: `dist`
-   - Environment Variables: Add `GEMINI_API_KEY` if needed
 
 ## Important Notes
 
@@ -65,6 +64,7 @@ If your frontend requires environment variables:
 
 1. Add them in Vercel Project Settings → Environment Variables
 2. They will be available at build time via `import.meta.env.VARIABLE_NAME`
+3. For connecting to your backend, add `VITE_BACKEND_URL` pointing to your deployed backend (e.g., Render service URL)
 
 ### Build Output
 
