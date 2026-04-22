@@ -4,11 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "start": "node dist/server.cjs",
+ "dev": "vite",
     "build": "vite build",
-    "build:frontend": "vite build",
-    "build:server": "npx tsx build-server.ts",
+    "start": "vite preview",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
