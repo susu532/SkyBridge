@@ -80,7 +80,7 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    const BACKEND_URL = 'https://skybridge-server.onrender.com';
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ;
     this.socket = io(`${BACKEND_URL}/${serverName}`);
 
     this.socket.on('init', (data) => {
