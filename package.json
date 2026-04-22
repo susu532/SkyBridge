@@ -4,14 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
- "dev": "vite",
+  "dev": "vite",
     "build": "vite build",
     "start": "vite preview",
-    "build:frontend": "vite build",
-    "build:server": "npx tsx build-server.ts",
-    "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
