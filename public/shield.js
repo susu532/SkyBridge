@@ -139,8 +139,6 @@
 
   // ===== 10. DOMAIN LOCK =====
   var _allowedHosts = [
-    'localhost',
-    '127.0.0.1',
     'sky-bridge-teal-two.vercel.app',
     'skybridge-server.onrender.com'
   ];
