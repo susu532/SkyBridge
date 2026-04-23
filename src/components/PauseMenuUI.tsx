@@ -1,35 +1,21 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Play, Settings, Package, LogOut, Maximize } from 'lucide-react';
+import { X, Play, Settings, LogOut } from 'lucide-react';
 import { audioManager } from '../game/AudioManager';
 
 interface PauseMenuUIProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
-  onOpenInventory: () => void;
 }
 
 export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({ 
   isOpen, 
   onClose, 
-  onOpenSettings, 
-  onOpenInventory 
+  onOpenSettings 
 }) => {
   if (!isOpen) return null;
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.warn(`Error attempting to enable fullscreen mode: ${err.message}`);
-      });
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-    }
-  };
 
   const menuItems = [
     { 
@@ -39,16 +25,6 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
       primary: true 
     },
     { 
-      label: 'Fullscreen', 
-      icon: <Maximize className="w-5 h-5" />, 
-      onClick: toggleFullscreen
-    },
-    { 
-      label: 'Inventory', 
-      icon: <Package className="w-5 h-5" />, 
-      onClick: onOpenInventory 
-    },
-    { 
       label: 'Settings', 
       icon: <Settings className="w-5 h-5" />, 
       onClick: onOpenSettings 
@@ -56,7 +32,9 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
     { 
       label: 'Quit Game', 
       icon: <LogOut className="w-5 h-5" />, 
-      onClick: () => window.location.reload() 
+      onClick: () => {
+        window.location.href = '/?server=hub';
+      }
     },
   ];
 

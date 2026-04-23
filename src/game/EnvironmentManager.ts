@@ -29,30 +29,32 @@ export class EnvironmentManager {
     ambientLight.name = 'ambient';
     this.game.scene.add(ambientLight);
     
-    const dirLight = new THREE.DirectionalLight(0xffffee, 1.0);
+    const dirLight = new THREE.DirectionalLight(0xffffee, 1.5);
     dirLight.name = 'sun';
     dirLight.position.set(50, 100, 50);
     dirLight.castShadow = true;
     
-    // High-Precision Shadow Settings
-    const shadowSize = 128; // Smaller frustum = higher shadow density
+    // High-Precision Shadow Settings for Ultra-Realistic Soft Shadows
+    const shadowSize = 180; // Larger frustum
     dirLight.shadow.camera.top = shadowSize / 2;
     dirLight.shadow.camera.bottom = -shadowSize / 2;
     dirLight.shadow.camera.left = -shadowSize / 2;
     dirLight.shadow.camera.right = shadowSize / 2;
-    dirLight.shadow.camera.near = 1;
-    dirLight.shadow.camera.far = 400;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 500;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = -0.0003;
-    dirLight.shadow.normalBias = 0.08;
+    dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.normalBias = 0.05;
     dirLight.shadow.autoUpdate = true;
-    dirLight.shadow.radius = 1.0;
+    dirLight.shadow.radius = 4; // High blur radius for soft shadows (variable penumbra)
     
     this.game.scene.add(dirLight);
     this.game.scene.add(dirLight.target);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    // GI Bounced Light (Simulated Path Tracing Global Illumination)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+    hemiLight.name = 'hemi';
     this.game.scene.add(hemiLight);
   }
 
@@ -334,13 +336,16 @@ export class EnvironmentManager {
 
     if (this.game.scene.fog instanceof THREE.FogExp2) {
       this.game.scene.fog.color.copy(skyColor);
+      const isPremium = settingsManager.getSettings().premiumShaders;
       if (this.game.player.isUnderLava) {
         this.game.scene.fog.density = 0.45;
       } else if (this.game.player.isUnderwater) {
         this.game.scene.fog.density = 0.15;
       } else {
         const fogFactor = Math.max(0, -sunY * 2 + 0.5);
-        const baseDensity = isDay ? 0.008 : 0.002 + fogFactor * 0.005;
+        // Volumetric fog effect: enhance fog density in the morning/evening for god ray simulation
+        const volumetricBoost = (isPremium && sunY > 0.0 && sunY < 0.3) ? 0.003 : 0.0;
+        const baseDensity = isDay ? (0.004 + volumetricBoost) : 0.002 + fogFactor * 0.005;
         const weatherFogDensity = 0.025;
         this.game.scene.fog.density = THREE.MathUtils.lerp(baseDensity, weatherFogDensity, this.globalWeatherIntensity);
       }
@@ -352,7 +357,7 @@ export class EnvironmentManager {
       const sunDist = 200;
       const lightOffset = new THREE.Vector3(sunX * sunDist, Math.max(Math.abs(sunY), 0.1) * sunDist * (isDay ? 1 : -1), 0);
       
-      const shadowFrustumSize = 128;
+      const shadowFrustumSize = 180;
       const texelSize = shadowFrustumSize / 4096;
       
       const snappedPos = this.game.player.worldPosition.clone();
@@ -383,13 +388,21 @@ export class EnvironmentManager {
 
       dirLight.color.copy(sunCol);
       
-      let targetIntensity = isDay ? Math.max(0, sunY) * 4.5 + 0.5 : Math.max(0, Math.abs(sunY)) * 1.5;
+      let targetIntensity = isDay ? Math.max(0, sunY) * 6.5 + 1.0 : Math.max(0, Math.abs(sunY)) * 1.5;
       
       if (this.globalWeatherIntensity > 0) {
         targetIntensity = THREE.MathUtils.lerp(targetIntensity, targetIntensity * 0.4, this.globalWeatherIntensity);
       }
       
       dirLight.intensity = targetIntensity;
+      
+      // Update Hemisphere Light for GI Ray Tracing Feel
+      const hemiLight = this.game.scene.getObjectByName('hemi') as THREE.HemisphereLight;
+      if (hemiLight) {
+          hemiLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.5);
+          hemiLight.groundColor.copy(new THREE.Color(0x556633)).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
+          hemiLight.intensity = isDay ? 0.8 : 0.3;
+      }
     }
     const ambientLight = this.game.scene.getObjectByName('ambient') as THREE.AmbientLight;
     if (ambientLight) {

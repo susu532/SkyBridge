@@ -24,6 +24,7 @@ export enum MobType {
   COW = 'Cow',
   SHEEP = 'Sheep',
   PIG = 'Pig',
+  MORVANE = 'Morvane',
 }
 
 export class Mob {
@@ -63,6 +64,8 @@ export class Mob {
   rightLeg: THREE.Object3D | null = null;
   leftArm: THREE.Object3D | null = null;
   rightArm: THREE.Object3D | null = null;
+  leftArm2: THREE.Object3D | null = null;
+  rightArm2: THREE.Object3D | null = null;
   legs: THREE.Object3D[] = [];
   
   constructor(id: string, position: THREE.Vector3, level: number = 1, type: MobType = MobType.ZOMBIE, textureAtlas: THREE.Texture | null = null) {
@@ -76,6 +79,10 @@ export class Mob {
     this.wanderAngle = Math.random() * Math.PI * 2;
     
     this.maxHealth = 100 + (level - 1) * 50;
+    if (type === MobType.MORVANE) {
+      this.maxHealth = 25000;
+      this.name = "Morvane, Guardian of Skycastle";
+    }
     if (type === MobType.SLIME) this.maxHealth *= 0.5;
     if (this.isPassive) this.maxHealth = 20;
     
@@ -85,6 +92,28 @@ export class Mob {
     
     this.group.position.copy(this.position);
     this.group.userData = { isMob: true, mobId: id };
+  }
+
+  private createNameTag() {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    canvas.width = 512;
+    canvas.height = 128;
+    context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    context.fillRect(0, 0, 512, 128);
+    context.font = 'bold 80px "Inter", Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#ff3333';
+    context.fillText(this.name, 256, 64);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const nameTag = new THREE.Sprite(material);
+    nameTag.scale.set(4, 1, 1);
+    nameTag.position.y = 2.5; // Relative to scaled group (result: ~12.5 world units)
+    this.group.add(nameTag);
+    this.group.userData.nameTag = nameTag;
   }
 
   getHitbox(): THREE.Box3 {
@@ -97,6 +126,8 @@ export class Mob {
         width = 0.6; height = 1.95; break;
       case MobType.CREEPER:
         width = 0.6; height = 1.7; break;
+      case MobType.MORVANE:
+        width = 3.0; height = 9.0; break;
       case MobType.COW:
         width = 0.9; height = 1.4; break;
       case MobType.SHEEP:
@@ -176,7 +207,7 @@ export class Mob {
   private createModel(): THREE.Group {
     const group = new THREE.Group();
 
-    if (this.type === MobType.ZOMBIE || this.type === MobType.SKELETON) {
+    if (this.type === MobType.ZOMBIE || this.type === MobType.SKELETON || this.type === MobType.MORVANE) {
       this.createHumanoidModel(group);
     } else if (this.type === MobType.CREEPER) {
       this.createCreeperModel(group);
@@ -191,13 +222,14 @@ export class Mob {
 
   private createHumanoidModel(group: THREE.Group) {
     const isSkeleton = this.type === MobType.SKELETON;
-    const skinColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : 0x3b511a);
-    const shirtColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : 0x00aaaa);
-    const pantsColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : 0x2d2d88);
+    const isMorvane = this.type === MobType.MORVANE;
+    const skinColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : (isMorvane ? 0x0a0a0a : 0x3b511a));
+    const shirtColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : (isMorvane ? 0x000000 : 0x00aaaa));
+    const pantsColor = (this.textureAtlas) ? 0xffffff : (isSkeleton ? 0xdddddd : (isMorvane ? 0x000000 : 0x2d2d88));
 
-    const matSkin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
-    const matShirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.9 });
-    const matPants = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.9 });
+    const matSkin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.9 });
+    const matShirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 1.0, metalness: isMorvane ? 0.0 : 0 });
+    const matPants = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 1.0 });
     
     // Body
     const bodyWidth = isSkeleton ? 0.4 : 0.6;
@@ -206,6 +238,7 @@ export class Mob {
     body.position.y = 1.05;
     if (this.textureAtlas) {
       if (isSkeleton) this.applyTexture(body, 4, 22); // Skeleton Bone
+      else if (isMorvane) this.applyTexture(body, 15, 9); // Black Concrete for body
       else this.applyTexture(body, 12, 22); // Zombie Shirt
     }
     group.add(body);
@@ -221,14 +254,16 @@ export class Mob {
 
     if (this.textureAtlas) {
       // Apply plain skin to all sides first
-      this.applyTexture(headMesh, isSkeleton ? 4 : 3, 22, false);
+      if (isMorvane) this.applyTexture(headMesh, 15, 9, false);
+      else this.applyTexture(headMesh, isSkeleton ? 4 : 3, 22, false);
       // Then apply face strictly to front (index 4)
-      this.applyTexture(headMesh, isSkeleton ? 1 : 0, 22, true);
+      if (isMorvane) this.applyTexture(headMesh, 16, 24, true); // Keep the scary face
+      else this.applyTexture(headMesh, isSkeleton ? 1 : 0, 22, true);
     } 
 
     // Always create eyes and mouth for humanoid mobs so they have a face
-    const eyeGeo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: isSkeleton ? 0x222222 : 0x000000 });
+    const eyeGeo = new THREE.BoxGeometry(0.12, 0.12, 0.05);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: isMorvane ? 0xff0000 : (isSkeleton ? 0x222222 : 0x000000), emissive: isMorvane ? 0xff0000 : 0x000000, emissiveIntensity: isMorvane ? 2 : 1 });
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.position.set(-0.15, 0.3, 0.26);
     this.head.add(leftEye);
@@ -246,6 +281,7 @@ export class Mob {
     leftArmMesh.position.y = -0.35;
     if (this.textureAtlas) {
       if (isSkeleton) this.applyTexture(leftArmMesh, 4, 22);
+      else if (isMorvane) this.applyTexture(leftArmMesh, 15, 9);
       else this.applyTexture(leftArmMesh, 3, 22);
     }
     this.leftArm.add(leftArmMesh);
@@ -257,36 +293,58 @@ export class Mob {
     rightArmMesh.position.y = -0.35;
     if (this.textureAtlas) {
       if (isSkeleton) this.applyTexture(rightArmMesh, 4, 22);
+      else if (isMorvane) this.applyTexture(rightArmMesh, 15, 9);
       else this.applyTexture(rightArmMesh, 3, 22);
     }
     this.rightArm.add(rightArmMesh);
     group.add(this.rightArm);
+
+    if (isMorvane) {
+      // Second set of arms
+      this.leftArm2 = new THREE.Group();
+      this.leftArm2.position.set(-0.4, 1.1, 0);
+      const leftArmMesh2 = new THREE.Mesh(armGeo, matSkin);
+      leftArmMesh2.position.y = -0.35;
+      if (this.textureAtlas) this.applyTexture(leftArmMesh2, 15, 9);
+      this.leftArm2.add(leftArmMesh2);
+      group.add(this.leftArm2);
+
+      this.rightArm2 = new THREE.Group();
+      this.rightArm2.position.set(0.4, 1.1, 0);
+      const rightArmMesh2 = new THREE.Mesh(armGeo, matSkin);
+      rightArmMesh2.position.y = -0.35;
+      if (this.textureAtlas) this.applyTexture(rightArmMesh2, 15, 9);
+      this.rightArm2.add(rightArmMesh2);
+      group.add(this.rightArm2);
+    }
     
     // Legs
-    const legSize = isSkeleton ? 0.15 : 0.2;
-    const legGeo = new THREE.BoxGeometry(legSize, 0.7, legSize);
-    
-    this.leftLeg = new THREE.Group();
-    this.leftLeg.position.set(-0.15, 0.7, 0);
-    const leftLegMesh = new THREE.Mesh(legGeo, matPants);
-    leftLegMesh.position.y = -0.35;
-    if (this.textureAtlas) {
-      if (isSkeleton) this.applyTexture(leftLegMesh, 4, 22);
-      else this.applyTexture(leftLegMesh, 13, 22); // Zombie Pants
-    }
-    this.leftLeg.add(leftLegMesh);
-    group.add(this.leftLeg);
+    if (!isMorvane) {
+      const legSize = isSkeleton ? 0.15 : 0.2;
+      const legGeo = new THREE.BoxGeometry(legSize, 0.7, legSize);
+      
+      this.leftLeg = new THREE.Group();
+      this.leftLeg.position.set(-0.15, 0.7, 0);
+      const leftLegMesh = new THREE.Mesh(legGeo, matPants);
+      leftLegMesh.position.y = -0.35;
+      if (this.textureAtlas) {
+        if (isSkeleton) this.applyTexture(leftLegMesh, 4, 22);
+        else this.applyTexture(leftLegMesh, 13, 22); // Zombie Pants
+      }
+      this.leftLeg.add(leftLegMesh);
+      group.add(this.leftLeg);
 
-    this.rightLeg = new THREE.Group();
-    this.rightLeg.position.set(0.15, 0.7, 0);
-    const rightLegMesh = new THREE.Mesh(legGeo, matPants);
-    rightLegMesh.position.y = -0.35;
-    if (this.textureAtlas) {
-      if (isSkeleton) this.applyTexture(rightLegMesh, 4, 22);
-      else this.applyTexture(rightLegMesh, 13, 22); // Zombie Pants
+      this.rightLeg = new THREE.Group();
+      this.rightLeg.position.set(0.15, 0.7, 0);
+      const rightLegMesh = new THREE.Mesh(legGeo, matPants);
+      rightLegMesh.position.y = -0.35;
+      if (this.textureAtlas) {
+        if (isSkeleton) this.applyTexture(rightLegMesh, 4, 22);
+        else this.applyTexture(rightLegMesh, 13, 22); // Zombie Pants
+      }
+      this.rightLeg.add(rightLegMesh);
+      group.add(this.rightLeg);
     }
-    this.rightLeg.add(rightLegMesh);
-    group.add(this.rightLeg);
   }
 
   private createCreeperModel(group: THREE.Group) {
@@ -566,7 +624,20 @@ export class Mob {
     }
 
     if (this.leftArm && this.rightArm) {
-      if (this.type === MobType.ZOMBIE) {
+      if (this.type === MobType.MORVANE) {
+        const time = Date.now() * 0.001;
+        this.leftArm.rotation.x = Math.sin(time * 2.0) * 0.5 + 0.2;
+        this.rightArm.rotation.x = Math.cos(time * 2.0) * 0.5 + 0.2;
+        if (this.leftArm2 && this.rightArm2) {
+          this.leftArm2.rotation.x = Math.sin(time * 2.0 + Math.PI) * 0.5 - 0.2;
+          this.rightArm2.rotation.x = Math.cos(time * 2.0 + Math.PI) * 0.5 - 0.2;
+          
+          this.leftArm.rotation.z = Math.sin(time * 1.0) * 0.2 - 0.4;
+          this.rightArm.rotation.z = -Math.sin(time * 1.0) * 0.2 + 0.4;
+          this.leftArm2.rotation.z = Math.sin(time * 1.2) * 0.2 - 0.6;
+          this.rightArm2.rotation.z = -Math.sin(time * 1.2) * 0.2 + 0.6;
+        }
+      } else if (this.type === MobType.ZOMBIE) {
         this.leftArm.rotation.x = -1.5 + swing * 0.2;
         this.rightArm.rotation.x = -1.5 - swing * 0.2;
       } else if (this.type === MobType.SKELETON) {
@@ -821,7 +892,7 @@ export class Mob {
         // Sniffing ground animation
         this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x, 0.8, 0.1);
         this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y, Math.sin(Date.now() * 0.01) * 0.2, 0.1);
-      } else if (this.isPassive && (dist < 10 || this.wanderAngle === -2)) {
+      } else if ((this.isPassive || this.type === MobType.MORVANE) && (dist < 20 || this.wanderAngle === -2 || this.type === MobType.MORVANE)) {
         // Look at player
         const localPlayerPos = this.group.worldToLocal(playerPos.clone());
         _tempQuat.setFromUnitVectors(_zAxis, localPlayerPos.normalize());
@@ -891,6 +962,13 @@ export class Mob {
     }
 
     this.group.position.copy(this.position);
+    
+    // Floating animation for Morvane
+    if (this.type === MobType.MORVANE && this.health > 0) {
+      const time = Date.now() * 0.001;
+      const floatY = Math.sin(time * 1.5) * 0.8;
+      this.group.position.y += 2.0 + floatY; // Start higher and bob
+    }
 
     // Attack player
     const dx = playerPos.x - this.position.x;

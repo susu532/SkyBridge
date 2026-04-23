@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { settingsManager, GameSettings, DEFAULT_SETTINGS } from '../game/Settings';
-import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Clock, Bug, Zap } from 'lucide-react';
+import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard } from 'lucide-react';
 
 interface SettingsUIProps {
   isOpen: boolean;
@@ -11,10 +11,29 @@ interface SettingsUIProps {
 
 export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<GameSettings>(settingsManager.getSettings());
+  const [rebindingKey, setRebindingKey] = useState<string | null>(null);
 
   useEffect(() => {
     return settingsManager.subscribe(setSettings);
   }, []);
+
+  useEffect(() => {
+    if (!rebindingKey) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      if (e.code === 'Escape') {
+        setRebindingKey(null);
+        return;
+      }
+      const newKeybinds = { ...settings.keybinds, [rebindingKey]: e.code };
+      settingsManager.updateSettings({ keybinds: newKeybinds });
+      setRebindingKey(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rebindingKey, settings.keybinds]);
 
   const handleChange = (key: keyof GameSettings, value: any) => {
     settingsManager.updateSettings({ [key]: value });
@@ -29,7 +48,9 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-        onClick={onClose}
+        onClick={() => {
+          if (!rebindingKey) onClose();
+        }}
       >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
@@ -47,7 +68,10 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               </h2>
             </div>
             <button 
-              onClick={onClose}
+              onClick={() => {
+                if (rebindingKey) setRebindingKey(null);
+                else onClose();
+              }}
               className="p-1 hover:bg-white/20 transition-colors rounded"
             >
               <X className="w-6 h-6 text-white drop-shadow-[2px_2px_0_rgba(0,0,0,1)]" />
@@ -203,29 +227,33 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               </div>
             </section>
 
-            {/* World */}
+            {/* Keybinds */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
-                <Clock className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">World</h3>
+                <Keyboard className="w-5 h-5 text-[#555555]" />
+                <h3 className="text-lg font-bold text-[#555555] uppercase">Keybinds</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Day Cycle Speed</label>
-                    <span className="text-sm font-bold text-[#555555]">{Math.round(settings.dayCycleSpeed * 10000)}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Object.entries(settings.keybinds).map(([name, code]) => (
+                  <div key={name} className="flex items-center justify-between p-2 bg-[#A0A0A0] border-2 border-black/10">
+                    <span className="text-[10px] font-bold text-[#444] uppercase tracking-wider">
+                      {name.replace(/([A-Z0-9])/g, ' $1').trim()}
+                    </span>
+                    <button
+                      onClick={() => setRebindingKey(name)}
+                      className={`
+                        min-w-[80px] px-2 py-1 text-xs font-mono font-bold border-2 
+                        ${rebindingKey === name 
+                          ? 'bg-yellow-400 border-yellow-600 text-black animate-pulse' 
+                          : 'bg-[#C6C6C6] border-[#555555] text-[#333] hover:bg-white'
+                        }
+                      `}
+                    >
+                      {rebindingKey === name ? '???' : (code as string).replace('Key', '').replace('Digit', '')}
+                    </button>
                   </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="0.01" 
-                    step="0.0001"
-                    value={settings.dayCycleSpeed}
-                    onChange={(e) => handleChange('dayCycleSpeed', parseFloat(e.target.value))}
-                    className="w-full h-4 bg-[#8B8B8B] appearance-none cursor-pointer border-2 border-black/20"
-                  />
-                </div>
+                ))}
               </div>
             </section>
 
@@ -258,10 +286,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               Reset to Defaults
             </button>
             <button 
-              onClick={onClose}
+              onClick={() => {
+                if (rebindingKey) setRebindingKey(null);
+                else onClose();
+              }}
               className="px-8 py-2 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] font-bold text-[#555555] hover:bg-white transition-colors uppercase tracking-widest shadow-lg"
             >
-              Done
+              {rebindingKey ? 'Cancel' : 'Done'}
             </button>
           </div>
         </motion.div>

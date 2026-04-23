@@ -35,7 +35,7 @@ export class NPC {
     this.rotation = rotation;
     this.scale = scale;
     this.autoRotate = autoRotate;
-    this.isHubNPC = id === 'hub_npc_q' || id === 'hub_npc_r'; // Automatically detect hub NPCs
+    this.isHubNPC = id === 'hub_npc_q' || id === 'hub_npc_r' || id === 'hub_npc_v'; // Automatically detect hub NPCs
     this.shopItems = shopItems;
     this.modelPath = modelPath;
     this.group = new THREE.Group();

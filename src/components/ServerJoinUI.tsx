@@ -10,7 +10,7 @@ interface ServerJoinUIProps {
 }
 
 export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName = 'skybridge', onClose, onJoin }) => {
-  const displayName = serverName === 'skycastles' ? 'SkyCastles' : 'SkyBridge';
+  const displayName = serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : 'SkyBridge';
   return (
     <AnimatePresence>
       {isOpen && (

@@ -151,7 +151,7 @@ export class EntityManager {
     const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
     
     // Apply special settings only for the Hub NPCs (SkyBridge and SkyCastles)
-    const isHubNPC = data.id === 'hub_npc_q' || data.id === 'hub_npc_r';
+    const isHubNPC = data.id === 'hub_npc_q' || data.id === 'hub_npc_r' || data.id === 'hub_npc_v';
     const scale = isHubNPC ? 2.5 : (data.scale || 1.0);
     const autoRotate = false; // Rotation disabled per user request
 

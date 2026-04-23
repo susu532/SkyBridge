@@ -34,7 +34,7 @@ export function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean,
       if (val) {
         if (val.startsWith('/server ')) {
           const target = val.split(' ')[1];
-          if (target === 'hub' || target === 'skybridge' || target === 'skycastles') {
+          if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'voidtrail') {
              window.location.href = `/?server=${target}`;
           } else {
              setMessages(prev => [...prev.slice(-49), { sender: 'System', message: `§cUnknown server: ${target}` }]);

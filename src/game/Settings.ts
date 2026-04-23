@@ -1,4 +1,29 @@
 
+export interface Keybinds {
+  forward: string;
+  backward: string;
+  left: string;
+  right: string;
+  jump: string;
+  crouch: string;
+  sprint: string;
+  inventory: string;
+  drop: string;
+  zoom: string;
+  perspective: string;
+  fly: string;
+  toggleHUD: string;
+  slot1: string;
+  slot2: string;
+  slot3: string;
+  slot4: string;
+  slot5: string;
+  slot6: string;
+  slot7: string;
+  slot8: string;
+  slot9: string;
+}
+
 export interface GameSettings {
   renderDistance: number;
   fov: number;
@@ -6,10 +31,35 @@ export interface GameSettings {
   invertMouse: boolean;
   volume: number;
   showDebug: boolean;
-  dayCycleSpeed: number;
   performanceMode: boolean;
   premiumShaders: boolean;
+  keybinds: Keybinds;
 }
+
+export const DEFAULT_KEYBINDS: Keybinds = {
+  forward: 'KeyW',
+  backward: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  jump: 'Space',
+  crouch: 'ShiftLeft',
+  sprint: 'ControlLeft',
+  inventory: 'KeyE',
+  drop: 'KeyQ',
+  zoom: 'KeyV',
+  perspective: 'KeyB',
+  fly: 'KeyP',
+  toggleHUD: 'KeyN',
+  slot1: 'Digit1',
+  slot2: 'Digit2',
+  slot3: 'Digit3',
+  slot4: 'Digit4',
+  slot5: 'Digit5',
+  slot6: 'Digit6',
+  slot7: 'Digit7',
+  slot8: 'Digit8',
+  slot9: 'Digit9',
+};
 
 export const DEFAULT_SETTINGS: GameSettings = {
   renderDistance: 7,
@@ -18,9 +68,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
   invertMouse: false,
   volume: 0.5,
   showDebug: false,
-  dayCycleSpeed: 0.0008,
   performanceMode: false,
   premiumShaders: true,
+  keybinds: { ...DEFAULT_KEYBINDS },
 };
 
 class SettingsManager {

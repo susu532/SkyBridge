@@ -41,6 +41,7 @@ export class World {
   tickRate: number = 0.1; // Tick every 100ms
   queuedMobs: { type: any, pos: THREE.Vector3 }[] = [];
   isHub: boolean = false;
+  isSkyCastles: boolean = false;
 
   // BAKED_BLOCKS_START
   bakedBlocks = new Map<string, number>([
@@ -102,7 +103,9 @@ export class World {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     const urlParams = new URLSearchParams(window.location.search);
-    this.isHub = (urlParams.get('server') || 'hub') === 'hub';
+    const serverName = urlParams.get('server') || 'hub';
+    this.isHub = serverName === 'hub';
+    this.isSkyCastles = serverName === 'skycastles' || serverName === 'voidtrail';
     this.lightingManager = new LightingManager(this);
     const texture = createTextureAtlas();
     
@@ -127,12 +130,16 @@ export class World {
         attribute float aSway;
         attribute vec2 aTileBase;
         varying vec2 vTileBase;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPos;
         ${shader.vertexShader}
       `.replace(
         '#include <begin_vertex>',
         `
         #include <begin_vertex>
         vTileBase = aTileBase;
+        vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
         // Wind swaying for leaves and plants (aSway == 1 for top vertices)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 0.5 && aSway < 1.5) {
           float sway = sin(uTime * 2.0 + (position.x + modelMatrix[3][0]) * 0.5 + (position.z + modelMatrix[3][2]) * 0.5) * 0.1;
@@ -148,6 +155,13 @@ export class World {
 
       shader.fragmentShader = `
         varying vec2 vTileBase;
+        uniform float uShaders;
+        uniform float uPerformanceMode;
+        uniform float uWetness;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPos;
+        float customRoughness = 0.8;
+        float customMetalness = 0.1;
         ${shader.fragmentShader}
       `.replace(
         '#include <map_fragment>',
@@ -158,8 +172,73 @@ export class World {
           localUv.x = clamp(localUv.x, margin, 0.03125 - margin);
           localUv.y = clamp(localUv.y, margin, 0.03125 - margin);
           vec2 animatedUv = vTileBase + localUv;
+
+          if (uShaders > 0.5 && uPerformanceMode < 0.5) {
+             vec3 viewDir = normalize(vViewPosition); 
+             float height = dot(texture2D(map, animatedUv).rgb, vec3(0.299, 0.587, 0.114));
+             vec2 offset = (viewDir.xy) * (height * 0.005 - 0.0025);
+             animatedUv += offset;
+             animatedUv = clamp(animatedUv, vTileBase + margin, vTileBase + 0.03125 - margin);
+          }
+
           vec4 texelColor = texture2D( map, animatedUv );
+
+          #ifndef DEPTH_PACKING
+          if (uShaders > 0.5 && uPerformanceMode < 0.5) {
+             float lum = dot(texelColor.rgb, vec3(0.299, 0.587, 0.114));
+             float saturation = length(texelColor.rgb - vec3(lum));
+             
+             // Base Roughness
+             customRoughness = clamp(1.0 - lum + saturation * 1.5, 0.3, 1.0); // Kept quite rough so things don't look artificial
+             customMetalness = clamp((1.0 - saturation * 2.5) * lum, 0.0, 0.2); // Usually very slightly metallic 
+             
+             // Specific block handling (rough approximation based on tile UV)
+             // Leaves (y == 2 or 3 in atlas approx)
+             if (vTileBase.y > 0.06 && vTileBase.y < 0.1) {
+                 customRoughness = 0.9; 
+                 customMetalness = 0.0;
+             }
+             // Stone variants (usually grey, low sat)
+             else if (saturation < 0.1) {
+                 customRoughness = clamp(0.7 - lum*0.3, 0.4, 0.9);
+                 customMetalness = 0.15;
+             }
+             
+             // Wetness and Puddles Effect
+             if (uWetness > 0.01 && vWorldNormal.y > 0.5) {
+                // High frequency noise for puddle shapes based on world position
+                float puddleNoise = sin(vWorldPos.x * 2.0) * cos(vWorldPos.z * 2.0) + sin(vWorldPos.x * 4.0 + vWorldPos.z * 4.0)*0.5;
+                if (puddleNoise > 0.2) {
+                   // Inside puddle: Highly reflective, slightly darker
+                   customRoughness = mix(customRoughness, 0.05, uWetness);
+                   customMetalness = mix(customMetalness, 0.3, uWetness);
+                   texelColor.rgb *= (1.0 - uWetness * 0.2); // Darken wet surfaces
+                } else {
+                   // Damp surface: slightly lower roughness
+                   customRoughness = mix(customRoughness, clamp(customRoughness * 0.5, 0.3, 1.0), uWetness);
+                   texelColor.rgb *= (1.0 - uWetness * 0.1); 
+                }
+             }
+          }
+          #endif
+
           diffuseColor *= texelColor;
+        #endif
+        `
+      ).replace(
+        '#include <roughnessmap_fragment>',
+        `
+        float roughnessFactor = roughness;
+        #ifndef DEPTH_PACKING
+        roughnessFactor = customRoughness;
+        #endif
+        `
+      ).replace(
+        '#include <metalnessmap_fragment>',
+        `
+        float metalnessFactor = metalness;
+        #ifndef DEPTH_PACKING
+        metalnessFactor = customMetalness;
         #endif
         `
       );
@@ -234,7 +313,13 @@ export class World {
         }
         // Add vertical wave displacement for water (aSway == 2)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 1.5 && aSway < 2.5) {
-          transformed.y += sin(uTime * 1.5 + (position.x + modelMatrix[3][0]) * 0.5 + (position.z + modelMatrix[3][2]) * 0.5) * 0.08;
+          // Volumetric 3D Waves: Multiple Gerstner-like sine overlays
+          float wX = position.x + modelMatrix[3][0];
+          float wZ = position.z + modelMatrix[3][2];
+          float wave1 = sin(uTime * 1.5 + wX * 0.5 + wZ * 0.5) * 0.08;
+          float wave2 = sin(uTime * 2.0 + wX * 1.2 - wZ * 0.8) * 0.04;
+          float wave3 = cos(uTime * 1.0 - wX * 0.3 + wZ * 0.7) * 0.05;
+          transformed.y += wave1 + wave2 + wave3;
         }
         // Vertical displacement for lava (aSway == 3)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 2.5) {
@@ -245,6 +330,8 @@ export class World {
 
       shader.fragmentShader = `
         varying vec2 vTileBase;
+        uniform float uShaders;
+        uniform float uPerformanceMode;
         ${shader.fragmentShader}
       `.replace(
         '#include <map_fragment>',
@@ -255,6 +342,17 @@ export class World {
           localUv.x = clamp(localUv.x, margin, 0.03125 - margin);
           localUv.y = clamp(localUv.y, margin, 0.03125 - margin);
           vec2 animatedUv = vTileBase + localUv;
+
+          if (uShaders > 0.5 && uPerformanceMode < 0.5) {
+             #ifndef DEPTH_PACKING
+             vec3 viewDir = normalize(vViewPosition); 
+             float height = dot(texture2D(map, animatedUv).rgb, vec3(0.299, 0.587, 0.114));
+             vec2 offset = (viewDir.xy) * (height * 0.005 - 0.0025);
+             animatedUv += offset;
+             animatedUv = clamp(animatedUv, vTileBase + margin, vTileBase + 0.03125 - margin);
+             #endif
+          }
+
           vec4 texelColor = texture2D( map, animatedUv );
           diffuseColor *= texelColor;
         #endif
@@ -291,12 +389,14 @@ export class World {
         attribute vec2 aTileBase;
         varying vec3 vWorldPos;
         varying vec2 vTileBase;
+        varying vec3 vWorldNormal;
         ${shader.vertexShader}
       `.replace(
         '#include <begin_vertex>',
         `
         #include <begin_vertex>
         vTileBase = aTileBase;
+        vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
         // Wind swaying for leaves and plants (aSway == 1 for top vertices)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 0.5 && aSway < 1.5) {
           float sway = sin(uTime * 2.0 + (position.x + modelMatrix[3][0]) * 0.5 + (position.z + modelMatrix[3][2]) * 0.5) * 0.1;
@@ -305,7 +405,13 @@ export class World {
         }
         // Add vertical wave displacement for water (aSway == 2)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 1.5 && aSway < 2.5) {
-          transformed.y += sin(uTime * 1.5 + (position.x + modelMatrix[3][0]) * 0.5 + (position.z + modelMatrix[3][2]) * 0.5) * 0.08;
+          // Volumetric 3D Waves: Multiple Gerstner-like sine overlays
+          float wX = position.x + modelMatrix[3][0];
+          float wZ = position.z + modelMatrix[3][2];
+          float wave1 = sin(uTime * 1.5 + wX * 0.5 + wZ * 0.5) * 0.08;
+          float wave2 = sin(uTime * 2.0 + wX * 1.2 - wZ * 0.8) * 0.04;
+          float wave3 = cos(uTime * 1.0 - wX * 0.3 + wZ * 0.7) * 0.05;
+          transformed.y += wave1 + wave2 + wave3;
         }
         // Vertical displacement for lava (aSway == 3)
         if (uPerformanceMode < 0.5 && uShaders > 0.5 && aSway > 2.5) {
@@ -326,6 +432,9 @@ export class World {
         uniform float uShaders;
         varying vec3 vWorldPos;
         varying vec2 vTileBase;
+        varying vec3 vWorldNormal;
+        float customRoughness = 0.1;
+        float customMetalness = 0.1;
         ${shader.fragmentShader}
       `.replace(
         '#include <map_fragment>',
@@ -338,30 +447,94 @@ export class World {
           vec2 animatedUv = vTileBase + localUv;
           
           float shimmer = 0.0;
+          vec3 viewDir = normalize(cameraPosition - vWorldPos);
+          float fresnel = 0.0;
+          
           // Water is at [0, 2] in 32x32 atlas. U: 0, V: 29/32 = 0.90625
           if (uPerformanceMode < 0.5 && uShaders > 0.5 && vTileBase.y > 0.90 && vTileBase.y < 0.91 && vTileBase.x < 0.01) {
-            // Use world position for continuous waves across chunks
+            // Refraction distortion using view direction
             vec2 wPos = vWorldPos.xz * 0.2;
-            float wave = sin(uTime * 0.5 + wPos.y + wPos.x) * 0.005;
             
-            animatedUv.x = vTileBase.x + margin + fract(vWorldPos.x * 0.25 + uTime * 0.01 + wave) * (0.03125 - 2.0 * margin);
-            animatedUv.y = vTileBase.y + margin + fract(vWorldPos.z * 0.25 + uTime * 0.015) * (0.03125 - 2.0 * margin);
+            // Limit refraction strength to avoid harsh texture wrapping jumps
+            float refracX = viewDir.x * 0.015 * sin(uTime + vWorldPos.z * 0.5);
+            float refracY = viewDir.z * 0.015 * cos(uTime + vWorldPos.x * 0.5);
             
-            // Add a "cooling" shimmer/caustic effect
-            float shimmer1 = sin(vWorldPos.x * 0.8 + uTime * 1.5) * cos(vWorldPos.z * 0.8 + uTime * 1.2);
-            float shimmer2 = sin(vWorldPos.x * 1.5 - uTime * 0.8) * cos(vWorldPos.z * 1.5 - uTime * 1.1);
-            shimmer = pow(max(0.0, (shimmer1 + shimmer2) * 0.5), 8.0) * 0.4;
+            // Smoothly move the UVs rather than jumping them harshly
+            float moveX = uTime * 0.005;
+            float moveY = uTime * 0.005;
+            
+            // Note: because we're in an atlas, we have to clamp or use fract, but fract is harsh 
+            // if the texture isn't perfectly seamless on all 4 edges. We'll use a very slow gentle move.
+            animatedUv.x = vTileBase.x + margin + mod(vWorldPos.x * 0.05 + moveX + refracX, 0.03125 - 2.0 * margin);
+            animatedUv.y = vTileBase.y + margin + mod(vWorldPos.z * 0.05 + moveY + refracY, 0.03125 - 2.0 * margin);
+            
+            // Dynamic Caustics
+            float caustic1 = sin(vWorldPos.x * 0.8 + uTime * 1.5) * cos(vWorldPos.z * 0.8 + uTime * 1.2);
+            float caustic2 = sin(vWorldPos.x * 1.5 - uTime * 0.8) * cos(vWorldPos.z * 1.5 - uTime * 1.1);
+            shimmer = pow(max(0.0, (caustic1 + caustic2) * 0.5), 10.0) * 0.8; // Sharpen and strengthen caustics
+            
+            // Fresnel equation for Reflection/Refraction blend
+            fresnel = max(0.0, 1.0 - dot(viewDir, normalize(vWorldNormal)));
+            fresnel = pow(fresnel, 3.0); // Less aggressive grazing angle requirements
           }
           vec4 texelColor = texture2D( map, animatedUv );
           texelColor.rgb += shimmer; // Apply the cooling shimmer
+
+          // Screen-space reflection approximation (blend sky blue into water at grazing angles)
+          if (uShaders > 0.5 && uPerformanceMode < 0.5 && vTileBase.y > 0.90 && vTileBase.y < 0.91 && vTileBase.x < 0.01) {
+            // Better water color and sky reflection blend
+            vec3 deepWaterColor = vec3(0.05, 0.2, 0.4);
+            vec3 skyReflectColor = vec3(0.6, 0.8, 0.95);
+            
+            // Blend base texture with deep water color
+            texelColor.rgb = mix(texelColor.rgb, deepWaterColor, 0.5);
+            
+            // Apply sky reflection based on fresnel
+            texelColor.rgb = mix(texelColor.rgb, skyReflectColor, fresnel * 0.8);
+            
+            // Increase opacity for reflections, keep it transparent otherwise
+            texelColor.a = mix(0.6, 0.98, fresnel);
+          }
+
+          #ifndef DEPTH_PACKING
+          // Physically Based Rendering (PBR) approximation for transparent items
+          if (uShaders > 0.5 && uPerformanceMode < 0.5) {
+             float lum = dot(texelColor.rgb, vec3(0.299, 0.587, 0.114));
+             float saturation = length(texelColor.rgb - vec3(lum));
+             
+             customRoughness = clamp(1.0 - lum + saturation * 1.5, 0.1, 1.0);
+             // Water and glass are highly specular (low roughness, high metalness or purely reflective)
+             if (texelColor.a < 0.9) {
+                 customRoughness = 0.05;
+                 customMetalness = 0.95;
+             }
+          }
+          #endif
+
           diffuseColor *= texelColor;
+        #endif
+        `
+      ).replace(
+        '#include <roughnessmap_fragment>',
+        `
+        float roughnessFactor = roughness;
+        #ifndef DEPTH_PACKING
+        roughnessFactor = customRoughness;
+        #endif
+        `
+      ).replace(
+        '#include <metalnessmap_fragment>',
+        `
+        float metalnessFactor = metalness;
+        #ifndef DEPTH_PACKING
+        metalnessFactor = customMetalness;
         #endif
         `
       );
     };
   }
 
-  updateMaterials(delta: number) {
+  updateMaterials(delta: number, weatherIntensity: number = 0) {
     const settings = settingsManager.getSettings();
     const isPerformanceMode = settings.performanceMode;
     const isPremiumShadersEnabled = settings.premiumShaders;
@@ -392,6 +565,14 @@ export class World {
     }
     if ((this.transparentDepthMaterial as any).userData?.uShaders) {
       (this.transparentDepthMaterial as any).userData.uShaders.value = isPremiumShadersEnabled ? 1.0 : 0.0;
+    }
+
+    // Update time and wetness
+    if ((this.opaqueMaterial as any).userData?.uTime) {
+      if (!(this.opaqueMaterial as any).userData.uWetness) {
+         (this.opaqueMaterial as any).userData.uWetness = { value: 0 };
+      }
+      (this.opaqueMaterial as any).userData.uWetness.value = weatherIntensity;
     }
 
     if (isPerformanceMode) return; // Skip animations in performance mode
@@ -437,12 +618,12 @@ export class World {
     // 2. Surface Decor (at Y=0, which is cy=60)
     if (dist <= 85) {
       if (dist <= 30) {
-         chunk.setBlockFast(lx, 60, lz, BLOCK.CONCRETE_GRAY);
+         chunk.setBlockFast(lx, 60, lz, BLOCK.STONE);
          let petals = 8;
          let angle = Math.atan2(wz, wx);
          let starMod = Math.abs(Math.sin(angle * petals));
          if (dist > 10 && dist < 10 + starMod * 15) {
-            chunk.setBlockFast(lx, 60, lz, BLOCK.CONCRETE_BLACK);
+            chunk.setBlockFast(lx, 60, lz, BLOCK.COBBLED_DEEPSLATE);
          } else if (Math.floor(dist) === 28) {
             chunk.setBlockFast(lx, 60, lz, BLOCK.OBSIDIAN);
          }
@@ -464,8 +645,8 @@ export class World {
          }
       }
 
-      this.buildGothicCastles(chunk, lx, lz, wx, wz);
-      
+      this.buildHubCastles(chunk, lx, lz, wx, wz);
+
       const ringY = 115;
       const ringNoise = Math.sin(Math.atan2(wz, wx) * 6) * 15;
       if (Math.abs(dist - 85) < 1.1) {
@@ -497,67 +678,67 @@ export class World {
     }
   }
 
-  buildGothicCastles(chunk: Chunk, lx: number, lz: number, wx: number, wz: number) {
-     const centers: [number, number, number][] = [[0, 35, 0], [35, 0, 1], [0, -35, 2], [-35, 0, 3]];
-     for(const [cx, cz, rot] of centers) {
-        let lx_c, lz_c;
-        if (rot === 0) { lx_c = wx - cx; lz_c = wz - cz; }
-        else if (rot === 1) { lx_c = -(wz - cz); lz_c = wx - cx; }
-        else if (rot === 2) { lx_c = -(wx - cx); lz_c = -(wz - cz); }
-        else { lx_c = wz - cz; lz_c = -(wx - cx); }
+  buildHubCastles(chunk: Chunk, lx: number, lz: number, wx: number, wz: number) {
+      const centers: [number, number, number][] = [[0, 35, 0], [35, 0, 1], [0, -35, 2], [-35, 0, 3]];
+      for(const [cx, cz, rot] of centers) {
+         let lx_c, lz_c;
+         if (rot === 0) { lx_c = wx - cx; lz_c = wz - cz; }
+         else if (rot === 1) { lx_c = -(wz - cz); lz_c = wx - cx; }
+         else if (rot === 2) { lx_c = -(wx - cx); lz_c = -(wz - cz); }
+         else { lx_c = wz - cz; lz_c = -(wx - cx); }
 
-        const width = 16;
-        const length = 28;
+         const width = 16;
+         const length = 28;
 
-        if (lx_c >= -width && lx_c <= width && lz_c >= 0 && lz_c <= length) {
-            const isBorder = (Math.abs(lx_c) === width || lz_c === 0 || lz_c === length);
-            if (isBorder && !(lz_c === 0 && Math.abs(lx_c) <= 3)) {
-                for(let y=1; y<=25; y++) {
-                    let bt = BLOCK.DEEPSLATE;
-                    if (y >= 5 && y <= 20 && lz_c > 3 && lz_c < length - 3 && lz_c % 5 === 0) bt = BLOCK.GLASS_PURPLE;
-                    chunk.setBlockFast(lx, y + 60, lz, bt);
-                }
-            } else if (!isBorder) {
-                chunk.setBlockFast(lx, 60, lz, BLOCK.CONCRETE_BLACK);
-                const archH = 25 + (width - Math.abs(lx_c)) * 0.9;
-                chunk.setBlockFast(lx, Math.floor(archH) + 60, lz, BLOCK.COBBLED_DEEPSLATE);
-                if (lz_c % 10 === 0 && lz_c > 2 && lz_c < length - 2 && Math.abs(lx_c) === width - 4) {
-                    chunk.setBlockFast(lx, 61, lz, BLOCK.NETHER_BRICKS);
-                    chunk.setBlockFast(lx, 62, lz, BLOCK.NETHER_BRICKS);
-                    chunk.setBlockFast(lx, 63, lz, BLOCK.GLOWSTONE);
-                }
-            }
-        }
+         if (lx_c >= -width && lx_c <= width && lz_c >= 0 && lz_c <= length) {
+             const isBorder = (Math.abs(lx_c) === width || lz_c === 0 || lz_c === length);
+             if (isBorder && !(lz_c === 0 && Math.abs(lx_c) <= 3)) {
+                 for(let y=1; y<=25; y++) {
+                     let bt = BLOCK.DEEPSLATE;
+                     if (y >= 5 && y <= 20 && lz_c > 3 && lz_c < length - 3 && lz_c % 5 === 0) bt = BLOCK.GLASS_WHITE;
+                     chunk.setBlockFast(lx, y + 60, lz, bt);
+                 }
+             } else if (!isBorder) {
+                 chunk.setBlockFast(lx, 60, lz, BLOCK.STONE_BRICKS);
+                 const archH = 25 + (width - Math.abs(lx_c)) * 0.9;
+                 chunk.setBlockFast(lx, Math.floor(archH) + 60, lz, BLOCK.COBBLED_DEEPSLATE);
+                 if (lz_c % 10 === 0 && lz_c > 2 && lz_c < length - 2 && Math.abs(lx_c) === width - 4) {
+                     chunk.setBlockFast(lx, 61, lz, BLOCK.NETHER_BRICKS);
+                     chunk.setBlockFast(lx, 62, lz, BLOCK.NETHER_BRICKS);
+                     chunk.setBlockFast(lx, 63, lz, BLOCK.GLOWSTONE);
+                 }
+             }
+         }
 
-        if (lz_c === 0 && Math.abs(lx_c) <= width) {
-            for(let y=25; y<=45; y++) {
-                if (Math.abs(lx_c) <= (45 - y) * 0.8) {
-                    let bt = BLOCK.DEEPSLATE;
-                    if (y >= 30 && y <= 38 && Math.abs(lx_c) <= 3) bt = BLOCK.GLASS_RED;
-                    else if (y >= 26 && y <= 28 && lx_c === 0) bt = BLOCK.GLOWSTONE;
-                    chunk.setBlockFast(lx, y + 60, lz, bt);
-                }
-            }
-        }
+         if (lz_c === 0 && Math.abs(lx_c) <= width) {
+             for(let y=25; y<=45; y++) {
+                 if (Math.abs(lx_c) <= (45 - y) * 0.8) {
+                     let bt = BLOCK.DEEPSLATE;
+                     if (y >= 30 && y <= 38 && Math.abs(lx_c) <= 3) bt = BLOCK.GLASS_WHITE;
+                     else if (y >= 26 && y <= 28 && lx_c === 0) bt = BLOCK.GLOWSTONE;
+                     chunk.setBlockFast(lx, y + 60, lz, bt);
+                 }
+             }
+         }
 
-        const towers: [number, number, number][] = [[width, 0, 55], [-width, 0, 55], [width, length, 40], [-width, length, 40]];
-        for(const [tx, tz, th] of towers) {
-            const dt = Math.max(Math.abs(lx_c - tx), Math.abs(lz_c - tz));
-            if (dt <= 3) {
-                for(let y=1; y<=th; y++) {
-                    let bt = (y % 15 === 0) ? BLOCK.OBSIDIAN : BLOCK.NETHER_BRICKS;
-                    if (dt < 3) bt = BLOCK.AIR;
-                    if (y === 1 && dt < 3) bt = BLOCK.NETHER_BRICKS;
-                    if (bt !== BLOCK.AIR) chunk.setBlockFast(lx, y + 60, lz, bt);
-                }
-                for (let y = 1; y <= 20; y++) {
-                    const sr = Math.max(0, 3 - Math.floor(y/6));
-                    if (dt <= sr) chunk.setBlockFast(lx, th + y + 60, lz, BLOCK.OBSIDIAN);
-                }
-            }
-        }
-     }
-  }
+         const towers: [number, number, number][] = [[width, 0, 55], [-width, 0, 55], [width, length, 40], [-width, length, 40]];
+         for(const [tx, tz, th] of towers) {
+             const dt = Math.max(Math.abs(lx_c - tx), Math.abs(lz_c - tz));
+             if (dt <= 3) {
+                 for(let y=1; y<=th; y++) {
+                     let bt = (y % 15 === 0) ? BLOCK.OBSIDIAN : BLOCK.NETHER_BRICKS;
+                     if (dt < 3) bt = BLOCK.AIR;
+                     if (y === 1 && dt < 3) bt = BLOCK.NETHER_BRICKS;
+                     if (bt !== BLOCK.AIR) chunk.setBlockFast(lx, y + 60, lz, bt);
+                 }
+                 for (let y = 1; y <= 20; y++) {
+                     const sr = Math.max(0, 3 - Math.floor(y/6));
+                     if (dt <= sr) chunk.setBlockFast(lx, th + y + 60, lz, BLOCK.OBSIDIAN);
+                 }
+             }
+         }
+      }
+   }
 
   getChunk(cx: number, cz: number) {
     return this.chunks.get(this.getChunkKey(cx, cz));
@@ -1045,22 +1226,22 @@ export class World {
             // Central Pillar
             if (distSq <= 4) return BLOCK.STONE;
 
-            // Spiral Stairs (Radius 3 to 7)
-            if (distSq > 4 && distSq <= 49) {
-              const stairAngle = Math.atan2(dz, dx);
-              let normalizedStairAngle = stairAngle >= 0 ? stairAngle : stairAngle + Math.PI * 2;
-              // 40 steps per rotation (20 full blocks height)
-              const stepIndex = Math.floor((normalizedStairAngle / (Math.PI * 2)) * 40);
-              const relativeHeight2 = (wy - 5) * 2; // Start from ground floor (wy=5)
-              
-              // Use modulo to repeat the spiral all the way up
-              if (relativeHeight2 % 40 === stepIndex) {
-                return BLOCK.PLANKS;
+              // Spiral Stairs (Radius 3 to 7) - Slab ordered for faster climb
+              if (distSq > 4 && distSq <= 49) {
+                const stairAngle = Math.atan2(dz, dx);
+                let normalizedStairAngle = stairAngle >= 0 ? stairAngle : stairAngle + Math.PI * 2;
+                // 40 steps per rotation (20 full blocks height)
+                const stepIndex = Math.floor((normalizedStairAngle / (Math.PI * 2)) * 40);
+                const relativeHeight2 = (wy - 5) * 2; // Start from ground floor (wy=5)
+                
+                // Use modulo to repeat the spiral all the way up
+                if (relativeHeight2 % 40 === stepIndex) {
+                  return BLOCK.SLAB_WOOD;
+                }
+                if ((relativeHeight2 + 1) % 40 === stepIndex) {
+                  return BLOCK.PLANKS;
+                }
               }
-              if ((relativeHeight2 + 1) % 40 === stepIndex) {
-                return BLOCK.SLAB_WOOD;
-              }
-            }
 
             return BLOCK.AIR;
           }
@@ -1092,9 +1273,16 @@ export class World {
                 // Pedestal
                 if (wy === 41 && distSq <= 9) return BLOCK.STONE;
                 
-                // Dragon Egg
+                // Dragon Egg / Morvane Guardian
                 const dy = wy - 45;
                 if (distSq + (dy * 0.8) * (dy * 0.8) <= 12) {
+                  if (this.isSkyCastles) {
+                    // Trigger spawn at the center of the egg area
+                    if (wx === 0 && localZ === 0 && wy === 42) {
+                      this.queuedMobs.push({ type: 'Morvane', pos: new THREE.Vector3(wx, wy, wz) });
+                    }
+                    return BLOCK.AIR;
+                  }
                   return (wy + dx + dz) % 3 === 0 ? BLOCK.GLASS : accentBlock;
                 }
                 
@@ -1571,17 +1759,28 @@ export class World {
       return { height: -100, biome: this.biomes.OCEAN, isProtected: false };
     }
 
+    const shelterEnd = this.isSkyCastles ? 300 : 180;
+
     // Blue Castle & Village (Z: 70 to 180, X: -50 to 50)
     const dxBlue = Math.max(0, Math.abs(wx) - 50);
-    const dzBlue = Math.max(0, 70 - wz, wz - 180);
+    const dzBlue = Math.max(0, 70 - wz, wz - shelterEnd);
     const distBlue = Math.sqrt(dxBlue * dxBlue + dzBlue * dzBlue);
 
     // Red Castle & Village (Z: -180 to -70, X: -50 to 50)
     const dxRed = Math.max(0, Math.abs(wx) - 50);
-    const dzRed = Math.max(0, -180 - wz, wz - -70);
+    const dzRed = Math.max(0, -shelterEnd - wz, wz - -70);
     const distRed = Math.sqrt(dxRed * dxRed + dzRed * dzRed);
 
     let distToProtected = Math.min(distBlue, distRed);
+
+    if (this.isSkyCastles) {
+      // Small floating island: hard cutoff after village/shelter bounds
+      if (distToProtected > 15) {
+        return { height: -100, biome: this.biomes.PLAINS, isProtected: false };
+      }
+      // Return flat terrain for the island basics
+      return { height: 64, biome: this.biomes.PLAINS, isProtected: distToProtected === 0 };
+    }
 
     const baseHeight = 64;
     
@@ -1613,10 +1812,9 @@ export class World {
       else biome = this.biomes.JUNGLE;
     }
     
-    // Add mountains and oceans based on a third noise
+    // Add mountains
     const elevationNoise = this.noise2D(wx * 0.001, wz * 0.001);
-    if (elevationNoise < -0.5) biome = this.biomes.OCEAN;
-    else if (elevationNoise > 0.6) biome = this.biomes.MOUNTAINS;
+    if (elevationNoise > 0.6) biome = this.biomes.MOUNTAINS;
 
     // Terrain height noise based on biome
     const n1 = this.noise2D(wx * biome.scale, wz * biome.scale);
@@ -1625,12 +1823,11 @@ export class World {
     
     let mountainHeight = (n1 + n2 + n3) * biome.height;
     
-    // World boundary: Fade to ocean at the edge
+    // World boundary: Fade to void at the edge
     const distFromCenter = Math.sqrt(wx * wx + wz * wz);
     if (distFromCenter > this.worldSize - 100) {
       const edgeFactor = Math.min(1, (distFromCenter - (this.worldSize - 100)) / 100);
-      mountainHeight = mountainHeight * (1 - edgeFactor) - 30 * edgeFactor;
-      if (edgeFactor > 0.5) biome = this.biomes.OCEAN;
+      mountainHeight = mountainHeight * (1 - edgeFactor) - 100 * edgeFactor;
     }
 
     const targetHeight = baseHeight + mountainHeight;
@@ -1665,11 +1862,7 @@ export class World {
         // Massive but not infinite: Stop generating solid ground far away
         const distFromCenter = Math.sqrt(worldX * worldX + worldZ * worldZ);
         if (distFromCenter > this.worldSize) {
-          // Beyond world size, just generate bedrock at y=0 and air/water
-          chunk.setBlockFast(x, 0, z, BLOCK.STONE);
-          for (let y = 1; y <= 40; y++) {
-            chunk.setBlockFast(x, y, z, BLOCK.WATER);
-          }
+          // Beyond world size, just generate air
           continue;
         }
 
@@ -1686,13 +1879,14 @@ export class World {
         if (this.isHub) {
           this.generateHubTerrain(chunk, x, z, worldX, worldZ);
         } else if (isBlueSide || isRedSide) {
-          const hasCaves = !isProtected && biome !== this.biomes.OCEAN && this.noise2D(worldX * 0.01, worldZ * 0.01) > 0.3;
+          const hasCaves = !this.isSkyCastles && !isProtected && biome !== this.biomes.OCEAN && this.noise2D(worldX * 0.01, worldZ * 0.01) > 0.3;
           const isBlueVillage = worldZ >= 131 && worldZ <= 180;
           const isRedVillage = worldZ <= -131 && worldZ >= -180;
           
-          for (let y = 0; y <= terrainHeight; y++) {
-            if (y === 0) {
-              chunk.setBlockFast(x, y, z, BLOCK.STONE); // Bedrock
+          const minIslandY = this.isSkyCastles ? 30 : 0;
+          for (let y = minIslandY; y <= terrainHeight; y++) {
+            if (y === minIslandY) {
+              chunk.setBlockFast(x, y, z, BLOCK.STONE); // Bedrock/Bottom layer
             } else {
               // Caves
               let isCave = false;
@@ -1784,7 +1978,7 @@ export class World {
                   if (isDeepslate) blockType = BLOCK.DEEPSLATE;
 
                   // Ores and Glowstone
-                  if (y < 60) {
+                  if (!this.isSkyCastles && y < 60) {
                     const oreNoise = this.noise3D(worldX * 0.1, y * 0.1, worldZ * 0.1);
                     if (oreNoise > 0.6) {
                       const oreTypeNoise = this.noise3D(worldX * 0.05, y * 0.05, worldZ * 0.05);
@@ -1804,7 +1998,7 @@ export class World {
           }
 
           // Water (Lakes/Ocean)
-          if (terrainHeight < 62) {
+          if (terrainHeight < 62 && (!this.isSkyCastles || terrainHeight > 0)) {
             for (let y = terrainHeight + 1; y <= 62; y++) {
               if (biome === this.biomes.VOLCANIC) {
                 chunk.setBlockFast(x, y, z, BLOCK.LAVA);
@@ -1815,7 +2009,7 @@ export class World {
           }
 
           // Trees (only outside protected areas)
-          if (!isProtected && terrainHeight >= 63 && biome.treeChance > 0) {
+          if (!isProtected && !this.isSkyCastles && terrainHeight >= 63 && biome.treeChance > 0) {
             const treeNoise = this.noise2D(worldX * 13.37, worldZ * 13.37);
             if (treeNoise > 1 - biome.treeChance * 2) { // Tree probability
               // Determine tree type
@@ -1906,7 +2100,7 @@ export class World {
           }
 
           // Plants (Tall grass, flowers, wheat)
-          if (!isProtected && terrainHeight >= 63 && biome.plantChance > 0) {
+          if (!isProtected && !this.isSkyCastles && terrainHeight >= 63 && biome.plantChance > 0) {
             const plantNoise = this.noise2D(worldX * 42.42, worldZ * 42.42);
             if (plantNoise > 1 - biome.plantChance * 2) {
               const typeNoise = this.noise2D(worldX * 0.5, worldZ * 0.5);
@@ -2055,10 +2249,12 @@ export class World {
 
         // Shelters
         if (!this.isHub) {
-          if (worldZ >= 300 && worldZ <= 405 && worldX >= -25 && worldX <= 25) {
+          const shelterStart = this.isSkyCastles ? 190 : 300;
+          const shelterEnd = this.isSkyCastles ? 295 : 405;
+          if (worldZ >= shelterStart && worldZ <= shelterEnd && worldX >= -25 && worldX <= 25) {
             this.generateShelter(chunk, x, z, worldX, worldZ, true);
           }
-          if (worldZ <= -300 && worldZ >= -405 && worldX >= -25 && worldX <= 25) {
+          if (worldZ <= -shelterStart && worldZ >= -shelterEnd && worldX >= -25 && worldX <= 25) {
             this.generateShelter(chunk, x, z, worldX, worldZ, false);
           }
         }
@@ -2131,12 +2327,16 @@ export class World {
   }
 
   private generateShelter(chunk: Chunk, lx: number, lz: number, worldX: number, worldZ: number, isBlue: boolean) {
-    const startZ = isBlue ? 300 : -300;
+    const shelterStart = this.isSkyCastles ? 190 : 300;
+    const shelterMainStart = this.isSkyCastles ? 254 : 364;
+    const shelterMainEnd = this.isSkyCastles ? 294 : 404;
+    
+    const startZ = isBlue ? shelterStart : -shelterStart;
     const distToStart = Math.abs(worldZ - startZ);
     const blockType = isBlue ? BLOCK.BLUE_STONE : BLOCK.RED_STONE;
 
     // Stairs
-    if (Math.abs(worldZ) >= 300 && Math.abs(worldZ) < 364) { // Extended range for gentler slope
+    if (Math.abs(worldZ) >= shelterStart && Math.abs(worldZ) < shelterMainStart) { // Extended range for gentler slope
       if (worldX >= -5 && worldX <= 5) {
         const stairY2 = 124 - distToStart; // Height in half-blocks
         const stairY = Math.floor(stairY2 / 2);
@@ -2174,13 +2374,13 @@ export class World {
     }
 
     // Main Room
-    if (Math.abs(worldZ) >= 364 && Math.abs(worldZ) <= 404) {
+    if (Math.abs(worldZ) >= shelterMainStart && Math.abs(worldZ) <= shelterMainEnd) {
       if (worldX >= -20 && worldX <= 20) {
         for (let y = 30; y <= 45; y++) {
-          const isWall = worldX === -20 || worldX === 20 || Math.abs(worldZ) === 364 || Math.abs(worldZ) === 404 || y === 30 || y === 45;
+          const isWall = worldX === -20 || worldX === 20 || Math.abs(worldZ) === shelterMainStart || Math.abs(worldZ) === shelterMainEnd || y === 30 || y === 45;
           if (isWall) {
             // Doorway
-            if (Math.abs(worldZ) === 364 && worldX > -5 && worldX < 5 && y >= 31 && y <= 36) {
+            if (Math.abs(worldZ) === shelterMainStart && worldX > -5 && worldX < 5 && y >= 31 && y <= 36) {
               chunk.setBlockFast(lx, y, lz, BLOCK.AIR);
             } else {
               chunk.setBlockFast(lx, y, lz, blockType);

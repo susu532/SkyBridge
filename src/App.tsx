@@ -31,7 +31,7 @@ import { LevelUpUI } from './components/LevelUpUI';
 import { DebugInfo } from './components/DebugInfo';
 import { EntityTags } from './components/EntityTags';
 import { settingsManager } from './game/Settings';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Maximize } from 'lucide-react';
 import { useUI } from './store/UIStore';
 import * as THREE from 'three';
 
@@ -138,7 +138,9 @@ export default function App() {
         settingsManager.updateSettings({ showDebug: !settingsManager.getSettings().showDebug });
       }
       
-      if (e.code === 'KeyE') {
+      const { keybinds } = settingsManager.getSettings();
+
+      if (e.code === keybinds.inventory) {
         if (typing || newGame.world.isHub) return;
         setInventoryOpen(!stateRef.current.isInventoryOpen);
         if (!stateRef.current.isInventoryOpen) {
@@ -159,7 +161,7 @@ export default function App() {
         }
       }
 
-      if (e.code === 'KeyN') {
+      if (e.code === keybinds.toggleHUD) {
         const nextVisible = !stateRef.current.isHUDVisible;
         setHUDVisible(nextVisible);
         newGame.player.renderer.setHandVisible(nextVisible);
@@ -257,11 +259,11 @@ export default function App() {
     const serverName = urlParams.get('server') || 'hub';
     if (serverName === 'hub') {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', '§bWelcome to the SkyBridge Hub! §eExplore the area or use /server skybridge or /server skycastles to join the game.');
+        networkManager.receiveLocalMessage('System', '§bWelcome to the SkyBridge Hub! §eExplore the area or use /server skybridge or /server skycastles or /server voidtrail to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName === 'skycastles' ? 'SkyCastles' : 'SkyBridge'}!`);
+        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : 'SkyBridge'}!`);
       }, 2000);
     }
 
@@ -343,6 +345,24 @@ export default function App() {
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                  console.warn(`Error attempting to enable fullscreen mode: ${err.message}`);
+                });
+              } else {
+                if (document.exitFullscreen) {
+                  document.exitFullscreen();
+                }
+              }
+            }}
+            className="p-2 bg-black/40 hover:bg-black/60 text-white rounded-lg backdrop-blur-md border border-white/20 transition-all group"
+            title="Toggle Fullscreen"
+          >
+            <Maximize className="w-6 h-6" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
               if (game) game.controls.unlock();
               setPauseMenuOpen(true);
             }}
@@ -362,8 +382,8 @@ export default function App() {
           {targetInfo.type && (
             <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
               {targetInfo.name}
-              {targetInfo.type === 'npc' && targetInfo.id === 'hub_npc_q' && networkManager.serverName === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
-              {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
+              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v') && networkManager.serverName === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
+              {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && targetInfo.id !== 'hub_npc_v' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
             </div>
           )}
         </div>
@@ -484,10 +504,6 @@ export default function App() {
             onOpenSettings={() => {
               setPauseMenuOpen(false);
               setSettingsOpen(true);
-            }}
-            onOpenInventory={() => {
-              setPauseMenuOpen(false);
-              setInventoryOpen(true);
             }}
           />
           <ServerJoinUI

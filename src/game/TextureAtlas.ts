@@ -1403,6 +1403,23 @@ export function createTextureAtlas(): THREE.Texture {
   ctx.fillStyle = '#3a3aa9';
   for(let i=0; i<6; i++) ctx.fillRect(13 * size + Math.random()*13, 22 * size + Math.random()*13, 2, 2);
 
+  // 15,24: Morvane Skin (Pitch Black)
+  drawTile(15, 24, '#000000', '#050505');
+  // 16,24: Morvane Face (Glowing Void)
+  drawTile(16, 24, '#000000', '#050505');
+  ctx.fillStyle = '#ff0000'; // Glowing red eyes
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = '#ff5555';
+  ctx.fillRect(16 * size + 3, 24 * size + 5, 3, 2);
+  ctx.fillRect(16 * size + 10, 24 * size + 5, 3, 2);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#220000'; // Scary mouth
+  ctx.fillRect(16 * size + 4, 24 * size + 11, 8, 2);
+  // 17,24: Morvane Plate (Unused now but for consistency)
+  drawTile(17, 24, '#080808', '#000000');
+  ctx.fillStyle = '#444444'; // Metal highlights
+  for(let i=0; i<10; i++) ctx.fillRect(17 * size + Math.random()*14, 24 * size + Math.random()*14, 2, 2);
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;

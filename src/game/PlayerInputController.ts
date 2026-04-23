@@ -5,6 +5,7 @@ import { ItemType } from './Inventory';
 import { audioManager } from './AudioManager';
 import { networkManager } from './NetworkManager';
 import { skyBridgeManager, SkillType } from './SkyBridgeManager';
+import { settingsManager } from './Settings';
 import { ITEM_NAMES } from './Constants';
 
 export class PlayerInputController {
@@ -57,37 +58,40 @@ export class PlayerInputController {
     this.moveDown = false;
     this.isCrouching = false;
     this.isSprinting = false;
+    this.player.isLeftMouseDown = false;
+    this.player.isMining = false;
     this.player.velocity.set(0, this.player.velocity.y, 0); // Stop horizontal movement but keep falling
   };
 
   onKeyDown = (event: KeyboardEvent) => {
     if (!this.player.controls.isLocked) return;
+    const { keybinds } = settingsManager.getSettings();
     
     switch (event.code) {
-      case 'KeyW': this.moveForward = true; break;
-      case 'KeyA': this.moveLeft = true; break;
-      case 'KeyS': this.moveBackward = true; break;
-      case 'KeyD': this.moveRight = true; break;
-      case 'ControlLeft': this.isSprinting = true; break;
-      case 'KeyQ': if (!this.player.world.isHub) this.dropItem(event.ctrlKey); break;
-      case 'KeyV': this.player.isZooming = true; break;
-      case 'KeyB': 
+      case keybinds.forward: this.moveForward = true; break;
+      case keybinds.left: this.moveLeft = true; break;
+      case keybinds.backward: this.moveBackward = true; break;
+      case keybinds.right: this.moveRight = true; break;
+      case keybinds.sprint: this.isSprinting = true; break;
+      case keybinds.drop: if (!this.player.world.isHub) this.dropItem(event.ctrlKey); break;
+      case keybinds.zoom: this.player.isZooming = true; break;
+      case keybinds.perspective: 
         this.player.perspective = (this.player.perspective + 1) % 3;
         break;
-      case 'Digit1': if (!this.player.world.isHub) this.player.hotbarIndex = 0; break;
-      case 'Digit2': if (!this.player.world.isHub) this.player.hotbarIndex = 1; break;
-      case 'Digit3': if (!this.player.world.isHub) this.player.hotbarIndex = 2; break;
-      case 'Digit4': if (!this.player.world.isHub) this.player.hotbarIndex = 3; break;
-      case 'Digit5': if (!this.player.world.isHub) this.player.hotbarIndex = 4; break;
-      case 'Digit6': if (!this.player.world.isHub) this.player.hotbarIndex = 5; break;
-      case 'Digit7': if (!this.player.world.isHub) this.player.hotbarIndex = 6; break;
-      case 'Digit8': if (!this.player.world.isHub) this.player.hotbarIndex = 7; break;
-      case 'Digit9': if (!this.player.world.isHub) this.player.hotbarIndex = 8; break;
-      case 'KeyP': 
+      case keybinds.slot1: if (!this.player.world.isHub) this.player.hotbarIndex = 0; break;
+      case keybinds.slot2: if (!this.player.world.isHub) this.player.hotbarIndex = 1; break;
+      case keybinds.slot3: if (!this.player.world.isHub) this.player.hotbarIndex = 2; break;
+      case keybinds.slot4: if (!this.player.world.isHub) this.player.hotbarIndex = 3; break;
+      case keybinds.slot5: if (!this.player.world.isHub) this.player.hotbarIndex = 4; break;
+      case keybinds.slot6: if (!this.player.world.isHub) this.player.hotbarIndex = 5; break;
+      case keybinds.slot7: if (!this.player.world.isHub) this.player.hotbarIndex = 6; break;
+      case keybinds.slot8: if (!this.player.world.isHub) this.player.hotbarIndex = 7; break;
+      case keybinds.slot9: if (!this.player.world.isHub) this.player.hotbarIndex = 8; break;
+      case keybinds.fly: 
         this.player.isFlying = !this.player.isFlying;
         this.player.velocity.set(0, 0, 0);
         break;
-      case 'Space': 
+      case keybinds.jump: 
         this.moveUp = true;
         if (!this.player.isFlying && !this.player.isSwimming && this.player.canJump) {
           this.player.velocity.y += this.player.jumpForce;
@@ -108,8 +112,7 @@ export class PlayerInputController {
           audioManager.playStep(surface);
         }
         break;
-      case 'ShiftLeft':
-      case 'ShiftRight': 
+      case keybinds.crouch:
         this.isCrouching = true;
         this.moveDown = true;
         break;
@@ -118,17 +121,17 @@ export class PlayerInputController {
 
   onKeyUp = (event: KeyboardEvent) => {
     if (!this.player.controls.isLocked) return;
+    const { keybinds } = settingsManager.getSettings();
     
     switch (event.code) {
-      case 'KeyW': this.moveForward = false; break;
-      case 'KeyA': this.moveLeft = false; break;
-      case 'KeyS': this.moveBackward = false; break;
-      case 'KeyD': this.moveRight = false; break;
-      case 'ControlLeft': this.isSprinting = false; break;
-      case 'KeyV': this.player.isZooming = false; break;
-      case 'Space': this.moveUp = false; break;
-      case 'ShiftLeft':
-      case 'ShiftRight': 
+      case keybinds.forward: this.moveForward = false; break;
+      case keybinds.left: this.moveLeft = false; break;
+      case keybinds.backward: this.moveBackward = false; break;
+      case keybinds.right: this.moveRight = false; break;
+      case keybinds.sprint: this.isSprinting = false; break;
+      case keybinds.zoom: this.player.isZooming = false; break;
+      case keybinds.jump: this.moveUp = false; break;
+      case keybinds.crouch:
         this.isCrouching = false; 
         this.moveDown = false;
         break;
@@ -219,6 +222,10 @@ export class PlayerInputController {
           if (networkManager.serverName === 'hub') {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skycastles' } }));
           }
+        } else if (npc.id === 'hub_npc_v') {
+          if (networkManager.serverName === 'hub') {
+            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
+          }
         } else {
           window.dispatchEvent(new CustomEvent('openShop', { detail: { npc } }));
         }
@@ -282,6 +289,7 @@ export class PlayerInputController {
         }
       }
     } else if (event.button === 0) { // Left click
+      this.player.isLeftMouseDown = true;
       const now = Date.now();
       const canAttack = now - this.player.lastAttackTime > 500;
 
@@ -362,6 +370,12 @@ export class PlayerInputController {
       if (event.button === 0) { // Left click: start mining
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         if (blockType !== BLOCK.AIR && blockType !== BLOCK.WATER) {
+          if (this.player.isFlying) {
+            // Instant break for creative mode (flying)
+            this.player.performBlockBreak(hitResult.blockPos, blockType);
+            this.player.lastCreativeBreakTime = Date.now();
+            return;
+          }
           this.player.isMining = true;
           this.player.miningTarget = hitResult.blockPos.clone();
           this.player.miningProgress = 0;
@@ -466,6 +480,7 @@ export class PlayerInputController {
 
   onMouseUp = (event: MouseEvent) => {
     if (event.button === 0) {
+      this.player.isLeftMouseDown = false;
       this.player.isMining = false;
       this.player.miningTarget = null;
       this.player.miningProgress = 0;

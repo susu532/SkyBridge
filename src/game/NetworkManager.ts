@@ -80,8 +80,7 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ;
-    this.socket = io(`${BACKEND_URL}/${serverName}`);
+    this.socket = io(`/${serverName}`);
 
     this.socket.on('init', (data) => {
       this.initData = data;

@@ -106,7 +106,7 @@ export class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap; // Harder edges are much more stable for movement
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for ultra-realistic soft penumbras
 
     this.controls = new PointerLockControls(this.camera, document.body);
     // Disable internal rotation handling as we handle it in Player.ts to support sensitivity/invert
@@ -364,7 +364,6 @@ export class Game {
 
   applySettings(settings: GameSettings) {
     this.world.renderDistance = settings.performanceMode ? Math.min(settings.renderDistance, 4) : settings.renderDistance;
-    this.environmentManager.dayCycleSpeed = settings.dayCycleSpeed;
     this.player.sensitivity = settings.sensitivity;
     this.player.baseFOV = settings.fov;
 

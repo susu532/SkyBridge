@@ -102,12 +102,14 @@ export class Player {
   private _syncPos = new THREE.Vector3();
 
   // Mining state
+  isLeftMouseDown = false;
   isMining = false;
   miningTarget: THREE.Vector3 | null = null;
   miningProgress = 0;
   miningTimeRequired = 0.4; // Default base time
   canHarvestTarget = true;
   isBlocking = false;
+  lastCreativeBreakTime = 0;
   
   // Animation states
   wasInAir = false;
@@ -300,6 +302,96 @@ export class Player {
 
   public respawn() {
     networkManager.socket.emit('requestRespawn');
+  }
+
+  public performBlockBreak(pos: THREE.Vector3, blockType: number) {
+    const success = this.world.setBlock(pos.x, pos.y, pos.z, BLOCK.AIR, true, this.isFlying);
+    if (success) {
+      audioManager.playPositional('pop', pos.clone().addScalar(0.5), 0.8, 0.8 + Math.random() * 0.4, 20);
+      window.dispatchEvent(new CustomEvent('spawnParticles', { 
+        detail: { pos: pos.clone().addScalar(0.5), type: blockType } 
+      }));
+      
+      networkManager.setBlock(pos.x, pos.y, pos.z, 0, this.isFlying);
+      
+      // In flying mode (creative), we skip drops and item damage
+      if (this.isFlying) {
+        return true;
+      }
+
+      const effectiveStats = skyBridgeManager.getEffectiveStats(this.inventory, this.hotbarIndex);
+      
+      // Apply Mining Fortune
+      const fortune = effectiveStats.miningFortune || 0;
+      const dropCount = 1 + Math.floor(fortune / 100) + (Math.random() < (fortune % 100) / 100 ? 1 : 0);
+      
+      if (this.canHarvestTarget && dropCount > 1) {
+        window.dispatchEvent(new CustomEvent('gameMessage', { 
+          detail: { text: `☘ Mining Fortune triggered! (+${dropCount - 1} drops)`, color: "#FFAA00" } 
+        }));
+      }
+
+      // Add directly to inventory
+      let remaining = 0;
+      if (this.canHarvestTarget) {
+        let dropItemType = blockType as unknown as ItemType;
+        
+        // Ore Drop Mapping
+        if (blockType === BLOCK.DIAMOND_ORE || blockType === BLOCK.DEEPSLATE_DIAMOND_ORE) dropItemType = ItemType.DIAMOND;
+        else if (blockType === BLOCK.EMERALD_ORE || blockType === BLOCK.DEEPSLATE_EMERALD_ORE) dropItemType = ItemType.EMERALD;
+        else if (blockType === BLOCK.COAL_ORE || blockType === BLOCK.DEEPSLATE_COAL_ORE) dropItemType = ItemType.COAL;
+        else if (blockType === BLOCK.LAPIS_ORE || blockType === BLOCK.DEEPSLATE_LAPIS_ORE) dropItemType = ItemType.LAPIS_LAZULI;
+        else if (blockType === BLOCK.REDSTONE_ORE || blockType === BLOCK.DEEPSLATE_REDSTONE_ORE) dropItemType = ItemType.REDSTONE;
+        else if (blockType === BLOCK.COPPER_ORE || blockType === BLOCK.DEEPSLATE_COPPER_ORE) dropItemType = ItemType.COPPER_INGOT;
+        else if (blockType === BLOCK.IRON_ORE || blockType === BLOCK.DEEPSLATE_IRON_ORE) dropItemType = ItemType.IRON_INGOT;
+        else if (blockType === BLOCK.GOLD_ORE || blockType === BLOCK.DEEPSLATE_GOLD_ORE) dropItemType = ItemType.GOLD_INGOT;
+        else if (blockType === BLOCK.STONE) dropItemType = ItemType.COBBLESTONE;
+        else if (blockType === BLOCK.DEEPSLATE) dropItemType = ItemType.COBBLED_DEEPSLATE;
+        else if (blockType === ItemType.TORCH_WALL_X_POS || blockType === ItemType.TORCH_WALL_X_NEG || blockType === ItemType.TORCH_WALL_Z_POS || blockType === ItemType.TORCH_WALL_Z_NEG) dropItemType = ItemType.TORCH;
+
+        remaining = this.inventory.addItem(dropItemType, dropCount);
+        
+        // Add mining XP
+        if ([ItemType.DIAMOND, ItemType.EMERALD].includes(dropItemType)) {
+             skyBridgeManager.addXp(SkillType.MINING, 15);
+        } else if ([ItemType.COAL, ItemType.LAPIS_LAZULI, ItemType.REDSTONE].includes(dropItemType)) {
+             skyBridgeManager.addXp(SkillType.MINING, 10);
+        } else if ([ItemType.IRON_INGOT, ItemType.GOLD_INGOT, ItemType.COPPER_INGOT].includes(dropItemType)) {
+             skyBridgeManager.addXp(SkillType.MINING, 5);
+        } else if (dropItemType === ItemType.COBBLESTONE || dropItemType === ItemType.COBBLED_DEEPSLATE) {
+             skyBridgeManager.addXp(SkillType.MINING, 1);
+        }
+      }
+      
+      // Damage tool
+      const equippedItem = this.inventory.slots[this.hotbarIndex];
+      if (equippedItem && equippedItem.type >= ItemType.WOODEN_PICKAXE && equippedItem.type <= ItemType.DIAMOND_AXE) {
+        const broke = this.inventory.damageItem(this.hotbarIndex, 1);
+        if (broke) {
+          audioManager.play('pop', 0.8, 0.4); // Break sound
+          window.dispatchEvent(new CustomEvent('updateHotbar'));
+        }
+      }
+
+      if (remaining > 0) {
+        // If inventory is full, drop the remaining items
+        for (let i = 0; i < remaining; i++) {
+          networkManager.dropItem(blockType, {
+            x: pos.x + 0.5 + (Math.random() - 0.5) * 0.2,
+            y: pos.y + 0.5,
+            z: pos.z + 0.5 + (Math.random() - 0.5) * 0.2
+          });
+        }
+        window.dispatchEvent(new CustomEvent('gameMessage', { 
+          detail: { text: "Inventory full! Some items were dropped.", color: "#FF5555" } 
+        }));
+      }
+      
+      // Reward SkyBridge XP
+      skyBridgeManager.addXp(SkillType.MINING, 10);
+      return true;
+    }
+    return false;
   }
 
   updateSkin(skinSeed: string) {
@@ -900,6 +992,68 @@ export class Player {
     }
 
     // Handle Mining
+    if (this.isLeftMouseDown && !this.isDead) {
+      if (!this.isMining && !this.isFlying) {
+         // It should have been started by onMouseDown, if not, wait for another click.
+         // In survival we don't auto-start mining immediately on drag unless we are still holding left click after a block breaks.
+      }
+      
+      const direction = new THREE.Vector3();
+      this.camera.getWorldDirection(direction);
+      const rayOrigin = this.playerHeadPos.clone();
+      const hitResult = this.world.raycast(rayOrigin, direction, 5);
+
+      if (hitResult.hit && hitResult.blockPos) {
+         const blockType = this.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
+         
+         if (this.isFlying && blockType !== BLOCK.AIR && blockType !== BLOCK.WATER) {
+            // Instant creative break continuously on look
+            const now = Date.now();
+            if (now - this.lastCreativeBreakTime > 150) { // 150ms delay
+               this.performBlockBreak(hitResult.blockPos, blockType);
+               this.lastCreativeBreakTime = now;
+               this.miningTarget = null;
+               
+               // Play arm swing animation for visual feedback on continuous breaks
+               if (!this.isSwinging) {
+                  this.isSwinging = true;
+                  this.swingTimer = 0;
+               }
+            } else {
+               // Still on cooldown, wait.
+               this.miningTarget = hitResult.blockPos.clone();
+            }
+         } else if (!this.isFlying) {
+            // Auto-start mining a new block if the target changed while we are holding the mouse down
+            if (!this.miningTarget || !hitResult.blockPos.equals(this.miningTarget)) {
+               if (blockType !== BLOCK.AIR && blockType !== BLOCK.WATER) {
+                  this.isMining = true;
+                  this.miningTarget = hitResult.blockPos.clone();
+                  this.miningProgress = 0;
+                  const activeTool = this.inventory.slots[this.hotbarIndex];
+                  const stats = this.getMiningStats(blockType, activeTool);
+                  this.miningTimeRequired = stats.time;
+                  this.canHarvestTarget = stats.drops;
+                  if (this.breakingMesh) {
+                     this.breakingMesh.visible = true;
+                     this.breakingMesh.position.set(this.miningTarget.x + 0.5, this.miningTarget.y + 0.5, this.miningTarget.z + 0.5);
+                     (this.breakingMesh.material as THREE.MeshBasicMaterial).opacity = 0;
+                  }
+               } else {
+                  this.isMining = false;
+                  this.miningTarget = null;
+                  if (this.breakingMesh) this.breakingMesh.visible = false;
+               }
+            }
+         }
+      } else {
+         this.isMining = false;
+         this.miningTarget = null;
+         if (this.breakingMesh) this.breakingMesh.visible = false;
+      }
+    }
+    
+    // Progress mining if it's active
     if (this.isMining && this.miningTarget) {
       const direction = new THREE.Vector3();
       this.camera.getWorldDirection(direction);
@@ -927,10 +1081,14 @@ export class Player {
           speedMultiplier *= 0.2; // 5x slower in water
         }
         
-        this.miningProgress += (delta * speedMultiplier) / this.miningTimeRequired;
+        if (this.isFlying) {
+          this.miningProgress = 1.0;
+        } else {
+          this.miningProgress += (delta * speedMultiplier) / this.miningTimeRequired;
+        }
         
         // Play mining sound periodically
-        if (Math.floor(this.miningProgress * 5) > Math.floor((this.miningProgress - delta * speedMultiplier / this.miningTimeRequired) * 5)) {
+        if (!this.isFlying && Math.floor(this.miningProgress * 5) > Math.floor((this.miningProgress - (delta * speedMultiplier / this.miningTimeRequired)) * 5)) {
           const blockType = this.world.getBlock(this.miningTarget.x, this.miningTarget.y, this.miningTarget.z);
           let surface = 'stone';
           if (blockType === BLOCK.GRASS || blockType === BLOCK.DIRT) surface = 'grass';
@@ -961,84 +1119,7 @@ export class Player {
           // Break block
           const blockType = this.world.getBlock(this.miningTarget.x, this.miningTarget.y, this.miningTarget.z);
           if (blockType !== BLOCK.AIR) {
-            const success = this.world.setBlock(this.miningTarget.x, this.miningTarget.y, this.miningTarget.z, BLOCK.AIR, true, this.isFlying);
-            if (success) {
-              audioManager.playPositional('pop', this.miningTarget.clone().addScalar(0.5), 0.8, 0.8 + Math.random() * 0.4, 20);
-              window.dispatchEvent(new CustomEvent('spawnParticles', { 
-                detail: { pos: this.miningTarget.clone().addScalar(0.5), type: blockType } 
-              }));
-              
-              networkManager.setBlock(this.miningTarget.x, this.miningTarget.y, this.miningTarget.z, 0, this.isFlying);
-              
-              // Apply Mining Fortune
-              const fortune = effectiveStats.miningFortune || 0;
-              const dropCount = 1 + Math.floor(fortune / 100) + (Math.random() < (fortune % 100) / 100 ? 1 : 0);
-              
-              if (this.canHarvestTarget && dropCount > 1) {
-                window.dispatchEvent(new CustomEvent('gameMessage', { 
-                  detail: { text: `☘ Mining Fortune triggered! (+${dropCount - 1} drops)`, color: "#FFAA00" } 
-                }));
-              }
-
-              // Add directly to inventory
-              let remaining = 0;
-              if (this.canHarvestTarget) {
-                let dropItemType = blockType as unknown as ItemType;
-                
-                // Ore Drop Mapping
-                if (blockType === BLOCK.DIAMOND_ORE || blockType === BLOCK.DEEPSLATE_DIAMOND_ORE) dropItemType = ItemType.DIAMOND;
-                else if (blockType === BLOCK.EMERALD_ORE || blockType === BLOCK.DEEPSLATE_EMERALD_ORE) dropItemType = ItemType.EMERALD;
-                else if (blockType === BLOCK.COAL_ORE || blockType === BLOCK.DEEPSLATE_COAL_ORE) dropItemType = ItemType.COAL;
-                else if (blockType === BLOCK.LAPIS_ORE || blockType === BLOCK.DEEPSLATE_LAPIS_ORE) dropItemType = ItemType.LAPIS_LAZULI;
-                else if (blockType === BLOCK.REDSTONE_ORE || blockType === BLOCK.DEEPSLATE_REDSTONE_ORE) dropItemType = ItemType.REDSTONE;
-                else if (blockType === BLOCK.COPPER_ORE || blockType === BLOCK.DEEPSLATE_COPPER_ORE) dropItemType = ItemType.COPPER_INGOT;
-                else if (blockType === BLOCK.IRON_ORE || blockType === BLOCK.DEEPSLATE_IRON_ORE) dropItemType = ItemType.IRON_INGOT;
-                else if (blockType === BLOCK.GOLD_ORE || blockType === BLOCK.DEEPSLATE_GOLD_ORE) dropItemType = ItemType.GOLD_INGOT;
-                else if (blockType === BLOCK.STONE) dropItemType = ItemType.COBBLESTONE;
-                else if (blockType === BLOCK.DEEPSLATE) dropItemType = ItemType.COBBLED_DEEPSLATE;
-                 else if (blockType === ItemType.TORCH_WALL_X_POS || blockType === ItemType.TORCH_WALL_X_NEG || blockType === ItemType.TORCH_WALL_Z_POS || blockType === ItemType.TORCH_WALL_Z_NEG) dropItemType = ItemType.TORCH;
-
-                remaining = this.inventory.addItem(dropItemType, dropCount);
-                
-                // Add mining XP
-                if ([ItemType.DIAMOND, ItemType.EMERALD].includes(dropItemType)) {
-                     skyBridgeManager.addXp(SkillType.MINING, 15);
-                } else if ([ItemType.COAL, ItemType.LAPIS_LAZULI, ItemType.REDSTONE].includes(dropItemType)) {
-                     skyBridgeManager.addXp(SkillType.MINING, 10);
-                } else if ([ItemType.IRON_INGOT, ItemType.GOLD_INGOT, ItemType.COPPER_INGOT].includes(dropItemType)) {
-                     skyBridgeManager.addXp(SkillType.MINING, 5);
-                } else if (dropItemType === ItemType.COBBLESTONE || dropItemType === ItemType.COBBLED_DEEPSLATE) {
-                     skyBridgeManager.addXp(SkillType.MINING, 1);
-                }
-              }
-              
-              // Damage tool
-              const equippedItem = this.inventory.slots[this.hotbarIndex];
-              if (equippedItem && equippedItem.type >= ItemType.WOODEN_PICKAXE && equippedItem.type <= ItemType.DIAMOND_AXE) {
-                const broke = this.inventory.damageItem(this.hotbarIndex, 1);
-                if (broke) {
-                  audioManager.play('pop', 0.8, 0.4); // Break sound
-                  window.dispatchEvent(new CustomEvent('updateHotbar'));
-                }
-              }
-
-              if (remaining > 0) {
-                // If inventory is full, drop the remaining items
-                for (let i = 0; i < remaining; i++) {
-                  networkManager.dropItem(blockType, {
-                    x: this.miningTarget.x + 0.5 + (Math.random() - 0.5) * 0.2,
-                    y: this.miningTarget.y + 0.5,
-                    z: this.miningTarget.z + 0.5 + (Math.random() - 0.5) * 0.2
-                  });
-                }
-                window.dispatchEvent(new CustomEvent('gameMessage', { 
-                  detail: { text: "Inventory full! Some items were dropped.", color: "#FF5555" } 
-                }));
-              }
-              
-              // Reward SkyBridge XP
-              skyBridgeManager.addXp(SkillType.MINING, 10);
-            }
+            this.performBlockBreak(this.miningTarget, blockType);
           }
           this.isMining = false;
           this.miningTarget = null;
