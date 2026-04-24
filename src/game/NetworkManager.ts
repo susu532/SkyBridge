@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import * as THREE from 'three';
+import { getSecureBackendUrl } from '../utils/security';
 
 export class NetworkManager {
   socket!: Socket;
@@ -80,7 +81,7 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ;
+    const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     this.socket = io(`${BACKEND_URL}/${serverName}`);
 
     this.socket.on('init', (data) => {
