@@ -1,7 +1,16 @@
+import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { Player } from './Player';
 import { BLOCK, isSolidBlock, isSlab } from './TextureAtlas';
 import { audioManager } from './AudioManager';
+
+const _moveEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const _moveVec = new THREE.Vector3();
+const _currentPos = new THREE.Vector3();
+const _nextPosX = new THREE.Vector3();
+const _nextPosZ = new THREE.Vector3();
+const _stepUpPos = new THREE.Vector3();
+const _checkPos = new THREE.Vector3();
 
 export class PlayerPhysics {
   player: Player;
@@ -144,7 +153,7 @@ export class PlayerPhysics {
     p.velocity.x -= p.velocity.x * 10.0 * delta;
     p.velocity.z -= p.velocity.z * 10.0 * delta;
     
-    const horizontalVelocity = new THREE.Vector2(p.velocity.x, p.velocity.z).length();
+    const horizontalVelocity = Math.sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z);
     const isMoving = horizontalVelocity > 0.1;
 
     const input = p.inputController; // Get input states
@@ -189,11 +198,11 @@ export class PlayerPhysics {
     if (input.moveLeft || input.moveRight) p.velocity.x += p.direction.x * currentSpeed * delta * 10.0;
     
     // Apply movement
-    const currentPos = p.worldPosition.clone();
+    const currentPos = _currentPos.copy(p.worldPosition);
     
     // Extract pure yaw from camera rotation for movement
-    const moveEuler = new THREE.Euler(0, p.cameraYaw, 0, 'YXZ');
-    const moveVec = new THREE.Vector3(p.velocity.x * delta, 0, p.velocity.z * delta);
+    const moveEuler = _moveEuler.set(0, p.cameraYaw, 0, 'YXZ');
+    const moveVec = _moveVec.set(p.velocity.x * delta, 0, p.velocity.z * delta);
     moveVec.applyEuler(moveEuler);
 
     // Apply world-space knockback with smooth decay
@@ -205,7 +214,7 @@ export class PlayerPhysics {
     moveVec.z += p.knockbackVelocity.z * delta;
 
     // X collision and shifting
-    const nextPosX = currentPos.clone();
+    const nextPosX = _nextPosX.copy(currentPos);
     nextPosX.x += moveVec.x;
     
     // World boundary check (Invisible walls)
@@ -229,7 +238,7 @@ export class PlayerPhysics {
           }
         } else if (p.velocity.y <= 0) {
           // Auto-step up (for slabs/stairs)
-          const stepUpPos = nextPosX.clone();
+          const stepUpPos = _stepUpPos.copy(nextPosX);
           stepUpPos.y += 0.6;
           if (!this.checkCollision(stepUpPos)) {
             currentPos.x = nextPosX.x;
@@ -259,7 +268,7 @@ export class PlayerPhysics {
     }
     
     // Z collision and shifting
-    const nextPosZ = currentPos.clone();
+    const nextPosZ = _nextPosZ.copy(currentPos);
     nextPosZ.z += moveVec.z;
     
     const distSqZ = currentPos.x * currentPos.x + nextPosZ.z * nextPosZ.z;
@@ -281,7 +290,7 @@ export class PlayerPhysics {
           }
         } else if (p.velocity.y <= 0) {
           // Auto-step up
-          const stepUpPos = nextPosZ.clone();
+          const stepUpPos = _stepUpPos.copy(nextPosZ);
           stepUpPos.y += 0.6;
           if (!this.checkCollision(stepUpPos)) {
             currentPos.z = nextPosZ.z;
@@ -331,9 +340,7 @@ export class PlayerPhysics {
           const damage = Math.floor(fallDistance - 3);
           if (damage > 0) {
             p.takeDamage(damage * 5, undefined, false, "died of fall damage"); // 5 damage per block fallen (20 health max usually)
-            window.dispatchEvent(new CustomEvent('gameMessage', { 
-              detail: { text: `You took ${damage * 5} fall damage!`, color: "#FF5555" } 
-            }));
+            useGameStore.getState().addMessage(`You took ${damage * 5} fall damage!`, "#FF5555");
           }
         }
         
@@ -378,7 +385,7 @@ export class PlayerPhysics {
       p.velocity.y = 0;
     } else if (!p.isFlying && !p.isSwimming) {
       // Check if we just barely stepped off before declaring false
-      const checkPos = currentPos.clone();
+      const checkPos = _checkPos.copy(currentPos);
       checkPos.y -= 0.1;
       if (!this.checkCollision(checkPos)) {
         p.canJump = false;

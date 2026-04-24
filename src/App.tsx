@@ -25,6 +25,7 @@ import { SkyBridgeXPPopup } from './components/SkyBridgeXPPopup';
 import { DamageOverlay } from './components/DamageOverlay';
 import { DamageNumbers } from './components/DamageNumbers';
 import { DeathScreen } from './components/DeathScreen';
+import { HotbarUI } from './components/HotbarUI';
 import { useGameStore } from './store/gameStore';
 import { GameMessages } from './components/GameMessages';
 import { LevelUpUI } from './components/LevelUpUI';
@@ -83,21 +84,9 @@ export default function App() {
   }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
 
   const [showDebug, setShowDebug] = useState(false);
-  const [hotbarItems, setHotbarItems] = useState<(any | null)[]>(new Array(9).fill(null));
   const [targetInfo, setTargetInfo] = useState<{ type: 'block' | 'npc' | null, name: string | null, id?: string }>({ type: null, name: null });
   const lastUnlockTime = useRef(0);
   const suppressPauseMenu = useRef(false);
-
-  const inventoryVersion = useGameStore(state => state.inventoryVersion);
-  const globalHotbarIndex = useGameStore(state => state.hotbarIndex);
-  const setGlobalHotbarIndex = useGameStore(state => state.setHotbarIndex);
-  const skycoins = useGameStore(state => state.skycoins);
-
-  useEffect(() => {
-    if (game) {
-      setHotbarItems([...game.player.inventory.slots.slice(0, 9)]);
-    }
-  }, [game, inventoryVersion]);
 
   const [gameKey, setGameKey] = useState(0);
 
@@ -396,7 +385,7 @@ export default function App() {
       {isHUDVisible && <EntityTags game={game} />}
 
       {/* SkyBridge Sidebar */}
-      {isHUDVisible && networkManager.serverName !== 'hub' && <SkyBridgeSidebar skycoins={skycoins} />}
+      {isHUDVisible && networkManager.serverName !== 'hub' && <SkyBridgeSidebar />}
 
       {/* SkyBridge UI */}
       {isHUDVisible && networkManager.serverName !== 'hub' && (
@@ -416,43 +405,7 @@ export default function App() {
       <DeathScreen />
 
       {/* Toolbar */}
-      {isHUDVisible && networkManager.serverName !== 'hub' && (
-        <div 
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0 p-1 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] shadow-2xl pointer-events-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {hotbarItems.map((item, i) => {
-            const isSelected = i === globalHotbarIndex;
-            return (
-              <button
-                key={i}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (game) {
-                    game.player.hotbarIndex = i;
-                    setGlobalHotbarIndex(i);
-                  }
-                }}
-                title={item ? `${ITEM_NAMES[item.type]} x${item.count}` : undefined}
-                className={`
-                  relative flex items-center justify-center w-12 h-12 transition-all
-                  ${isSelected 
-                    ? 'bg-[#8B8B8B] border-4 border-white z-10 scale-110 shadow-xl' 
-                    : 'bg-[#8B8B8B] border-2 border-black/20 hover:bg-[#A0A0A0]'
-                  }
-                `}
-              >
-                {item ? (
-                  <ItemIcon item={item} />
-                ) : null}
-                <span className="absolute top-0.5 left-1 text-[10px] font-bold text-white/20">
-                  {i + 1}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {isHUDVisible && networkManager.serverName !== 'hub' && <HotbarUI game={game} />}
 
       {game && networkManager.serverName !== 'hub' && (
         <div onClick={(e) => e.stopPropagation()}>

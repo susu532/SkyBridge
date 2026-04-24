@@ -1,3 +1,4 @@
+import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { Player } from './Player';
 import { BLOCK, isPlant, ATLAS_TILES, isFlatItem, isSolidBlock } from './TextureAtlas';
@@ -267,9 +268,7 @@ export class PlayerInputController {
               audioManager.play('pop', 1.0, 0.5);
               this.player.velocity.add(direction.multiplyScalar(10));
             } else {
-              window.dispatchEvent(new CustomEvent('gameMessage', { 
-                detail: { text: "There are blocks in the way!", color: "#FF5555" } 
-              }));
+              useGameStore.getState().addMessage("There are blocks in the way!", "#FF5555");
             }
           } else if (ability.name === "Deep Strike") {
             this.player.velocity.add(direction.multiplyScalar(30));
@@ -283,19 +282,14 @@ export class PlayerInputController {
             }
           }
         } else {
-          window.dispatchEvent(new CustomEvent('gameMessage', { 
-            detail: { text: "Not enough mana!", color: "#55FFFF" } 
-          }));
+          useGameStore.getState().addMessage("Not enough mana!", "#55FFFF");
         }
       }
     } else if (event.button === 0) { // Left click
       this.player.isLeftMouseDown = true;
-      const now = Date.now();
-      const canAttack = now - this.player.lastAttackTime > 500;
 
       const player = this.player.entityManager.raycastPlayer(rayOrigin, direction, 4, this.player.camera);
-      if (player && canAttack) {
-        this.player.lastAttackTime = now;
+      if (player) {
         const { damage, isCrit } = this.calculateDamage();
         
         const isCombative = event.button === 0 && !this.player.isMining;
@@ -305,12 +299,22 @@ export class PlayerInputController {
         networkManager.attack(player.id, false, kbDir, this.isSprinting);
         
         audioManager.play('hit', 0.5, 0.9 + Math.random() * 0.2);
-        // Camera shake removed
+        
+        // Client-side prediction for instant hit feel
+        player.takeDamage(kbDir);
+        if (isCrit) {
+          for(let i=0; i<3; i++) {
+            window.dispatchEvent(new CustomEvent('spawnParticles', { 
+              detail: { pos: player.currentPos.clone().add(new THREE.Vector3(0, 0.5, 0)), type: 73 } 
+            }));
+          }
+        }
+        window.dispatchEvent(new CustomEvent('mobDamage', { detail: { amount: Math.floor(damage), isCrit } }));
+        this.damageWeapon();
       }
 
       const mob = this.player.entityManager.raycastMob(rayOrigin, direction, 4, this.player.camera);
-      if (mob && canAttack) {
-        this.player.lastAttackTime = now;
+      if (mob) {
         const { damage, isCrit } = this.calculateDamage();
         
         const isCombative = true;
@@ -349,13 +353,9 @@ export class PlayerInputController {
               y: mob.position.y + 0.5,
               z: mob.position.z
             });
-            window.dispatchEvent(new CustomEvent('gameMessage', { 
-              detail: { text: "Inventory full! Mob loot was dropped.", color: "#FF5555" } 
-            }));
+            useGameStore.getState().addMessage("Inventory full! Mob loot was dropped.", "#FF5555");
           } else {
-            window.dispatchEvent(new CustomEvent('gameMessage', { 
-              detail: { text: `+1 ${ITEM_NAMES[lootType]} (Auto-pickup)`, color: "#55FF55" } 
-            }));
+            useGameStore.getState().addMessage(`+1 ${ITEM_NAMES[lootType]} (Auto-pickup)`, "#55FF55");
           }
 
           this.player.entityManager.removeMob(mob.id);

@@ -7,14 +7,28 @@ export const SkyBridgeActionBar: React.FC = () => {
 
   useEffect(() => {
     let frameId: number;
-    let lastStatsStr = JSON.stringify(skyBridgeManager.effectiveStats);
+    let lastHealth = skyBridgeManager.effectiveStats.health;
+    let lastMaxHealth = skyBridgeManager.effectiveStats.maxHealth;
+    let lastDefense = skyBridgeManager.effectiveStats.defense;
+    let lastIntelligence = skyBridgeManager.effectiveStats.intelligence;
+    let lastMaxIntelligence = skyBridgeManager.effectiveStats.maxIntelligence;
 
     const update = () => {
-      const currentStatsStr = JSON.stringify(skyBridgeManager.effectiveStats);
-
-      if (currentStatsStr !== lastStatsStr) {
-        setStats({ ...skyBridgeManager.effectiveStats });
-        lastStatsStr = currentStatsStr;
+      const stats = skyBridgeManager.effectiveStats;
+      
+      if (
+        stats.health !== lastHealth ||
+        stats.maxHealth !== lastMaxHealth ||
+        stats.defense !== lastDefense ||
+        stats.intelligence !== lastIntelligence ||
+        stats.maxIntelligence !== lastMaxIntelligence
+      ) {
+        setStats({ ...stats });
+        lastHealth = stats.health;
+        lastMaxHealth = stats.maxHealth;
+        lastDefense = stats.defense;
+        lastIntelligence = stats.intelligence;
+        lastMaxIntelligence = stats.maxIntelligence;
       }
 
       frameId = requestAnimationFrame(update);

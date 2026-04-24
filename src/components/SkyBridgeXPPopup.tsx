@@ -1,31 +1,10 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SkillType } from '../game/SkyBridgeManager';
-
-interface XPPopup {
-  id: string;
-  skill: SkillType;
-  amount: number;
-}
+import { useGameStore } from '../store/gameStore';
 
 export const SkyBridgeXPPopup: React.FC = () => {
-  const [popups, setPopups] = useState<XPPopup[]>([]);
-
-  useEffect(() => {
-    const handleXP = (e: any) => {
-      const { skill, amount } = e.detail;
-      const id = Math.random().toString(36).substring(7);
-      setPopups(prev => [...prev, { id, skill, amount }]);
-      
-      setTimeout(() => {
-        setPopups(prev => prev.filter(p => p.id !== id));
-      }, 2000);
-    };
-
-    window.addEventListener('skyBridgeXP', handleXP as EventListener);
-    return () => window.removeEventListener('skyBridgeXP', handleXP as EventListener);
-  }, []);
+  const popups = useGameStore(state => state.xpPopups);
 
   return (
     <div className="absolute bottom-40 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none">

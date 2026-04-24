@@ -68,6 +68,10 @@ export class RemotePlayer {
   // Pre-allocated vectors for math
   private _instantVelocity = new THREE.Vector3();
   private _recoilDir = new THREE.Vector3();
+  visualOffset = new THREE.Vector3();
+  currentPos = new THREE.Vector3();
+  damageRotate = 0;
+  damageRotateAxis = new THREE.Vector3(1, 0, 0);
   
   constructor(id: string, skinSeed: string, name: string, scene: THREE.Scene) {
     this.id = id;
@@ -375,16 +379,26 @@ export class RemotePlayer {
   update(delta: number) {
     // Apply visual knockback decay
     if (this.knockbackVelocity.lengthSq() > 0.01) {
-      this.targetPosition.addScaledVector(this.knockbackVelocity, delta);
+      this.visualOffset.addScaledVector(this.knockbackVelocity, delta);
       this.knockbackVelocity.multiplyScalar(1.0 - 5.0 * delta);
     }
 
-    // Linear interpolation for network position updates
-    this.interpolationTimer += delta;
-    const progress = Math.min(this.interpolationTimer / 0.05, 1.0); // 50ms tick rate
+    // Networked movement interpolation
+    const dist = this.currentPos.distanceTo(this.targetPosition);
+    if (dist > 10) {
+      this.currentPos.copy(this.targetPosition);
+    } else {
+      this.interpolationTimer += delta;
+      // We receive updates every ~20ms (50Hz), but we interpolate over 40ms to keep a smooth buffer
+      const progress = Math.min(this.interpolationTimer / 0.04, 1.0); 
+      this.currentPos.lerpVectors(this.lastNetPos, this.targetPosition, progress);
+    }
+
+    const decay = 1.0 - Math.exp(-15 * delta); // Snappy exponential decay
+    this.visualOffset.lerp(new THREE.Vector3(0, 0, 0), decay);
+    this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, 0, decay);
     
-    // Lerp from lastNetPos to targetPosition linearly
-    this.group.position.lerpVectors(this.lastNetPos, this.targetPosition, progress);
+    this.group.position.copy(this.currentPos).add(this.visualOffset);
 
     const lerpFactor = 1.0 - Math.pow(0.0001, delta);
     
@@ -443,7 +457,12 @@ export class RemotePlayer {
     }
 
     // Apply rotations
-    this.group.rotation.y = this.bodyYaw;
+    this.group.rotation.set(0, this.bodyYaw, 0);
+    
+    // Add visual damage tilt (Minecraft red-flash flinch style)
+    if (this.damageRotate > 0.01) {
+      this.group.rotateOnWorldAxis(this.damageRotateAxis, this.damageRotate);
+    }
     
     // Head Y rotation is relative to body
     let relativeHeadYaw = this.headYaw - this.bodyYaw;
@@ -464,7 +483,7 @@ export class RemotePlayer {
     }
 
     if (this.isSwinging) {
-      this.swingTimer += delta * this.swingSpeed;
+      this.swingTimer += delta * this.swingSpeed * 2.0; // Make swing snappier by doubling speed
       if (this.swingTimer > Math.PI) {
         this.swingTimer = 0;
         this.isSwinging = false;
@@ -741,11 +760,21 @@ export class RemotePlayer {
     }
   }
 
-  takeDamage() {
+  takeDamage(knockbackDir?: THREE.Vector3) {
     // Visual feedback: red flash and recoil
-    this._recoilDir.set(0, 0, 1).applyQuaternion(this.group.quaternion).negate();
-    this.group.position.addScaledVector(this._recoilDir, 0.2);
-    this.group.position.y += 0.1;
+    if (knockbackDir && knockbackDir.lengthSq() > 0) {
+      const kDir = knockbackDir.clone().normalize();
+      this.visualOffset.addScaledVector(kDir, 0.4);
+      // Tilt backwards relative to knockback
+      this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
+      this.damageRotate = 0.4;
+    } else {
+      this._recoilDir.set(0, 0, 1).applyQuaternion(this.group.quaternion).negate();
+      this.visualOffset.addScaledVector(this._recoilDir, 0.4);
+      this.damageRotateAxis.set(-this._recoilDir.z, 0, this._recoilDir.x).normalize();
+      this.damageRotate = 0.4;
+    }
+    this.visualOffset.y += 0.2;
 
     this.group.traverse((obj) => {
       if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {

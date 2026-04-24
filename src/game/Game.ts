@@ -1,3 +1,4 @@
+import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { World } from './World';
@@ -42,6 +43,7 @@ export class Game {
   private _particleMatrix = new THREE.Matrix4();
   private _particleEuler = new THREE.Euler();
   private _particleQuat = new THREE.Quaternion();
+  private _particleColorTemp = new THREE.Color();
 
   getEntityTags() {
     const tags: any[] = [];
@@ -170,7 +172,13 @@ export class Game {
       
       if (!this.world.isHub) {
         // Load local skills if they exist, otherwise use server skills
-        const savedSkills = localStorage.getItem('skyBridge_skills');
+        let savedSkills = null;
+        try {
+          savedSkills = localStorage.getItem('skyBridge_skills');
+        } catch (e) {
+          console.warn('Failed to access localStorage for skills', e);
+        }
+        
         if (savedSkills) {
           skyBridgeManager.setSkills(JSON.parse(savedSkills));
         } else if (data.players[networkManager.socket.id]?.skills) {
@@ -316,9 +324,7 @@ export class Game {
 
     networkManager.onMinionCollected = (data) => {
       this.player.inventory.addItem(data.type, data.amount);
-      window.dispatchEvent(new CustomEvent('showNotification', { 
-        detail: { text: `Collected ${data.amount}x items from minion!`, color: "#55FF55" } 
-      }));
+      useGameStore.getState().addMessage(`Collected ${data.amount}x items from minion!`, "#55FF55");
     };
 
     networkManager.onTimeUpdate = (data) => {
@@ -332,16 +338,24 @@ export class Game {
     cameraEuler.setFromQuaternion(this.camera.quaternion);
     
     // Persist skin and name
-    let mySkinSeed = localStorage.getItem('skyBridge_skin_seed');
-    if (!mySkinSeed) {
-      mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
-      localStorage.setItem('skyBridge_skin_seed', mySkinSeed);
-    }
-    
-    let myName = localStorage.getItem('skyBridge_player_name');
-    if (!myName) {
-      myName = 'Player ' + Math.floor(Math.random() * 1000);
-      localStorage.setItem('skyBridge_player_name', myName);
+    let mySkinSeed = null;
+    let myName = null;
+    try {
+      mySkinSeed = localStorage.getItem('skyBridge_skin_seed');
+      if (!mySkinSeed) {
+        mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
+        localStorage.setItem('skyBridge_skin_seed', mySkinSeed);
+      }
+      
+      myName = localStorage.getItem('skyBridge_player_name');
+      if (!myName) {
+        myName = 'Player ' + Math.floor(Math.random() * 1000);
+        localStorage.setItem('skyBridge_player_name', myName);
+      }
+    } catch (e) {
+      console.warn('Failed to access localStorage for player info', e);
+      if (!mySkinSeed) mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
+      if (!myName) myName = 'Player ' + Math.floor(Math.random() * 1000);
     }
 
     const joinPos = new THREE.Vector3(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
@@ -354,7 +368,11 @@ export class Game {
     skyBridgeManager.onSkillChange = (skill, progress) => {
       if (!this.world.isHub) {
         networkManager.updateSkills(skill, progress);
-        localStorage.setItem('skyBridge_skills', JSON.stringify(skyBridgeManager.skills));
+        try {
+          localStorage.setItem('skyBridge_skills', JSON.stringify(skyBridgeManager.skills));
+        } catch (e) {
+          // ignore
+        }
       }
     };
 
@@ -407,7 +425,7 @@ export class Game {
     const isPerformanceMode = settingsManager.getSettings().performanceMode;
     const particleCount = isPerformanceMode ? 4 : 12;
     
-    const color = new THREE.Color(0x888888);
+    const color = this._particleColorTemp.setHex(0x888888);
     const blockColors: Record<number, number> = {
       1: 0x5C4033, // DIRT
       2: 0x41980a, // GRASS
@@ -442,7 +460,7 @@ export class Game {
     (p.mesh.material as THREE.MeshLambertMaterial).color.copy(color);
     (p.mesh.material as THREE.MeshLambertMaterial).opacity = 1.0;
     
-    const matrix = new THREE.Matrix4();
+    const matrix = this._particleMatrix;
     for (let i = 0; i < particleCount; i++) {
       const pPos = p.positions[i];
       pPos.set(

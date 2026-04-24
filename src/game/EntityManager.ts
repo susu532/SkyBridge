@@ -22,9 +22,34 @@ export class EntityManager {
   
   droppedItemManager: DroppedItemInstancedManager;
   private networkPlayerHitHandler = (e: any) => {
+    // If we are the attacker, we already played the client-side prediction
+    if (e.detail.attackerId === networkManager.socket?.id) return;
+    
     const player = this.remotePlayers.get(e.detail.id);
     if (player) {
-      player.takeDamage();
+      const dir = e.detail.knockbackDir;
+      let kbDir = undefined;
+      if (dir) {
+        kbDir = new THREE.Vector3(dir.x, dir.y, dir.z);
+      }
+      player.takeDamage(kbDir);
+    }
+  };
+
+  private networkMobHitHandler = (e: any) => {
+    // We don't have attackerId for mobHit right now, but assuming we predicted it locally we could ignore it.
+    // Wait, the client doesn't pass attackerId to server in attack for mob, server knows socket.id, 
+    // but the broadcast 'mobHit' doesn't contain attackerId. 
+    // Is that fine? For now we'll just apply it to all clients so they all see the knockback/reaction.
+    // To prevent double visual offset on attacker, we just accept it or could add attackerId.
+    const mob = this.mobs.get(e.detail.id);
+    if (mob) {
+      const dir = e.detail.knockbackDir;
+      let kbDir = undefined;
+      if (dir) {
+        kbDir = new THREE.Vector3(dir.x, dir.y, dir.z);
+      }
+      mob.takeDamage(0, kbDir); // visually take damage (health is handled by mobsUpdate)
     }
   };
 
@@ -59,24 +84,18 @@ export class EntityManager {
       for (const id in updates) {
         const mob = this.mobs.get(id);
         if (mob) {
-          const data = updates[id];
+          const data = updates[id]; // [x, y, z, health]
           mob.lastNetPos.copy(mob.group.position);
-          mob.targetPosition.set(data.position.x, data.position.y, data.position.z);
+          mob.targetPosition.set(data[0], data[1], data[2]);
           mob.interpolationTimer = 0;
           
-          if (data.health !== undefined && mob.health !== data.health) {
-             mob.health = data.health;
+          if (data[3] !== undefined && mob.health !== data[3]) {
+             mob.health = data[3];
           }
         } else {
-          // If we receive an update for a mob we don't have, spawn it
-          const data = updates[id];
-          if (data.type === 'Pig') continue;
-          const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
-          const newMob = new Mob(id, pos, data.level || 1, data.type, this.textureAtlas);
-          if (data.scale) {
-            newMob.group.scale.set(data.scale, data.scale, data.scale);
-          }
-          this.addMob(newMob);
+          // If we receive an update for a mob we don't have, we can't spawn it 
+          // right here because the packed payload doesn't contain 'type'.
+          // We rely on 'mobSpawned' event to create mobs.
         }
       }
     };
@@ -105,11 +124,14 @@ export class EntityManager {
     };
 
     window.addEventListener('networkPlayerHit', this.networkPlayerHitHandler);
+    window.addEventListener('networkMobHit', this.networkMobHitHandler);
 
     networkManager.onPlayerRespawn = (data) => {
       const player = this.remotePlayers.get(data.id);
       if (player) {
         player.targetPosition.set(data.position.x, data.position.y, data.position.z);
+        player.lastNetPos.set(data.position.x, data.position.y, data.position.z);
+        player.currentPos.set(data.position.x, data.position.y, data.position.z);
         player.group.position.set(data.position.x, data.position.y, data.position.z);
       }
     };
@@ -191,6 +213,10 @@ export class EntityManager {
   removeMinionLocally(id: string) {
     const minion = this.minions.get(id);
     if (minion) {
+      minion.mesh.traverse?.((child: any) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) Array.isArray(child.material) ? child.material.forEach((m: any) => m.dispose()) : child.material.dispose();
+      });
       this.scene.remove(minion.mesh);
       this.minions.delete(id);
     }
@@ -207,6 +233,10 @@ export class EntityManager {
   removeMob(id: string) {
     const mob = this.mobs.get(id);
     if (mob) {
+      mob.group.traverse?.((child: any) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) Array.isArray(child.material) ? child.material.forEach((m: any) => m.dispose()) : child.material.dispose();
+      });
       this.scene.remove(mob.group);
       this.mobs.delete(id);
     }
@@ -222,6 +252,10 @@ export class EntityManager {
   removeRemotePlayer(id: string) {
     const player = this.remotePlayers.get(id);
     if (player) {
+      player.group.traverse?.((child: any) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) Array.isArray(child.material) ? child.material.forEach((m: any) => m.dispose()) : child.material.dispose();
+      });
       this.scene.remove(player.group);
       this.remotePlayers.delete(id);
     }
@@ -230,7 +264,7 @@ export class EntityManager {
   updateRemotePlayer(id: string, data: any) {
     const player = this.remotePlayers.get(id);
     if (player) {
-      player.lastNetPos.copy(player.group.position);
+      player.lastNetPos.copy(player.currentPos);
       player.targetPosition.set(data.position.x, data.position.y, data.position.z);
       player.interpolationTimer = 0;
       
@@ -378,6 +412,7 @@ export class EntityManager {
 
   destroy() {
     window.removeEventListener('networkPlayerHit', this.networkPlayerHitHandler);
+    window.removeEventListener('networkMobHit', this.networkMobHitHandler);
     
     // Clear network handlers we set
     if (networkManager) {

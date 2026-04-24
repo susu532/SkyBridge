@@ -16,7 +16,7 @@ interface ShopUIProps {
   onClose: () => void;
 }
 
-export const ShopUI: React.FC<ShopUIProps> = ({ npc, inventory, isOpen, onClose }) => {
+export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose }) => {
   const inventoryVersion = useGameStore(state => state.inventoryVersion);
   const [hoveredItem, setHoveredItem] = useState<ItemStack | null>(null);
   const [tradeOffer, setTradeOffer] = useState<(ItemStack | null)[]>(new Array(10).fill(null));
@@ -412,4 +412,4 @@ export const ShopUI: React.FC<ShopUIProps> = ({ npc, inventory, isOpen, onClose 
       )}
     </AnimatePresence>
   );
-};
+});

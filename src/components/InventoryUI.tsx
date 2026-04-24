@@ -26,7 +26,7 @@ interface InventoryUIProps {
   onDropItem?: (type: ItemType, count: number) => void;
 }
 
-export const InventoryUI: React.FC<InventoryUIProps> = ({ inventory, isOpen, onClose, onDropItem }) => {
+export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, onClose, onDropItem }) => {
   const [activeTab, setActiveTab] = useState<'inventory' | 'building_blocks'>('inventory');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ItemCategory>(ItemCategory.ALL);
@@ -732,5 +732,5 @@ export const InventoryUI: React.FC<InventoryUIProps> = ({ inventory, isOpen, onC
       </motion.div>
     </div>
   );
-};
+});
 

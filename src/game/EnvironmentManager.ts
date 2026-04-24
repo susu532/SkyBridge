@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Game } from './Game';
 import { settingsManager } from './Settings';
+import { getTerrainData } from './TerrainGenerator';
 
 export class EnvironmentManager {
   game: Game;
@@ -191,7 +192,7 @@ export class EnvironmentManager {
     let isDesertBiome = false;
     
     if (this.game.world && this.game.world.biomes) {
-        const tData = this.game.world.getTerrainData(px, pz);
+        const tData = getTerrainData(px, pz, this.game.world.isSkyCastles, this.game.world.isHub, this.game.world.worldSize);
         const b = tData.biome;
         isSnowBiome = b === this.game.world.biomes.SNOWY_TUNDRA || b === this.game.world.biomes.ICE_SPIKES || b === this.game.world.biomes.TAIGA || b === this.game.world.biomes.MOUNTAINS;
         isDesertBiome = b === this.game.world.biomes.DESERT || b === this.game.world.biomes.BADLANDS || b === this.game.world.biomes.SAVANNA || b === this.game.world.biomes.VOLCANIC;

@@ -1,35 +1,16 @@
 
-import React, { useEffect, useState } from 'react';
-import { skyBridgeManager, PlayerStats, RARITY_COLORS, Rarity } from '../game/SkyBridgeManager';
+import React from 'react';
+import { useGameStore } from '../store/gameStore';
+import { skyBridgeManager, PlayerStats } from '../game/SkyBridgeManager';
 
-export const SkyBridgeSidebar: React.FC<{ skycoins?: number }> = ({ skycoins = 0 }) => {
-  const [stats, setStats] = useState<PlayerStats>(skyBridgeManager.effectiveStats);
-  const [skills, setSkills] = useState(skyBridgeManager.skills);
+export const SkyBridgeSidebar: React.FC = () => {
+  const skycoins = useGameStore(state => state.skycoins);
+  const playerStats = useGameStore(state => state.playerStats);
+  const playerSkills = useGameStore(state => state.playerSkills);
 
-  useEffect(() => {
-    let frameId: number;
-    let lastStatsStr = JSON.stringify(skyBridgeManager.effectiveStats);
-    let lastSkillsStr = JSON.stringify(skyBridgeManager.skills);
-
-    const update = () => {
-      const currentStatsStr = JSON.stringify(skyBridgeManager.effectiveStats);
-      const currentSkillsStr = JSON.stringify(skyBridgeManager.skills);
-
-      if (currentStatsStr !== lastStatsStr) {
-        setStats({ ...skyBridgeManager.effectiveStats });
-        lastStatsStr = currentStatsStr;
-      }
-      if (currentSkillsStr !== lastSkillsStr) {
-        setSkills({ ...skyBridgeManager.skills });
-        lastSkillsStr = currentSkillsStr;
-      }
-
-      frameId = requestAnimationFrame(update);
-    };
-
-    frameId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frameId);
-  }, []);
+  // Fallback to initial values if the store hasn't received its first update yet
+  const stats = playerStats || skyBridgeManager.effectiveStats;
+  const skills = playerSkills && Object.keys(playerSkills).length > 0 ? playerSkills : skyBridgeManager.skills;
 
   return (
     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-none mc-font">

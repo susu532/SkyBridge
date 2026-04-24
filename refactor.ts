@@ -1,50 +1,32 @@
 import * as fs from 'fs';
 
-const chunkTs = fs.readFileSync('src/game/Chunk.ts', 'utf-8');
-const workerTs = fs.readFileSync('src/game/ChunkMesher.worker.ts', 'utf-8');
+let data = fs.readFileSync('src/game/World.ts', 'utf8');
+data = data.replace(/this\.noise2D/g, 'noise2D');
+data = data.replace(/this\.noise3D/g, 'noise3D');
+data = data.replace(/this\.getTerrainData\(worldX, worldZ\)/g, 'getTerrainData(worldX, worldZ, this.isSkyCastles, this.isHub, this.worldSize)');
 
-// Extract the contents of buildMesh
-const buildMeshStartMatch = chunkTs.match(/async buildMesh\([^)]*\)[^{]*\{/);
-if (!buildMeshStartMatch) {
-  console.log("Could not find buildMesh start");
-  process.exit(1);
-}
-
-const buildMeshStartIndex = buildMeshStartMatch.index! + buildMeshStartMatch[0].length;
-let braceCount = 1;
-let buildMeshEndIndex = -1;
-
-for (let i = buildMeshStartIndex; i < chunkTs.length; i++) {
-  if (chunkTs[i] === '{') braceCount++;
-  else if (chunkTs[i] === '}') {
-    braceCount--;
-    if (braceCount === 0) {
-      buildMeshEndIndex = i;
-      break;
+// Remove getTerrainData method
+const startIdx = data.indexOf('  getTerrainData(wx: number, wz: number) {');
+if (startIdx !== -1) {
+  // Find the end of the method
+  let openBraces = 0;
+  let inMethod = false;
+  let endIdx = -1;
+  for (let i = startIdx; i < data.length; i++) {
+    if (data[i] === '{') {
+      openBraces++;
+      inMethod = true;
+    } else if (data[i] === '}') {
+      openBraces--;
+      if (inMethod && openBraces === 0) {
+        endIdx = i + 1;
+        break;
+      }
     }
+  }
+  if (endIdx !== -1) {
+    data = data.substring(0, startIdx) + data.substring(endIdx);
   }
 }
 
-const buildMeshBody = chunkTs.substring(buildMeshStartIndex, buildMeshEndIndex);
-const modifiedWorkerBody = buildMeshBody
-  .replace(/this\.blocks/g, 'data.blocks')
-  .replace(/this\.light/g, 'data.light')
-  .replace(/this\.x/g, 'data.chunkX')
-  .replace(/this\.z/g, 'data.chunkZ')
-  .replace(/chunkCache/g, 'neighborsArray') 
-  .replace(/await new Promise[^\n]+/g, '')
-  .replace(/c\.blocks/g, 'c.blocks')
-  .replace(/c \= neighborsArray\[([^\]]+)\]/g, 'c = { blocks: data.neighborsBlocks[$1], light: data.neighborsLight[$1] }')
-  .replace(/const isCMeshed = c && \(c\.mesh [^\n]+/g, 'const isCMeshed = !!(c && c.blocks);')
-  .replace(/c\.light/g, 'c.light');
-
-let newWorkerContent = workerTs + `
-// Auto-generated greedy mesher
-export function runMesher(data: ChunkMesherRequest): ChunkMesherResponse | null {
-  ${modifiedWorkerBody}
-}
-`;
-
-fs.writeFileSync('src/game/ChunkMesher.worker.ts', newWorkerContent);
-console.log("Worker generated!");
-
+fs.writeFileSync('src/game/World.ts', data);

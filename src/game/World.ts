@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { Chunk, CHUNK_SIZE, CHUNK_HEIGHT, WORLD_Y_OFFSET } from './Chunk';
 import { BLOCK, createTextureAtlas, isSolidBlock, isWater, isAnyTorch } from './TextureAtlas';
-import { createNoise2D, createNoise3D } from 'simplex-noise';
 import { audioManager } from './AudioManager';
 import { settingsManager } from './Settings';
 import { LightingManager } from './LightingManager';
 import { networkManager } from './NetworkManager';
+import { biomes, getTerrainData, noise2D, noise3D } from './TerrainGenerator';
 
 export class World {
   scene: THREE.Scene;
@@ -16,21 +16,6 @@ export class World {
   transparentDepthMaterial: THREE.MeshDepthMaterial;
   renderDistance = 7; // chunks
   
-  // Seeded random for consistent terrain between client and server
-  static createPRNG(seed: string) {
-    let h = 0;
-    for (let i = 0; i < seed.length; i++) {
-      h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
-    }
-    return function() {
-      h = (Math.imul(1597334677, h) + 1) | 0;
-      return (h >>> 0) / 0xffffffff;
-    };
-  }
-
-  prng = World.createPRNG('skyBridge-seed-v1');
-  noise2D = createNoise2D(this.prng);
-  noise3D = createNoise3D(this.prng);
   worldSize = 800; // Radius in blocks
   generatingChunks: Set<string> = new Set();
   meshesToAdd: { chunk: Chunk, mesh: THREE.Mesh | null, transparentMesh: THREE.Mesh | null }[] = [];
@@ -81,24 +66,7 @@ export class World {
   ]);
   // BAKED_BLOCKS_END
 
-  biomes = {
-    SNOWY_TUNDRA: { height: 10, scale: 0.015, topBlock: BLOCK.SNOW, subBlock: BLOCK.DIRT, treeChance: 0.02, plantChance: 0.05, treeType: 'SPRUCE' },
-    TAIGA: { height: 20, scale: 0.02, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.15, plantChance: 0.05, treeType: 'SPRUCE' },
-    SAVANNA: { height: 8, scale: 0.008, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.02, plantChance: 0.15, treeType: 'OAK' },
-    PLAINS: { height: 5, scale: 0.01, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.01, plantChance: 0.2, treeType: 'OAK' },
-    FOREST: { height: 15, scale: 0.02, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.15, plantChance: 0.1, treeType: 'BIRCH' },
-    JUNGLE: { height: 25, scale: 0.025, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.3, plantChance: 0.3, treeType: 'JUNGLE' },
-    SWAMP: { height: 2, scale: 0.015, topBlock: BLOCK.MUD, subBlock: BLOCK.DIRT, treeChance: 0.08, plantChance: 0.15, treeType: 'OAK' },
-    BADLANDS: { height: 25, scale: 0.01, topBlock: BLOCK.RED_SAND, subBlock: BLOCK.TERRACOTTA, treeChance: 0.001, plantChance: 0.02, treeType: 'CACTUS' },
-    VOLCANIC: { height: 30, scale: 0.02, topBlock: BLOCK.OBSIDIAN, subBlock: BLOCK.STONE, treeChance: 0, plantChance: 0, treeType: 'NONE' },
-    DESERT: { height: 8, scale: 0.01, topBlock: BLOCK.SAND, subBlock: BLOCK.SANDSTONE, treeChance: 0.005, plantChance: 0.05, treeType: 'CACTUS' },
-    MOUNTAINS: { height: 60, scale: 0.005, topBlock: BLOCK.STONE, subBlock: BLOCK.STONE, treeChance: 0.005, plantChance: 0.01, treeType: 'SPRUCE' },
-    OCEAN: { height: -15, scale: 0.01, topBlock: BLOCK.SAND, subBlock: BLOCK.SAND, treeChance: 0, plantChance: 0, treeType: 'NONE' },
-    MUSHROOM_ISLAND: { height: 10, scale: 0.015, topBlock: BLOCK.MYCELIUM, subBlock: BLOCK.DIRT, treeChance: 0.05, plantChance: 0.2, treeType: 'GIANT_MUSHROOM' },
-    ICE_SPIKES: { height: 15, scale: 0.02, topBlock: BLOCK.SNOW, subBlock: BLOCK.DIRT, treeChance: 0.05, plantChance: 0, treeType: 'ICE_SPIKE' },
-    CHERRY_GROVE: { height: 35, scale: 0.015, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.2, plantChance: 0.3, treeType: 'CHERRY' },
-    DARK_FOREST: { height: 15, scale: 0.02, topBlock: BLOCK.GRASS, subBlock: BLOCK.DIRT, treeChance: 0.4, plantChance: 0.2, treeType: 'DARK_OAK' }
-  };
+  biomes = biomes;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -1746,105 +1714,7 @@ export class World {
     return BLOCK.AIR;
   }
 
-  getTerrainData(wx: number, wz: number) {
-    const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get('server') || 'hub';
-    const isHub = serverName === 'hub';
 
-    if (isHub) {
-      const distSq = wx * wx + wz * wz;
-      if (distSq <= 900) {
-        return { height: 60, biome: this.biomes.PLAINS, isProtected: true };
-      }
-      return { height: -100, biome: this.biomes.OCEAN, isProtected: false };
-    }
-
-    const shelterEnd = this.isSkyCastles ? 300 : 180;
-
-    // Blue Castle & Village (Z: 70 to 180, X: -50 to 50)
-    const dxBlue = Math.max(0, Math.abs(wx) - 50);
-    const dzBlue = Math.max(0, 70 - wz, wz - shelterEnd);
-    const distBlue = Math.sqrt(dxBlue * dxBlue + dzBlue * dzBlue);
-
-    // Red Castle & Village (Z: -180 to -70, X: -50 to 50)
-    const dxRed = Math.max(0, Math.abs(wx) - 50);
-    const dzRed = Math.max(0, -shelterEnd - wz, wz - -70);
-    const distRed = Math.sqrt(dxRed * dxRed + dzRed * dzRed);
-
-    let distToProtected = Math.min(distBlue, distRed);
-
-    if (this.isSkyCastles) {
-      // Small floating island: hard cutoff after village/shelter bounds
-      if (distToProtected > 15) {
-        return { height: -100, biome: this.biomes.PLAINS, isProtected: false };
-      }
-      // Return flat terrain for the island basics
-      return { height: 64, biome: this.biomes.PLAINS, isProtected: distToProtected === 0 };
-    }
-
-    const baseHeight = 64;
-    
-    // Biome selection noise
-    const tempNoise = this.noise2D(wx * 0.002, wz * 0.002);
-    const moistNoise = this.noise2D(wx * 0.002 + 1000, wz * 0.002 + 1000);
-    
-    let biome = this.biomes.PLAINS;
-    
-    if (tempNoise < -0.6) {
-      biome = this.biomes.ICE_SPIKES;
-    } else if (tempNoise < -0.3) {
-      biome = moistNoise < 0 ? this.biomes.SNOWY_TUNDRA : this.biomes.TAIGA;
-    } else if (tempNoise < 0.0) {
-      if (moistNoise < -0.3) biome = this.biomes.CHERRY_GROVE;
-      else if (moistNoise < 0.3) biome = this.biomes.FOREST;
-      else biome = this.biomes.DARK_FOREST;
-    } else if (tempNoise < 0.3) {
-      if (moistNoise < -0.3) biome = this.biomes.SAVANNA;
-      else if (moistNoise < 0.3) biome = this.biomes.PLAINS;
-      else biome = this.biomes.SWAMP;
-    } else if (tempNoise < 0.6) {
-      if (moistNoise < -0.4) biome = this.biomes.BADLANDS;
-      else if (moistNoise < 0.4) biome = this.biomes.DESERT;
-      else biome = this.biomes.JUNGLE;
-    } else {
-      if (moistNoise < -0.4) biome = this.biomes.VOLCANIC;
-      else if (moistNoise < 0.4) biome = this.biomes.MUSHROOM_ISLAND;
-      else biome = this.biomes.JUNGLE;
-    }
-    
-    // Add mountains
-    const elevationNoise = this.noise2D(wx * 0.001, wz * 0.001);
-    if (elevationNoise > 0.6) biome = this.biomes.MOUNTAINS;
-
-    // Terrain height noise based on biome
-    const n1 = this.noise2D(wx * biome.scale, wz * biome.scale);
-    const n2 = this.noise2D(wx * biome.scale * 4, wz * biome.scale * 4) * 0.5;
-    const n3 = this.noise2D(wx * biome.scale * 16, wz * biome.scale * 16) * 0.25;
-    
-    let mountainHeight = (n1 + n2 + n3) * biome.height;
-    
-    // World boundary: Fade to void at the edge
-    const distFromCenter = Math.sqrt(wx * wx + wz * wz);
-    if (distFromCenter > this.worldSize - 100) {
-      const edgeFactor = Math.min(1, (distFromCenter - (this.worldSize - 100)) / 100);
-      mountainHeight = mountainHeight * (1 - edgeFactor) - 100 * edgeFactor;
-    }
-
-    const targetHeight = baseHeight + mountainHeight;
-
-    // Blend with base height near protected areas
-    const blendDist = 30;
-    let blendFactor = distToProtected / blendDist;
-    if (blendFactor > 1) blendFactor = 1;
-    if (blendFactor < 0) blendFactor = 0;
-
-    // Smoothstep
-    blendFactor = blendFactor * blendFactor * (3 - 2 * blendFactor);
-
-    const finalHeight = Math.floor(baseHeight * (1 - blendFactor) + targetHeight * blendFactor);
-    
-    return { height: finalHeight, biome, isProtected: distToProtected === 0 };
-  }
 
   async generateChunk(cx: number, cz: number) {
     const key = this.getChunkKey(cx, cz);
@@ -1871,7 +1741,7 @@ export class World {
         const isVoid = !isBlueSide && !isRedSide;
         const isBridge = isVoid && worldX >= -8 && worldX <= 8;
         
-        const { height: terrainHeight, biome, isProtected: isAreaProtected } = this.getTerrainData(worldX, worldZ);
+        const { height: terrainHeight, biome, isProtected: isAreaProtected } = getTerrainData(worldX, worldZ, this.isSkyCastles, this.isHub, this.worldSize);
         const isVillageOrCastle = (worldX >= -50 && worldX <= 50) && ((worldZ >= 70 && worldZ <= 410) || (worldZ <= -70 && worldZ >= -410));
         const isBridgeArea = worldX >= -12 && worldX <= 12 && worldZ > -70 && worldZ < 70;
         const isProtected = isVillageOrCastle || isBridgeArea || isAreaProtected;
@@ -1879,7 +1749,7 @@ export class World {
         if (this.isHub) {
           this.generateHubTerrain(chunk, x, z, worldX, worldZ);
         } else if (isBlueSide || isRedSide) {
-          const hasCaves = !this.isSkyCastles && !isProtected && biome !== this.biomes.OCEAN && this.noise2D(worldX * 0.01, worldZ * 0.01) > 0.3;
+          const hasCaves = !this.isSkyCastles && !isProtected && biome !== this.biomes.OCEAN && noise2D(worldX * 0.01, worldZ * 0.01) > 0.3;
           const isBlueVillage = worldZ >= 131 && worldZ <= 180;
           const isRedVillage = worldZ <= -131 && worldZ >= -180;
           
@@ -1892,16 +1762,16 @@ export class World {
               let isCave = false;
               if (hasCaves && y > 1 && y < terrainHeight - 4) {
                 // Noodle caves (tunnels)
-                const caveNoise1 = this.noise3D(worldX * 0.015, y * 0.015, worldZ * 0.015);
-                const caveNoise2 = this.noise3D(worldX * 0.015 + 1000, y * 0.015 + 1000, worldZ * 0.015 + 1000);
-                const tunnelRadius = 0.08 + this.noise3D(worldX * 0.005, y * 0.005, worldZ * 0.005) * 0.05;
+                const caveNoise1 = noise3D(worldX * 0.015, y * 0.015, worldZ * 0.015);
+                const caveNoise2 = noise3D(worldX * 0.015 + 1000, y * 0.015 + 1000, worldZ * 0.015 + 1000);
+                const tunnelRadius = 0.08 + noise3D(worldX * 0.005, y * 0.005, worldZ * 0.005) * 0.05;
                 // A tunnel is formed where two noise fields are both close to 0
                 if (Math.abs(caveNoise1) < tunnelRadius && Math.abs(caveNoise2) < tunnelRadius) {
                   isCave = true;
                 }
                 
                 // Caverns (large open areas)
-                const cavernNoise = this.noise3D(worldX * 0.008, y * 0.01, worldZ * 0.008);
+                const cavernNoise = noise3D(worldX * 0.008, y * 0.01, worldZ * 0.008);
                 if (cavernNoise > 0.3) {
                   isCave = true;
                 }
@@ -1964,7 +1834,7 @@ export class World {
                   }
                 } else if (biome === this.biomes.BADLANDS && y >= terrainHeight - 15) {
                   // Terracotta layers
-                  const layerNoise = Math.floor(y + this.noise2D(worldX * 0.05, worldZ * 0.05) * 3);
+                  const layerNoise = Math.floor(y + noise2D(worldX * 0.05, worldZ * 0.05) * 3);
                   if (layerNoise % 4 === 0) {
                     chunk.setBlockFast(x, y, z, BLOCK.TERRACOTTA);
                   } else if (layerNoise % 4 === 1) {
@@ -1979,9 +1849,9 @@ export class World {
 
                   // Ores and Glowstone
                   if (!this.isSkyCastles && y < 60) {
-                    const oreNoise = this.noise3D(worldX * 0.1, y * 0.1, worldZ * 0.1);
+                    const oreNoise = noise3D(worldX * 0.1, y * 0.1, worldZ * 0.1);
                     if (oreNoise > 0.6) {
-                      const oreTypeNoise = this.noise3D(worldX * 0.05, y * 0.05, worldZ * 0.05);
+                      const oreTypeNoise = noise3D(worldX * 0.05, y * 0.05, worldZ * 0.05);
                       if (y < 15 && oreTypeNoise > 0.8) blockType = BLOCK.DEEPSLATE_DIAMOND_ORE;
                       else if (y < 30 && oreTypeNoise > 0.6) blockType = isDeepslate ? BLOCK.DEEPSLATE_GOLD_ORE : BLOCK.GOLD_ORE;
                       else if (y < 30 && oreTypeNoise < -0.6) blockType = isDeepslate ? BLOCK.DEEPSLATE_LAPIS_ORE : BLOCK.LAPIS_ORE;
@@ -2010,7 +1880,7 @@ export class World {
 
           // Trees (only outside protected areas)
           if (!isProtected && !this.isSkyCastles && terrainHeight >= 63 && biome.treeChance > 0) {
-            const treeNoise = this.noise2D(worldX * 13.37, worldZ * 13.37);
+            const treeNoise = noise2D(worldX * 13.37, worldZ * 13.37);
             if (treeNoise > 1 - biome.treeChance * 2) { // Tree probability
               // Determine tree type
               let logBlock = BLOCK.WOOD;
@@ -2018,7 +1888,7 @@ export class World {
               let treeHeight = 5;
               
               if (biome.treeType === 'BIRCH') {
-                const typeNoise = this.noise2D(worldX * 0.1, worldZ * 0.1);
+                const typeNoise = noise2D(worldX * 0.1, worldZ * 0.1);
                 if (typeNoise > 0.3) {
                   logBlock = BLOCK.BIRCH_LOG;
                   leavesBlock = BLOCK.BIRCH_LEAVES;
@@ -2035,7 +1905,7 @@ export class World {
               } else if (biome.treeType === 'CACTUS') {
                 logBlock = BLOCK.CACTUS;
                 leavesBlock = BLOCK.AIR;
-                treeHeight = 3 + Math.floor((this.noise2D(worldX * 0.1, worldZ * 0.1) + 1) * 1.5);
+                treeHeight = 3 + Math.floor((noise2D(worldX * 0.1, worldZ * 0.1) + 1) * 1.5);
               } else if (biome.treeType === 'CHERRY') {
                 logBlock = BLOCK.CHERRY_LOG;
                 leavesBlock = BLOCK.CHERRY_LEAVES;
@@ -2046,12 +1916,12 @@ export class World {
                 treeHeight = 8;
               } else if (biome.treeType === 'GIANT_MUSHROOM') {
                 logBlock = BLOCK.MUSHROOM_STEM;
-                leavesBlock = this.noise2D(worldX * 0.1, worldZ * 0.1) > 0 ? BLOCK.MUSHROOM_BLOCK_RED : BLOCK.MUSHROOM_BLOCK_BROWN;
+                leavesBlock = noise2D(worldX * 0.1, worldZ * 0.1) > 0 ? BLOCK.MUSHROOM_BLOCK_RED : BLOCK.MUSHROOM_BLOCK_BROWN;
                 treeHeight = 6;
               } else if (biome.treeType === 'ICE_SPIKE') {
                 logBlock = BLOCK.ICE;
                 leavesBlock = BLOCK.AIR;
-                treeHeight = 10 + Math.floor((this.noise2D(worldX * 0.1, worldZ * 0.1) + 1) * 5);
+                treeHeight = 10 + Math.floor((noise2D(worldX * 0.1, worldZ * 0.1) + 1) * 5);
               }
 
               for (let ty = 1; ty <= treeHeight; ty++) {
@@ -2101,9 +1971,9 @@ export class World {
 
           // Plants (Tall grass, flowers, wheat)
           if (!isProtected && !this.isSkyCastles && terrainHeight >= 63 && biome.plantChance > 0) {
-            const plantNoise = this.noise2D(worldX * 42.42, worldZ * 42.42);
+            const plantNoise = noise2D(worldX * 42.42, worldZ * 42.42);
             if (plantNoise > 1 - biome.plantChance * 2) {
-              const typeNoise = this.noise2D(worldX * 0.5, worldZ * 0.5);
+              const typeNoise = noise2D(worldX * 0.5, worldZ * 0.5);
               let plantBlock = BLOCK.TALL_GRASS;
               
               if (biome === this.biomes.DESERT || biome === this.biomes.SAVANNA) {
@@ -2132,9 +2002,9 @@ export class World {
 
           // Animals (only outside protected areas)
           if (!isProtected && terrainHeight >= 63) {
-            const animalNoise = this.noise2D(worldX * 123.45, worldZ * 123.45);
+            const animalNoise = noise2D(worldX * 123.45, worldZ * 123.45);
             if (animalNoise > 0.99) {
-              const typeNoise = this.noise2D(worldX * 0.2, worldZ * 0.2);
+              const typeNoise = noise2D(worldX * 0.2, worldZ * 0.2);
               let type = 'Cow';
               if (typeNoise > 0.3) type = 'Pig';
               else if (typeNoise < -0.3) type = 'Sheep';
@@ -2486,10 +2356,13 @@ export class World {
         if (chunk.mesh) {
           this.scene.remove(chunk.mesh);
           chunk.mesh.geometry.dispose();
+          // We don't dispose the material because it's shared across all chunks
+          // chunk.mesh.material.dispose(); // Removing this explicitly to prevent WebGL leaks from destroying shared material
         }
         if (chunk.transparentMesh) {
           this.scene.remove(chunk.transparentMesh);
           chunk.transparentMesh.geometry.dispose();
+          // chunk.transparentMesh.material.dispose();
         }
         this.chunks.delete(key);
       }

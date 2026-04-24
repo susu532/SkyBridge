@@ -1,5 +1,6 @@
 
 import { audioManager } from './AudioManager';
+import { useGameStore } from '../store/gameStore';
 
 export enum Rarity {
   COMMON = 'COMMON',
@@ -120,6 +121,7 @@ class SkyBridgeManager {
         this.applyLevelStats(skill as SkillType, i, false);
       }
     }
+    useGameStore.getState().setPlayerSkills({ ...this.skills });
   }
 
   addXp(skill: SkillType, amount: number) {
@@ -127,7 +129,7 @@ class SkyBridgeManager {
     progress.xp += amount;
     
     // Dispatch event for UI popup
-    window.dispatchEvent(new CustomEvent('skyBridgeXP', { detail: { skill, amount } }));
+    useGameStore.getState().addXpPopup(skill, amount);
 
     if (this.onSkillChange) this.onSkillChange(skill, progress);
 
@@ -139,6 +141,7 @@ class SkyBridgeManager {
       this.onLevelUp(skill, progress.level);
       if (this.onSkillChange) this.onSkillChange(skill, progress);
     }
+    useGameStore.getState().setPlayerSkills({ ...this.skills });
   }
 
   private onLevelUp(skill: SkillType, level: number) {
@@ -146,7 +149,7 @@ class SkyBridgeManager {
     audioManager.play('level_up', 0.8, 1.0);
     
     // Dispatch event for UI celebration
-    window.dispatchEvent(new CustomEvent('skyBridgeLevelUp', { detail: { skill, level } }));
+    useGameStore.getState().addLevelUpPopup(skill, level);
 
     this.applyLevelStats(skill, level, true);
   }
@@ -222,6 +225,8 @@ class SkyBridgeManager {
     };
   }
 
+  private lastStatsPushTime: number = 0;
+
   tick(delta: number, inventory: any, hotbarIndex: number) {
     this.effectiveStats = this.getEffectiveStats(inventory, hotbarIndex);
     const effectiveStats = this.effectiveStats;
@@ -234,6 +239,12 @@ class SkyBridgeManager {
     if (this.stats.health < effectiveStats.maxHealth) {
       const healthRegen = (effectiveStats.maxHealth * 0.01 + 1) * delta;
       this.stats.health = Math.min(effectiveStats.maxHealth, this.stats.health + healthRegen);
+    }
+
+    const now = performance.now();
+    if (now - this.lastStatsPushTime > 200) { // 5Hz UI update rate
+      useGameStore.getState().setPlayerStats({ ...this.effectiveStats, health: this.stats.health, intelligence: this.stats.intelligence });
+      this.lastStatsPushTime = now;
     }
   }
 }

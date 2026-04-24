@@ -56,6 +56,11 @@ export class Mob {
   alertTimer: number = 0;
   knockbackTimer: number = 0;
   
+  visualOffset = new THREE.Vector3();
+  damageRotate = 0;
+  damageRotateAxis = new THREE.Vector3(1, 0, 0);
+  _recoilDir = new THREE.Vector3();
+  
   // Animation parts
   head: THREE.Object3D | null = null;
   body: THREE.Object3D | null = null;
@@ -698,11 +703,21 @@ export class Mob {
          this.lastNetPos.copy(this.targetPosition);
       }
       
-      // Networked movement interpolation (framerate independent)
-      this.interpolationTimer += delta;
-      const progress = Math.min(this.interpolationTimer / 0.05, 1.0); // 50ms tick
-      this.position.lerpVectors(this.lastNetPos, this.targetPosition, progress);
-      this.group.position.copy(this.position);
+      // Networked movement interpolation
+      const dist = this.position.distanceTo(this.targetPosition);
+      if (dist > 10) {
+        this.position.copy(this.targetPosition);
+      } else {
+        this.interpolationTimer += delta;
+        const progress = Math.min(this.interpolationTimer / 0.1, 1.0); // 100ms tick for mobs
+        this.position.lerpVectors(this.lastNetPos, this.targetPosition, progress);
+      }
+      
+      const decay = 1.0 - Math.exp(-15 * delta); 
+      this.visualOffset.lerp(new THREE.Vector3(0, 0, 0), decay);
+      this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, 0, decay);
+      
+      this.group.position.copy(this.position).add(this.visualOffset);
       
       // Face movement direction
       const moveDir = this.targetPosition.clone().sub(this.lastNetPos);
@@ -713,10 +728,15 @@ export class Mob {
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
         
-        this.group.rotation.y += diff * delta * 15;
+        this.group.rotation.set(0, this.group.rotation.y + diff * delta * 15, 0);
         this.walkCycle += delta * 10;
       } else {
+        this.group.rotation.set(0, this.group.rotation.y, 0);
         this.walkCycle = 0;
+      }
+      
+      if (this.damageRotate > 0.01) {
+        this.group.rotateOnWorldAxis(this.damageRotateAxis, this.damageRotate);
       }
 
       // Head look at player (only for passive mobs)
@@ -1093,6 +1113,19 @@ export class Mob {
   takeDamage(amount: number, knockbackDir?: THREE.Vector3) {
     this.health -= amount;
     if (this.isPassive) this.fleeTimer = 5.0;
+    
+    if (knockbackDir && knockbackDir.lengthSq() > 0) {
+      const kDir = knockbackDir.clone().normalize();
+      this.visualOffset.addScaledVector(kDir, 0.4);
+      this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
+      this.damageRotate = 0.4;
+    } else {
+      this._recoilDir.set(0, 0, 1).applyQuaternion(this.group.quaternion).negate();
+      this.visualOffset.addScaledVector(this._recoilDir, 0.4);
+      this.damageRotateAxis.set(-this._recoilDir.z, 0, this._recoilDir.x).normalize();
+      this.damageRotate = 0.4;
+    }
+    this.visualOffset.y += 0.2;
     
     // Play hurt sound
     const soundPrefix = this.type.toLowerCase();

@@ -78,13 +78,13 @@ class SettingsManager {
   private listeners: ((settings: GameSettings) => void)[] = [];
 
   constructor() {
-    const saved = localStorage.getItem('game_settings');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('game_settings');
+      if (saved) {
         this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
-      } catch (e) {
-        console.error('Failed to parse settings', e);
       }
+    } catch (e) {
+      console.error('Failed to access or parse localStorage settings', e);
     }
   }
 
@@ -94,7 +94,11 @@ class SettingsManager {
 
   updateSettings(newSettings: Partial<GameSettings>) {
     this.settings = { ...this.settings, ...newSettings };
-    localStorage.setItem('game_settings', JSON.stringify(this.settings));
+    try {
+      localStorage.setItem('game_settings', JSON.stringify(this.settings));
+    } catch (e) {
+      console.error('Failed to save settings to localStorage', e);
+    }
     this.notify();
   }
 

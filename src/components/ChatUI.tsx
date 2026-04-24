@@ -1,3 +1,4 @@
+import { useGameStore } from '../store/gameStore';
 import React, { useState, useEffect, useRef } from 'react';
 import { networkManager } from '../game/NetworkManager';
 
@@ -6,20 +7,11 @@ interface ChatMessage {
   message: string;
 }
 
-export function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean, isTyping: boolean, setIsTyping: (v: boolean) => void }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean, isTyping: boolean, setIsTyping: (v: boolean) => void }) {
+  const messages = useGameStore(state => state.chatMessages);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  // Handle incoming messages
-  useEffect(() => {
-    const handleChat = (e: any) => {
-      setMessages(prev => [...prev.slice(-49), e.detail]); // Keep last 50 messages
-    };
-    window.addEventListener('chatMessage', handleChat);
-    return () => window.removeEventListener('chatMessage', handleChat);
-  }, []);
 
   // Handle focus when typing starts
   useEffect(() => {
@@ -37,7 +29,7 @@ export function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean,
           if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'voidtrail') {
              window.location.href = `/?server=${target}`;
           } else {
-             setMessages(prev => [...prev.slice(-49), { sender: 'System', message: `§cUnknown server: ${target}` }]);
+             useGameStore.getState().addChatMessage('System', `§cUnknown server: ${target}`);
           }
         } else {
           networkManager.sendChatMessage(val);
@@ -97,4 +89,4 @@ export function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean,
       )}
     </div>
   );
-}
+});

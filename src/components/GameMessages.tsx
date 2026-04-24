@@ -1,31 +1,10 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-
-interface Message {
-  id: string;
-  text: string;
-  color: string;
-}
+import { useGameStore } from '../store/gameStore';
 
 export const GameMessages: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-
-  useEffect(() => {
-    const handleMessage = (e: any) => {
-      const { text, color } = e.detail;
-      const id = Math.random().toString(36).substring(7);
-      
-      setMessages(prev => [...prev, { id, text, color: color || 'white' }]);
-      
-      setTimeout(() => {
-        setMessages(prev => prev.filter(m => m.id !== id));
-      }, 3000);
-    };
-
-    window.addEventListener('gameMessage', handleMessage as EventListener);
-    return () => window.removeEventListener('gameMessage', handleMessage as EventListener);
-  }, []);
+  const messages = useGameStore(state => state.messages);
 
   return (
     <div className="fixed bottom-1/4 left-1/2 -translate-x-1/2 pointer-events-none z-[500] flex flex-col items-center gap-2">

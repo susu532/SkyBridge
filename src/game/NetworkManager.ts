@@ -1,6 +1,6 @@
+import { useGameStore } from '../store/gameStore';
 import { io, Socket } from 'socket.io-client';
 import * as THREE from 'three';
-import { getSecureBackendUrl } from '../utils/security';
 
 export class NetworkManager {
   socket!: Socket;
@@ -61,7 +61,7 @@ export class NetworkManager {
 
   receiveLocalMessage(sender: string, message: string) {
     if (this.onChatMessage) this.onChatMessage({ sender, message });
-    window.dispatchEvent(new CustomEvent('chatMessage', { detail: { sender, message } }));
+    useGameStore.getState().addChatMessage(sender, message);
   }
 
   constructor() {
@@ -81,8 +81,7 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
-    this.socket = io(`${BACKEND_URL}/${serverName}`);
+    this.socket = io(`/${serverName}`);
 
     this.socket.on('init', (data) => {
       this.initData = data;
@@ -141,10 +140,28 @@ export class NetworkManager {
       window.dispatchEvent(new CustomEvent('networkPlayerJoined', { detail: player }));
     });
 
-    this.socket.on('playersUpdate', (updates: Record<string, any>) => {
+    this.socket.on('playersUpdate', (updates: Record<string, any[]>) => {
       for (const id in updates) {
         if (id === this.socket.id) continue;
-        const player = updates[id];
+        const packed = updates[id];
+        
+        const stateMask = packed[5];
+        const player = {
+          id: id,
+          position: { x: packed[0], y: packed[1], z: packed[2] },
+          rotation: { x: packed[3], y: packed[4], z: 0 },
+          isFlying: !!(stateMask & 1),
+          isSwimming: !!(stateMask & 2),
+          isCrouching: !!(stateMask & 4),
+          isSprinting: !!(stateMask & 8),
+          isSwinging: !!(stateMask & 16),
+          isGrounded: !!(stateMask & 32),
+          isBlocking: !!(stateMask & 64),
+          swingSpeed: packed[6],
+          heldItem: packed[7],
+          offHandItem: packed[8]
+        };
+
         let isNew = false;
         if (this.players[id]) {
           Object.assign(this.players[id], player);
@@ -170,9 +187,26 @@ export class NetworkManager {
       window.dispatchEvent(new CustomEvent('networkPlayerLeft', { detail: { id } }));
     });
 
+    this.socket.on('batchedPlayerHits', (hits: any[]) => {
+      for (const data of hits) {
+        if (this.onPlayerHit) this.onPlayerHit(data);
+        window.dispatchEvent(new CustomEvent('networkPlayerHit', { detail: data }));
+      }
+    });
+
+    this.socket.on('batchedMobHits', (hits: any[]) => {
+      for (const data of hits) {
+        window.dispatchEvent(new CustomEvent('networkMobHit', { detail: data }));
+      }
+    });
+
     this.socket.on('playerHit', (data) => {
       if (this.onPlayerHit) this.onPlayerHit(data);
       window.dispatchEvent(new CustomEvent('networkPlayerHit', { detail: data }));
+    });
+
+    this.socket.on('mobHit', (data) => {
+      window.dispatchEvent(new CustomEvent('networkMobHit', { detail: data }));
     });
 
     this.socket.on('playerRespawn', (data) => {
@@ -193,7 +227,7 @@ export class NetworkManager {
 
     this.socket.on('chatMessage', (data) => {
       if (this.onChatMessage) this.onChatMessage(data);
-      window.dispatchEvent(new CustomEvent('chatMessage', { detail: data }));
+      useGameStore.getState().addChatMessage(data.sender, data.message);
     });
   }
 
@@ -213,20 +247,20 @@ export class NetworkManager {
     this.socket.emit('skillUpdate', { skill, progress });
   }
 
-  move(position: THREE.Vector3, rotation: THREE.Euler, state: any) {
-    this.socket.emit('move', {
-      position: { 
-        x: Math.round(position.x * 100) / 100, 
-        y: Math.round(position.y * 100) / 100, 
-        z: Math.round(position.z * 100) / 100 
-      },
-      rotation: { 
-        x: Math.round(rotation.x * 100) / 100, 
-        y: Math.round(rotation.y * 100) / 100, 
-        z: Math.round(rotation.z * 100) / 100 
-      },
-      ...state
-    });
+  move(position: THREE.Vector3, rotation: THREE.Euler) {
+    const buffer = new ArrayBuffer(20);
+    const view = new DataView(buffer);
+    view.setFloat32(0, position.x);
+    view.setFloat32(4, position.y);
+    view.setFloat32(8, position.z);
+    view.setFloat32(12, rotation.x);
+    view.setFloat32(16, rotation.y);
+    
+    this.socket.emit('moveP', buffer);
+  }
+
+  updateState(state: any) {
+    this.socket.emit('playerState', state);
   }
 
   setBlock(x: number, y: number, z: number, type: number, force: boolean = false) {

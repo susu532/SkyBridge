@@ -1,25 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SkillType } from '../game/SkyBridgeManager';
-
-interface LevelUpData {
-  skill: SkillType;
-  level: number;
-}
+import { useGameStore } from '../store/gameStore';
 
 export const LevelUpUI: React.FC = () => {
-  const [data, setData] = useState<LevelUpData | null>(null);
-
-  useEffect(() => {
-    const handleLevelUp = (e: any) => {
-      setData(e.detail);
-      setTimeout(() => setData(null), 5000);
-    };
-
-    window.addEventListener('skyBridgeLevelUp', handleLevelUp as EventListener);
-    return () => window.removeEventListener('skyBridgeLevelUp', handleLevelUp as EventListener);
-  }, []);
+  const popups = useGameStore(state => state.levelUpPopups);
+  const data = popups.length > 0 ? popups[popups.length - 1] : null;
 
   return (
     <AnimatePresence>

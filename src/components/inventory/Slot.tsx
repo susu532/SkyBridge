@@ -70,7 +70,7 @@ export const Slot: React.FC<{
   return true;
 });
 
-export const ItemIcon: React.FC<{ item: ItemStack }> = ({ item }) => {
+export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
   const atlasUrl = getTextureAtlasDataUrl();
   const uvs = getBlockUVs(item.type as unknown as number);
   
@@ -183,4 +183,4 @@ export const ItemIcon: React.FC<{ item: ItemStack }> = ({ item }) => {
       )}
     </div>
   );
-};
+});

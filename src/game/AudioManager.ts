@@ -11,33 +11,36 @@ class AudioManager {
   private positionalPool: THREE.PositionalAudio[] = [];
 
   constructor() {
-    this.listener = new THREE.AudioListener();
     this.audioLoader = new THREE.AudioLoader();
     
-    // Subscribe to settings for global volume
-    settingsManager.subscribe((settings) => {
-      this.listener.setMasterVolume(settings.volume);
-    });
-    // Set initial volume
-    this.listener.setMasterVolume(settingsManager.getSettings().volume);
-
-    // Initialize pool
-    for (let i = 0; i < 20; i++) {
-      const pAudio = new THREE.PositionalAudio(this.listener);
-      pAudio.setRefDistance(5);
-      pAudio.setMaxDistance(50);
-      pAudio.setRolloffFactor(1);
-      this.positionalPool.push(pAudio);
-    }
-
-    // Unbreakable brute-force unlocking to guarantee audio context resumes across all game states
     if (typeof window !== 'undefined') {
+      this.listener = new THREE.AudioListener();
+      
+      // Subscribe to settings for global volume
+      settingsManager.subscribe((settings) => {
+        if (this.listener) this.listener.setMasterVolume(settings.volume);
+      });
+      // Set initial volume
+      if (this.listener) this.listener.setMasterVolume(settingsManager.getSettings().volume);
+
+      // Initialize pool
+      for (let i = 0; i < 20; i++) {
+        const pAudio = new THREE.PositionalAudio(this.listener);
+        pAudio.setRefDistance(5);
+        pAudio.setMaxDistance(50);
+        pAudio.setRolloffFactor(1);
+        this.positionalPool.push(pAudio);
+      }
+
+      // Unbreakable brute-force unlocking to guarantee audio context resumes across all game states
       const unlockAudio = () => {
         this.resume();
       };
       window.addEventListener('pointerdown', unlockAudio, { capture: true });
       window.addEventListener('keydown', unlockAudio, { capture: true });
       window.addEventListener('click', unlockAudio, { capture: true });
+    } else {
+      this.listener = null as any; // Dummy for server
     }
   }
 

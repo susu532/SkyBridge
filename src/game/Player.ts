@@ -17,6 +17,10 @@ import { PlayerRenderer } from './PlayerRenderer';
 import { PlayerInputController } from './PlayerInputController';
 import { PlayerPhysics } from './PlayerPhysics';
 
+const _rayDir = new THREE.Vector3();
+const _rayOrigin = new THREE.Vector3();
+const _offset = new THREE.Vector3();
+
 export enum Perspective {
   FIRST_PERSON = 0,
   THIRD_PERSON_BACK = 1,
@@ -97,6 +101,7 @@ export class Player {
   capeVelocity = 0;
   capeAngle = 0.1;
   lastNetworkSyncTime = 0;
+  _lastStateHash = '';
   
   private _syncEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private _syncPos = new THREE.Vector3();
@@ -197,9 +202,7 @@ export class Player {
       this.health = skyBridgeManager.stats.health;
       window.dispatchEvent(new CustomEvent('playerRespawn'));
       if (wasDead) {
-        window.dispatchEvent(new CustomEvent('gameMessage', { 
-          detail: { text: "You respawned!", color: "#55FF55" } 
-        }));
+        useGameStore.getState().addMessage("You respawned!", "#55FF55");
       }
     }
   };
@@ -326,9 +329,7 @@ export class Player {
       const dropCount = 1 + Math.floor(fortune / 100) + (Math.random() < (fortune % 100) / 100 ? 1 : 0);
       
       if (this.canHarvestTarget && dropCount > 1) {
-        window.dispatchEvent(new CustomEvent('gameMessage', { 
-          detail: { text: `☘ Mining Fortune triggered! (+${dropCount - 1} drops)`, color: "#FFAA00" } 
-        }));
+        useGameStore.getState().addMessage(`☘ Mining Fortune triggered! (+${dropCount - 1} drops)`, "#FFAA00");
       }
 
       // Add directly to inventory
@@ -382,9 +383,7 @@ export class Player {
             z: pos.z + 0.5 + (Math.random() - 0.5) * 0.2
           });
         }
-        window.dispatchEvent(new CustomEvent('gameMessage', { 
-          detail: { text: "Inventory full! Some items were dropped.", color: "#FF5555" } 
-        }));
+        useGameStore.getState().addMessage("Inventory full! Some items were dropped.", "#FF5555");
       }
       
       // Reward SkyBridge XP
@@ -998,9 +997,9 @@ export class Player {
          // In survival we don't auto-start mining immediately on drag unless we are still holding left click after a block breaks.
       }
       
-      const direction = new THREE.Vector3();
+      const direction = _rayDir;
       this.camera.getWorldDirection(direction);
-      const rayOrigin = this.playerHeadPos.clone();
+      const rayOrigin = _rayOrigin.copy(this.playerHeadPos);
       const hitResult = this.world.raycast(rayOrigin, direction, 5);
 
       if (hitResult.hit && hitResult.blockPos) {
@@ -1055,9 +1054,9 @@ export class Player {
     
     // Progress mining if it's active
     if (this.isMining && this.miningTarget) {
-      const direction = new THREE.Vector3();
+      const direction = _rayDir;
       this.camera.getWorldDirection(direction);
-      const rayOrigin = this.playerHeadPos.clone();
+      const rayOrigin = _rayOrigin.copy(this.playerHeadPos);
       const hitResult = this.world.raycast(rayOrigin, direction, 5);
 
       if (hitResult.hit && hitResult.blockPos && hitResult.blockPos.equals(this.miningTarget)) {
@@ -1325,7 +1324,7 @@ export class Player {
       this.fpArmGroup.visible = false;
       
       // Position camera based on perspective
-      const offset = new THREE.Vector3();
+      const offset = _offset.set(0,0,0);
       if (this.perspective === Perspective.THIRD_PERSON_BACK) {
         offset.set(0, 0.5, 4);
       } else {
@@ -1421,24 +1420,32 @@ export class Player {
 
     // Sync to network (Adaptive frequency)
     const now = performance.now();
-    const syncInterval = settingsManager.getSettings().performanceMode ? 100 : 50;
+    const syncInterval = settingsManager.getSettings().performanceMode ? 50 : 20; // 50Hz normally, 20Hz perf mode
+
+    const currentState = {
+      isFlying: this.isFlying,
+      isSwimming: this.isSwimming,
+      isCrouching: this.inputController.isCrouching,
+      isSprinting: this.inputController.isSprinting,
+      isSwinging: this.isSwinging,
+      isBlocking: this.inputController.isBlocking,
+      swingSpeed: this.swingSpeed,
+      isGrounded: this.canJump,
+      heldItem: this.inventory.slots[this.hotbarIndex]?.type || 0,
+      offHandItem: this.inventory.slots[Inventory.OFF_HAND_SLOT]?.type || 0,
+      defense: skyBridgeManager.effectiveStats.defense || 0
+    };
+
+    const stateHash = JSON.stringify(currentState);
+    if (this._lastStateHash !== stateHash) {
+      networkManager.updateState(currentState);
+      this._lastStateHash = stateHash;
+    }
 
     if (now - this.lastNetworkSyncTime > syncInterval) {
       this._syncEuler.set(this.cameraPitch, this.cameraYaw, 0, 'YXZ');
       this._syncPos.set(this.worldPosition.x, this.worldPosition.y - this.playerHeight, this.worldPosition.z);
-      networkManager.move(this._syncPos, this._syncEuler, {
-        isFlying: this.isFlying,
-        isSwimming: this.isSwimming,
-        isCrouching: this.inputController.isCrouching,
-        isSprinting: this.inputController.isSprinting,
-        isSwinging: this.isSwinging,
-        isBlocking: this.inputController.isBlocking,
-        swingSpeed: this.swingSpeed,
-        isGrounded: this.canJump,
-        heldItem: this.inventory.slots[this.hotbarIndex]?.type || 0,
-        offHandItem: this.inventory.slots[Inventory.OFF_HAND_SLOT]?.type || 0,
-        defense: skyBridgeManager.effectiveStats.defense || 0
-      });
+      networkManager.move(this._syncPos, this._syncEuler);
       this.lastNetworkSyncTime = now;
     }
   }
