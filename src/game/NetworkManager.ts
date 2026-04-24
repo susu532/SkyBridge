@@ -258,7 +258,7 @@ export class NetworkManager {
     view.setFloat32(12, rotation.x);
     view.setFloat32(16, rotation.y);
     
-    this.socket.emit('moveP', buffer);
+    this.socket.volatile.emit('moveP', buffer);
   }
 
   updateState(state: any) {

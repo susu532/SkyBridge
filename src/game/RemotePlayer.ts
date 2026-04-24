@@ -388,10 +388,8 @@ export class RemotePlayer {
     if (dist > 10) {
       this.currentPos.copy(this.targetPosition);
     } else {
-      this.interpolationTimer += delta;
-      // We receive updates every ~20ms (50Hz), but we interpolate over 40ms to keep a smooth buffer
-      const progress = Math.min(this.interpolationTimer / 0.04, 1.0); 
-      this.currentPos.lerpVectors(this.lastNetPos, this.targetPosition, progress);
+      const moveFactor = 1.0 - Math.exp(-20 * delta);
+      this.currentPos.lerp(this.targetPosition, moveFactor);
     }
 
     const decay = 1.0 - Math.exp(-15 * delta); // Snappy exponential decay
@@ -400,7 +398,7 @@ export class RemotePlayer {
     
     this.group.position.copy(this.currentPos).add(this.visualOffset);
 
-    const lerpFactor = 1.0 - Math.pow(0.0001, delta);
+    const lerpFactor = 1.0 - Math.exp(-25 * delta);
     
     // Minecraft-style head and body rotation sync
     // targetRotation.y is the total look yaw

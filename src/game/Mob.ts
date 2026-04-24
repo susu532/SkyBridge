@@ -708,9 +708,8 @@ export class Mob {
       if (dist > 10) {
         this.position.copy(this.targetPosition);
       } else {
-        this.interpolationTimer += delta;
-        const progress = Math.min(this.interpolationTimer / 0.1, 1.0); // 100ms tick for mobs
-        this.position.lerpVectors(this.lastNetPos, this.targetPosition, progress);
+        const moveFactor = 1.0 - Math.exp(-20 * delta);
+        this.position.lerp(this.targetPosition, moveFactor);
       }
       
       const decay = 1.0 - Math.exp(-15 * delta); 
