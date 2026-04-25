@@ -124,7 +124,13 @@ export function applySkinUVs(geometry: THREE.BufferGeometry, part: keyof typeof 
   uvs.needsUpdate = true;
 }
 
+const skinCache = new Map<string, THREE.Texture>();
+
 export function generateSkin(seed: string): THREE.Texture {
+  if (skinCache.has(seed)) {
+    return skinCache.get(seed)!;
+  }
+  
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
@@ -294,6 +300,8 @@ export function generateSkin(seed: string): THREE.Texture {
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
+  
+  skinCache.set(seed, texture);
   
   return texture;
 }

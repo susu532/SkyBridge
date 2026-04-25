@@ -202,7 +202,11 @@ export class Game {
           const mobData = data.mobs[id];
           if (mobData.type === 'Pig') continue; // Filter out pigs from server
           const pos = new THREE.Vector3(mobData.position.x, mobData.position.y, mobData.position.z);
-          this.entityManager.addMob(new Mob(mobData.id, pos, 1, mobData.type, this.entityManager.textureAtlas));
+          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas);
+          if (mobData.scale) {
+             mob.group.scale.set(mobData.scale, mobData.scale, mobData.scale);
+          }
+          this.entityManager.addMob(mob);
         }
       }
       // Add existing minions

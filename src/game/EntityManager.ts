@@ -74,13 +74,6 @@ export class EntityManager {
     };
 
     networkManager.onMobsUpdate = (updates) => {
-      // First, remove any mobs that are no longer in the updates list
-      for (const id of this.mobs.keys()) {
-        if (!updates[id]) {
-          this.removeMob(id);
-        }
-      }
-
       for (const id in updates) {
         const mob = this.mobs.get(id);
         if (mob) {
@@ -92,10 +85,6 @@ export class EntityManager {
           if (data[3] !== undefined && mob.health !== data[3]) {
              mob.health = data[3];
           }
-        } else {
-          // If we receive an update for a mob we don't have, we can't spawn it 
-          // right here because the packed payload doesn't contain 'type'.
-          // We rely on 'mobSpawned' event to create mobs.
         }
       }
     };
@@ -320,7 +309,7 @@ export class EntityManager {
       npc.update(playerPos, delta);
     }
     for (const player of this.remotePlayers.values()) {
-      player.update(delta);
+      player.update(delta, playerPos);
     }
     for (const minion of this.minions.values()) {
       minion.update(Date.now());

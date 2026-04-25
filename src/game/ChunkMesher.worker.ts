@@ -22,6 +22,8 @@ export interface ChunkMesherResponse {
     colors: Float32Array;
     uvs: Float32Array;
     indices: Uint32Array;
+    tileBases: Float32Array;
+    sways: Float32Array;
   } | null;
   transparent: {
     positions: Float32Array;
@@ -29,6 +31,8 @@ export interface ChunkMesherResponse {
     colors: Float32Array;
     uvs: Float32Array;
     indices: Uint32Array;
+    tileBases: Float32Array;
+    sways: Float32Array;
   } | null;
 }
 

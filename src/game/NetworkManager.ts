@@ -139,7 +139,6 @@ export class NetworkManager {
     this.socket.on('playerJoined', (player) => {
       this.players[player.id] = player;
       if (this.onPlayerJoined) this.onPlayerJoined(player);
-      window.dispatchEvent(new CustomEvent('networkPlayerJoined', { detail: player }));
     });
 
     this.socket.on('playersUpdate', (updates: Record<string, any[]>) => {
@@ -174,19 +173,16 @@ export class NetworkManager {
         
         if (isNew && this.onPlayerJoined) {
           this.onPlayerJoined(player);
-          window.dispatchEvent(new CustomEvent('networkPlayerJoined', { detail: player }));
         }
         if (this.onPlayerMoved) {
           this.onPlayerMoved(player);
         }
-        window.dispatchEvent(new CustomEvent('networkPlayerMoved', { detail: player }));
       }
     });
 
     this.socket.on('playerLeft', (id) => {
       delete this.players[id];
       if (this.onPlayerLeft) this.onPlayerLeft(id);
-      window.dispatchEvent(new CustomEvent('networkPlayerLeft', { detail: { id } }));
     });
 
     this.socket.on('batchedPlayerHits', (hits: any[]) => {
@@ -218,7 +214,6 @@ export class NetworkManager {
 
     this.socket.on('skillUpdate', (data) => {
       if (this.onSkillUpdate) this.onSkillUpdate(data);
-      window.dispatchEvent(new CustomEvent('networkSkillUpdate', { detail: data }));
     });
 
     this.socket.on('blockChanged', (data) => {

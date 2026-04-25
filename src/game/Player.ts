@@ -105,6 +105,8 @@ export class Player {
   
   private _syncEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private _syncPos = new THREE.Vector3();
+  private _lastSyncPos?: THREE.Vector3;
+  private _lastSyncEuler?: THREE.Euler;
 
   // Mining state
   isLeftMouseDown = false;
@@ -1420,7 +1422,7 @@ export class Player {
 
     // Sync to network (Adaptive frequency)
     const now = performance.now();
-    const syncInterval = settingsManager.getSettings().performanceMode ? 50 : 20; // 50Hz normally, 20Hz perf mode
+    const syncInterval = 50; // Always sync at 20Hz for server scalability
 
     const currentState = {
       isFlying: this.isFlying,
@@ -1445,8 +1447,22 @@ export class Player {
     if (now - this.lastNetworkSyncTime > syncInterval) {
       this._syncEuler.set(this.cameraPitch, this.cameraYaw, 0, 'YXZ');
       this._syncPos.set(this.worldPosition.x, this.worldPosition.y - this.playerHeight, this.worldPosition.z);
-      networkManager.move(this._syncPos, this._syncEuler);
-      this.lastNetworkSyncTime = now;
+
+      const dx = this._syncPos.x - (this._lastSyncPos?.x || 0);
+      const dy = this._syncPos.y - (this._lastSyncPos?.y || 0);
+      const dz = this._syncPos.z - (this._lastSyncPos?.z || 0);
+      const distSq = dx * dx + dy * dy + dz * dz;
+      const rotDiff = Math.abs(this._syncEuler.x - (this._lastSyncEuler?.x || 0)) + Math.abs(this._syncEuler.y - (this._lastSyncEuler?.y || 0));
+
+      if (distSq > 0.0001 || rotDiff > 0.01) {
+        networkManager.move(this._syncPos, this._syncEuler);
+        this.lastNetworkSyncTime = now;
+        
+        if (!this._lastSyncPos) this._lastSyncPos = new THREE.Vector3();
+        if (!this._lastSyncEuler) this._lastSyncEuler = new THREE.Euler();
+        this._lastSyncPos.copy(this._syncPos);
+        this._lastSyncEuler.copy(this._syncEuler);
+      }
     }
   }
 }

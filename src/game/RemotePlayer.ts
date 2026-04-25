@@ -376,7 +376,24 @@ export class RemotePlayer {
     this.knockbackVelocity.y = 8; // Lift
   }
 
-  update(delta: number) {
+  update(delta: number, localPlayerPos?: THREE.Vector3) {
+    if (localPlayerPos) {
+      const distSq = this.currentPos.distanceToSquared(localPlayerPos);
+      if (distSq > 10000) { // > 100 blocks
+        this.group.visible = false;
+        return; // Don't even interpolate if too far
+      }
+      
+      this.group.visible = true;
+      
+      // Stop animating limbs if > 60 blocks, just move them
+      if (distSq > 3600) {
+        this.currentPos.copy(this.targetPosition);
+        this.group.position.copy(this.currentPos);
+        return;
+      }
+    }
+
     // Apply visual knockback decay
     if (this.knockbackVelocity.lengthSq() > 0.01) {
       this.visualOffset.addScaledVector(this.knockbackVelocity, delta);
