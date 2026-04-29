@@ -8,10 +8,14 @@ export const DamageNumbers: React.FC = () => {
   useEffect(() => {
     const handleDamage = (e: any) => {
       if (!containerRef.current) return;
-      const { amount, isCrit } = e.detail;
+      const { amount, isCrit, screenX, screenY } = e.detail;
       
-      const x = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
-      const y = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
+      const baseX = window.innerWidth / 2;
+      const baseY = window.innerHeight / 2;
+      
+      const x = baseX + (Math.random() > 0.5 ? 20 + Math.random() * 40 : -20 - Math.random() * 40);
+      const y = baseY + (Math.random() - 0.5) * 60;
+      
       
       const el = document.createElement('div');
       el.className = `absolute font-bold text-2xl drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none transition-all duration-1000 ease-out z-[1000] ${isCrit ? 'text-[#FFFF55]' : 'text-white'}`;

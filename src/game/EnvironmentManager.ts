@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Game } from './Game';
 import { settingsManager } from './Settings';
 import { getTerrainData } from './TerrainGenerator';
+import { audioManager } from './AudioManager';
 
 export class EnvironmentManager {
   game: Game;
@@ -178,6 +179,8 @@ export class EnvironmentManager {
         targetIntensity = 1.0;
     }
     
+    
+    
     if (this.globalWeatherIntensity < targetIntensity) {
         this.globalWeatherIntensity = Math.min(targetIntensity, this.globalWeatherIntensity + delta / 10);
     } else if (this.globalWeatherIntensity > targetIntensity) {
@@ -204,6 +207,21 @@ export class EnvironmentManager {
     if (isInclement) {
         if (isSnowBiome) showSnow = true;
         else if (!isDesertBiome) showRain = true;
+    }
+    
+   
+
+    // Handle rain sound
+    if (showRain) {
+        if (!audioManager.isAmbientPlaying('rain')) {
+            audioManager.startAmbient('rain');
+        }
+        // Max volume 0.3 for rain
+        audioManager.setAmbientVolume('rain', this.globalWeatherIntensity * 0.3);
+    } else {
+        if (audioManager.isAmbientPlaying('rain')) {
+            audioManager.stopAmbient('rain');
+        }
     }
 
     if (this.rainPoints) {

@@ -130,8 +130,8 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
                   return next;
                 });
               }
-              heldItem.count--;
-              if (heldItem.count <= 0) setHeldItem(null);
+              const newHeld = { ...heldItem, count: heldItem.count - 1 };
+              setHeldItem(newHeld.count > 0 ? newHeld : null);
               setDragState(prev => ({ ...prev, visitedSlots: new Set(prev.visitedSlots).add(slotId) }));
             }
           }
@@ -146,7 +146,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
                 if (!inventory.slots[actualIndex]) {
                   inventory.slots[actualIndex] = { type: heldItem.type, count: 1 };
                 } else if (inventory.slots[actualIndex]!.count < getMaxStack(heldItem.type)) {
-                  inventory.slots[actualIndex]!.count++;
+                  inventory.slots[actualIndex] = { ...inventory.slots[actualIndex]!, count: inventory.slots[actualIndex]!.count + 1 };
                 } else {
                   return; // Full
                 }
@@ -161,8 +161,8 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
                   return next;
                 });
               }
-              heldItem.count--;
-              if (heldItem.count <= 0) setHeldItem(null);
+              const newHeld = { ...heldItem, count: heldItem.count - 1 };
+              setHeldItem(newHeld.count > 0 ? newHeld : null);
               setDragState(prev => ({ ...prev, visitedSlots: new Set(prev.visitedSlots).add(slotId) }));
             }
           }
@@ -196,7 +196,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
           const target = inventory.slots[i];
           if (target && target.type === slotItem.type && target.count < getMaxStack(slotItem.type)) {
             const canAdd = Math.min(remaining, getMaxStack(slotItem.type) - target.count);
-            target.count += canAdd;
+            inventory.slots[i] = { ...target, count: target.count + canAdd };
             remaining -= canAdd;
           }
           if (remaining <= 0) break;
@@ -215,24 +215,24 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
         if (remaining <= 0) {
           inventory.slots[actualIndex] = null;
         } else {
-          slotItem.count = remaining;
+          inventory.slots[actualIndex] = { ...slotItem, count: remaining };
         }
       }
     } else if (isRightClick) {
       if (!heldItem && slotItem) {
         const half = Math.ceil(slotItem.count / 2);
-        setHeldItem({ type: slotItem.type, count: half });
-        slotItem.count -= half;
-        if (slotItem.count <= 0) inventory.slots[actualIndex] = null;
+        setHeldItem({ ...slotItem, count: half });
+        const remaining = slotItem.count - half;
+        inventory.slots[actualIndex] = remaining > 0 ? { ...slotItem, count: remaining } : null;
       } else if (heldItem && !slotItem) {
-        inventory.slots[actualIndex] = { type: heldItem.type, count: 1 };
-        heldItem.count--;
-        if (heldItem.count <= 0) setHeldItem(null);
+        inventory.slots[actualIndex] = { ...heldItem, count: 1 };
+        const newHeld = { ...heldItem, count: heldItem.count - 1 };
+        setHeldItem(newHeld.count > 0 ? newHeld : null);
       } else if (heldItem && slotItem && heldItem.type === slotItem.type) {
         if (slotItem.count < getMaxStack(slotItem.type)) {
-          slotItem.count++;
-          heldItem.count--;
-          if (heldItem.count <= 0) setHeldItem(null);
+          inventory.slots[actualIndex] = { ...slotItem, count: slotItem.count + 1 };
+          const newHeld = { ...heldItem, count: heldItem.count - 1 };
+          setHeldItem(newHeld.count > 0 ? newHeld : null);
         }
       }
     } else {
@@ -245,9 +245,9 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
       } else if (heldItem && slotItem) {
         if (heldItem.type === slotItem.type) {
           const canAdd = Math.min(heldItem.count, getMaxStack(slotItem.type) - slotItem.count);
-          slotItem.count += canAdd;
-          heldItem.count -= canAdd;
-          if (heldItem.count <= 0) setHeldItem(null);
+          inventory.slots[actualIndex] = { ...slotItem, count: slotItem.count + canAdd };
+          const newHeld = { ...heldItem, count: heldItem.count - canAdd };
+          setHeldItem(newHeld.count > 0 ? newHeld : null);
         } else {
           const temp = { ...slotItem };
           inventory.slots[actualIndex] = { ...heldItem };
@@ -285,18 +285,18 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
           }
           return next;
         });
-        heldItem.count--;
-        if (heldItem.count <= 0) setHeldItem(null);
+        const newHeld = { ...heldItem, count: heldItem.count - 1 };
+        setHeldItem(newHeld.count > 0 ? newHeld : null);
       }
     } else {
       if (heldItem && !slotItem) {
         setCraftingGrid(prev => {
           const next = [...prev];
-          next[index] = { type: heldItem.type, count: 1 };
+          next[index] = { ...heldItem, count: 1 };
           return next;
         });
-        heldItem.count--;
-        if (heldItem.count <= 0) setHeldItem(null);
+        const newHeld = { ...heldItem, count: heldItem.count - 1 };
+        setHeldItem(newHeld.count > 0 ? newHeld : null);
       } else if (!heldItem && slotItem) {
         setHeldItem({ ...slotItem });
         setCraftingGrid(prev => {
@@ -312,8 +312,8 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
             next[index] = { ...next[index]!, count: next[index]!.count + canAdd };
             return next;
           });
-          heldItem.count -= canAdd;
-          if (heldItem.count <= 0) setHeldItem(null);
+          const newHeld = { ...heldItem, count: heldItem.count - canAdd };
+          setHeldItem(newHeld.count > 0 ? newHeld : null);
         } else {
           const temp = { ...slotItem };
           setCraftingGrid(prev => {
@@ -370,7 +370,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
           const slot = inventory.slots[i];
           if (slot && slot.type === result.type && slot.count < getMaxStack(result.type)) {
             const canAdd = Math.min(toAdd, getMaxStack(result.type) - slot.count);
-            slot.count += canAdd;
+            inventory.slots[i] = { ...slot, count: slot.count + canAdd };
             toAdd -= canAdd;
           }
           if (toAdd <= 0) break;
@@ -396,7 +396,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
     } else {
     if (craftingResult && (!heldItem || (heldItem.type === craftingResult.type && heldItem.count + craftingResult.count <= getMaxStack(craftingResult.type)))) {
         if (heldItem) {
-          heldItem.count += craftingResult.count;
+          setHeldItem({ ...heldItem, count: heldItem.count + craftingResult.count });
         } else {
           setHeldItem({ ...craftingResult });
         }
@@ -418,9 +418,9 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
       const slot = inventory.slots[i];
       if (slot && slot.type === heldItem.type) {
         const take = Math.min(needed - gathered, slot.count);
-        slot.count -= take;
+        const newCount = slot.count - take;
+        inventory.slots[i] = newCount > 0 ? { ...slot, count: newCount } : null;
         gathered += take;
-        if (slot.count <= 0) inventory.slots[i] = null;
         if (gathered >= needed) break;
       }
     }

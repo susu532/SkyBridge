@@ -48,6 +48,7 @@ export class Player {
   direction = new THREE.Vector3();
   
   isFlying = false;
+  isGliding = false;
   isSwimming = false;
   isUnderwater = false;
   isUnderLava = false;
@@ -277,13 +278,6 @@ export class Player {
       if (this.canJump || this.isSwimming) {
         this.velocity.y = 5.5; 
       }
-    }
-    
-    // Spawn damage particles
-    for(let i=0; i<3; i++) {
-      window.dispatchEvent(new CustomEvent('spawnParticles', { 
-        detail: { pos: this.worldPosition.clone().add(new THREE.Vector3(0, 1.5, 0)), type: BLOCK.RED_STONE } 
-      }));
     }
   }
 
@@ -1307,6 +1301,7 @@ export class Player {
 
     // Animate character model
     this.animateModel(delta);
+    this.renderer.update(delta, this.isGliding);
 
     // Smooth camera step offsets
     if (this.cameraYOffset < 0) {
@@ -1430,6 +1425,7 @@ export class Player {
       isCrouching: this.inputController.isCrouching,
       isSprinting: this.inputController.isSprinting,
       isSwinging: this.isSwinging,
+      isGliding: this.isGliding,
       isBlocking: this.inputController.isBlocking,
       swingSpeed: this.swingSpeed,
       isGrounded: this.canJump,

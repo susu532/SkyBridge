@@ -64,6 +64,7 @@ export class EntityManager {
     
     // Connect network events
     networkManager.onMobSpawned = (data) => {
+      if (this.world.isSkyCastles && data.type !== 'Morvane') return;
       if (data.type === 'Pig') return; // Filter out pigs from server
       const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
       const mob = new Mob(data.id, pos, data.level || 1, data.type, this.textureAtlas);
@@ -263,6 +264,7 @@ export class EntityManager {
       player.isCrouching = data.isCrouching;
       player.isSprinting = data.isSprinting;
       player.isSwinging = data.isSwinging;
+      player.isGliding = data.isGliding;
       player.swingSpeed = data.swingSpeed || 15;
       player.isGrounded = data.isGrounded !== undefined ? data.isGrounded : true;
       if (data.heldItem !== undefined) {
@@ -276,6 +278,9 @@ export class EntityManager {
         player.swingTimer = 0;
       }
       player.isBlocking = !!data.isBlocking;
+      if (data.health !== undefined) {
+        player.health = data.health;
+      }
     }
   }
 

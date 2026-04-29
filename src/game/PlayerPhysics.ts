@@ -177,7 +177,13 @@ export class PlayerPhysics {
         }
       }
     } else if (!p.isFlying) {
-      p.velocity.y -= p.gravity * delta;
+      if (p.isGliding && p.velocity.y <= 0) {
+        // Slow falling when gliding, but permit falling
+        p.velocity.y -= p.gravity * 0.1 * delta;
+        p.velocity.y = Math.max(p.velocity.y, -15);
+      } else {
+        p.velocity.y -= p.gravity * delta;
+      }
     } else {
       p.velocity.y -= p.velocity.y * 10.0 * delta;
       const vertDir = Number(input.moveUp) - Number(input.moveDown);
@@ -190,9 +196,10 @@ export class PlayerPhysics {
     p.direction.normalize();
 
     const currentSpeed = p.isFlying ? p.flySpeed : 
+      (p.isGliding ? p.flySpeed * 0.8 :
       (p.isSwimming ? (input.isSprinting ? p.sprintSpeed * (inLava ? 0.25 : 0.5) : p.speed * (inLava ? 0.25 : 0.5)) : 
       (input.isSprinting ? p.sprintSpeed : 
-      ((input.isCrouching || input.isBlocking) ? p.crouchSpeed : p.speed)));
+      ((input.isCrouching || input.isBlocking) ? p.crouchSpeed : p.speed))));
 
     if (input.moveForward || input.moveBackward) p.velocity.z -= p.direction.z * currentSpeed * delta * 10.0;
     if (input.moveLeft || input.moveRight) p.velocity.x += p.direction.x * currentSpeed * delta * 10.0;
@@ -336,13 +343,15 @@ export class PlayerPhysics {
         
         // Fall damage calculation
         const fallDistance = p.highestY - currentPos.y;
-        if (fallDistance > 3.5 && !p.isFlying && !p.isSwimming && !p.world.isHub) {
+        if (fallDistance > 3.5 && !p.isFlying && !p.isSwimming && !p.world.isHub && !p.isGliding) {
           const damage = Math.floor(fallDistance - 3);
           if (damage > 0) {
             p.takeDamage(damage * 5, undefined, false, "died of fall damage"); // 5 damage per block fallen (20 health max usually)
             useGameStore.getState().addMessage(`You took ${damage * 5} fall damage!`, "#FF5555");
           }
         }
+        
+        if (p.isGliding) p.isGliding = false;
         
         p.canJump = true;
         p.wasInAir = false;

@@ -7,6 +7,11 @@ import { LightingManager } from './LightingManager';
 import { networkManager } from './NetworkManager';
 import { biomes, getTerrainData, noise2D, noise3D } from './TerrainGenerator';
 
+import { generateHubTerrain, buildHubCastles } from './generation/HubGenerator';
+import { getCastleBlock } from './generation/SkyCastlesGenerator';
+import { getVillageBlock } from './generation/SkyBridgeGenerator';
+import { getGiantMythicalShipBlock } from './generation/ShipGenerator';
+
 export class World {
   scene: THREE.Scene;
   chunks: Map<string, Chunk> = new Map();
@@ -563,150 +568,9 @@ export class World {
     return `${cx},${cz}`;
   }
 
-  generateHubTerrain(chunk: Chunk, lx: number, lz: number, wx: number, wz: number) {
-    const distSq = wx * wx + wz * wz;
-    const dist = Math.sqrt(distSq);
 
-    // 1. Floating Island Base
-    for (let y = -60; y <= 0; y++) {
-      const cy = y + 60;
-      const radiusAtY = Math.sqrt(y + 60) * 11;
-      const noise = (Math.sin(wx * 0.1) + Math.cos(wz * 0.1)) * 4;
-      
-      if (dist < radiusAtY + noise) {
-        let type = BLOCK.DEEPSLATE;
-        if (y === 0) type = BLOCK.POLISHED_ANDESITE;
-        else if (y < -45) type = BLOCK.OBSIDIAN;
-        else if (y < -25) type = (Math.sin(wx * 0.5 + wz * 0.5) > 0) ? BLOCK.COBBLED_DEEPSLATE : BLOCK.OBSIDIAN;
-        else type = (Math.cos(wx * 0.4 - wz * 0.4) > 0) ? BLOCK.DEEPSLATE : BLOCK.COBBLED_DEEPSLATE;
-        chunk.setBlockFast(lx, cy, lz, type);
-      }
-    }
 
-    // 2. Surface Decor (at Y=0, which is cy=60)
-    if (dist <= 85) {
-      if (dist <= 30) {
-         chunk.setBlockFast(lx, 60, lz, BLOCK.STONE);
-         let petals = 8;
-         let angle = Math.atan2(wz, wx);
-         let starMod = Math.abs(Math.sin(angle * petals));
-         if (dist > 10 && dist < 10 + starMod * 15) {
-            chunk.setBlockFast(lx, 60, lz, BLOCK.COBBLED_DEEPSLATE);
-         } else if (Math.floor(dist) === 28) {
-            chunk.setBlockFast(lx, 60, lz, BLOCK.OBSIDIAN);
-         }
-      }
 
-      if ((Math.abs(wx) <= 4 && dist <= 85) || (Math.abs(wz) <= 4 && dist <= 85)) {
-         chunk.setBlockFast(lx, 60, lz, BLOCK.NETHER_BRICKS);
-         if (Math.abs(wx) === 5 || Math.abs(wz) === 5) {
-            chunk.setBlockFast(lx, 61, lz, BLOCK.OBSIDIAN);
-         }
-      }
-
-      if (dist <= 6) {
-         chunk.setBlockFast(lx, 61, lz, BLOCK.OBSIDIAN);
-         if (dist <= 4) chunk.setBlockFast(lx, 62, lz, BLOCK.RED_NETHER_BRICKS);
-         if (dist <= 2) {
-             for(let y=61; y<=64; y++) chunk.setBlockFast(lx, y, lz, BLOCK.LAVA);
-             chunk.setBlockFast(lx, 65, lz, BLOCK.GLOWSTONE);
-         }
-      }
-
-      this.buildHubCastles(chunk, lx, lz, wx, wz);
-
-      const ringY = 115;
-      const ringNoise = Math.sin(Math.atan2(wz, wx) * 6) * 15;
-      if (Math.abs(dist - 85) < 1.1) {
-          const cy = Math.floor(ringY + ringNoise);
-          if (cy >= 0 && cy < CHUNK_HEIGHT) {
-              chunk.setBlockFast(lx, cy, lz, BLOCK.GLOWSTONE);
-              if (cy > 0) chunk.setBlockFast(lx, cy - 1, lz, BLOCK.GLASS_PURPLE);
-              if (cy > 1) chunk.setBlockFast(lx, cy - 2, lz, BLOCK.GLASS_MAGENTA);
-              if (cy > 2) chunk.setBlockFast(lx, cy - 3, lz, BLOCK.OBSIDIAN);
-          }
-      }
-
-      const corners: [number, number][] = [[45,45], [-45, 45], [45, -45], [-45, -45]];
-      for(const [cx, cz] of corners) {
-          const dC = Math.sqrt((wx-cx)**2 + (wz-cz)**2);
-          if (dC <= 6) {
-              const h = 25 + Math.floor((6-dC)*12);
-              for(let y=0; y<=h; y++) {
-                const cy = y + 60;
-                if (cy >= CHUNK_HEIGHT) break;
-                let bt = BLOCK.DEEPSLATE;
-                if (dC <= 1.5) bt = BLOCK.GLOWSTONE;
-                else if (dC <= 2.5 && y > h - 15) bt = BLOCK.GLASS_PURPLE;
-                else if (y % 20 === 0 && dC > 5.5) bt = BLOCK.GLOWSTONE;
-                chunk.setBlockFast(lx, cy, lz, bt);
-              }
-          }
-      }
-    }
-  }
-
-  buildHubCastles(chunk: Chunk, lx: number, lz: number, wx: number, wz: number) {
-      const centers: [number, number, number][] = [[0, 35, 0], [35, 0, 1], [0, -35, 2], [-35, 0, 3]];
-      for(const [cx, cz, rot] of centers) {
-         let lx_c, lz_c;
-         if (rot === 0) { lx_c = wx - cx; lz_c = wz - cz; }
-         else if (rot === 1) { lx_c = -(wz - cz); lz_c = wx - cx; }
-         else if (rot === 2) { lx_c = -(wx - cx); lz_c = -(wz - cz); }
-         else { lx_c = wz - cz; lz_c = -(wx - cx); }
-
-         const width = 16;
-         const length = 28;
-
-         if (lx_c >= -width && lx_c <= width && lz_c >= 0 && lz_c <= length) {
-             const isBorder = (Math.abs(lx_c) === width || lz_c === 0 || lz_c === length);
-             if (isBorder && !(lz_c === 0 && Math.abs(lx_c) <= 3)) {
-                 for(let y=1; y<=25; y++) {
-                     let bt = BLOCK.DEEPSLATE;
-                     if (y >= 5 && y <= 20 && lz_c > 3 && lz_c < length - 3 && lz_c % 5 === 0) bt = BLOCK.GLASS_WHITE;
-                     chunk.setBlockFast(lx, y + 60, lz, bt);
-                 }
-             } else if (!isBorder) {
-                 chunk.setBlockFast(lx, 60, lz, BLOCK.STONE_BRICKS);
-                 const archH = 25 + (width - Math.abs(lx_c)) * 0.9;
-                 chunk.setBlockFast(lx, Math.floor(archH) + 60, lz, BLOCK.COBBLED_DEEPSLATE);
-                 if (lz_c % 10 === 0 && lz_c > 2 && lz_c < length - 2 && Math.abs(lx_c) === width - 4) {
-                     chunk.setBlockFast(lx, 61, lz, BLOCK.NETHER_BRICKS);
-                     chunk.setBlockFast(lx, 62, lz, BLOCK.NETHER_BRICKS);
-                     chunk.setBlockFast(lx, 63, lz, BLOCK.GLOWSTONE);
-                 }
-             }
-         }
-
-         if (lz_c === 0 && Math.abs(lx_c) <= width) {
-             for(let y=25; y<=45; y++) {
-                 if (Math.abs(lx_c) <= (45 - y) * 0.8) {
-                     let bt = BLOCK.DEEPSLATE;
-                     if (y >= 30 && y <= 38 && Math.abs(lx_c) <= 3) bt = BLOCK.GLASS_WHITE;
-                     else if (y >= 26 && y <= 28 && lx_c === 0) bt = BLOCK.GLOWSTONE;
-                     chunk.setBlockFast(lx, y + 60, lz, bt);
-                 }
-             }
-         }
-
-         const towers: [number, number, number][] = [[width, 0, 55], [-width, 0, 55], [width, length, 40], [-width, length, 40]];
-         for(const [tx, tz, th] of towers) {
-             const dt = Math.max(Math.abs(lx_c - tx), Math.abs(lz_c - tz));
-             if (dt <= 3) {
-                 for(let y=1; y<=th; y++) {
-                     let bt = (y % 15 === 0) ? BLOCK.OBSIDIAN : BLOCK.NETHER_BRICKS;
-                     if (dt < 3) bt = BLOCK.AIR;
-                     if (y === 1 && dt < 3) bt = BLOCK.NETHER_BRICKS;
-                     if (bt !== BLOCK.AIR) chunk.setBlockFast(lx, y + 60, lz, bt);
-                 }
-                 for (let y = 1; y <= 20; y++) {
-                     const sr = Math.max(0, 3 - Math.floor(y/6));
-                     if (dt <= sr) chunk.setBlockFast(lx, th + y + 60, lz, BLOCK.OBSIDIAN);
-                 }
-             }
-         }
-      }
-   }
 
   getChunk(cx: number, cz: number) {
     return this.chunks.get(this.getChunkKey(cx, cz));
@@ -784,8 +648,9 @@ export class World {
 
     // Castle footprints (including fences/walls at +-30)
     const isWithinX = x >= -30 && x <= 30;
-    const isBlueCastleZ = z >= 70 && z <= 130;
-    const isRedCastleZ = z >= -130 && z <= -70;
+    const castleCenter = this.isSkyCastles ? 200 : 100;
+    const isBlueCastleZ = z >= (castleCenter - 30) && z <= (castleCenter + 30);
+    const isRedCastleZ = z >= -(castleCenter + 30) && z <= -(castleCenter - 30);
 
     // Castles and the grass layer immediately beneath them (y=4)
     if (isWithinX && (isBlueCastleZ || isRedCastleZ) && y >= 4) {
@@ -793,8 +658,10 @@ export class World {
     }
 
     // Village boundaries (protected area)
-    const isBlueVillageZ = z >= 131 && z <= 180;
-    const isRedVillageZ = z >= -180 && z <= -131;
+    const villageStart = this.isSkyCastles ? 300 : 61;
+    const villageEnd = this.isSkyCastles ? 350 : 110;
+    const isBlueVillageZ = z >= villageStart && z <= villageEnd;
+    const isRedVillageZ = z >= -villageEnd && z <= -villageStart;
     const isVillageX = x >= -50 && x <= 50;
     if (isVillageX && (isBlueVillageZ || isRedVillageZ) && y >= 4) {
       return true;
@@ -1034,685 +901,9 @@ export class World {
     this.lightingManager.processLightUpdates();
   }
 
-  getCastleBlock(wx: number, wy: number, wz: number, zOffset: number, accentBlock: number): number {
-    const localZ = wz - zOffset;
 
-    // 1. Towers at corners (+-30, +-30)
-    const isTower = (cx: number, cz: number) => {
-      const dx = wx - cx;
-      const dz = localZ - cz;
-      const distSq = dx * dx + dz * dz;
-      
-      if (distSq <= 25 && wy <= 30) {
-        if (distSq >= 16) {
-          // Arrow slits
-          if (wy > 10 && wy < 25 && wy % 5 >= 2 && wy % 5 <= 3 && (Math.abs(dx) <= 1 || Math.abs(dz) <= 1)) {
-            return BLOCK.AIR;
-          }
-          // Tower battlements
-          if (wy === 30 && ((wx + localZ) % 2 !== 0)) return BLOCK.AIR;
-          return wy >= 28 ? accentBlock : BLOCK.STONE;
-        }
-        if (wy % 10 === 0 && wy > 5) return BLOCK.WOOD;
-        return BLOCK.AIR;
-      }
-      
-      // Pointed Roof
-      if (wy > 30 && wy <= 45) {
-        const roofRadiusSq = 25 - (wy - 30) * 1.8;
-        if (distSq <= roofRadiusSq) {
-          return accentBlock;
-        }
-      }
-      return -1;
-    };
 
-    const t1 = isTower(-30, -30); if (t1 !== -1) return t1;
-    const t2 = isTower(-30, 30);  if (t2 !== -1) return t2;
-    const t3 = isTower(30, -30);  if (t3 !== -1) return t3;
-    const t4 = isTower(30, 30);   if (t4 !== -1) return t4;
 
-    // 2. Outer Walls and Details (x = +-31, z = +-31)
-    if (wx >= -31 && wx <= 31 && localZ >= -31 && localZ <= 31) {
-      const isWallX = (wx === -30 || wx === 30) && localZ >= -30 && localZ <= 30;
-      const isWallZ = (localZ === -30 || localZ === 30) && wx >= -30 && wx <= 30;
-      const isOuterEdgeX = (wx === -31 || wx === 31) && localZ > -30 && localZ < 30;
-      const isOuterEdgeZ = (localZ === -31 || localZ === 31) && wx > -30 && wx < 30;
-      
-      if (isWallX || isWallZ) {
-        if (wy <= 15) {
-          // Gatehouse holes (Front and Back)
-          const frontGateZ = zOffset > 0 ? -30 : 30;
-          const backGateZ = zOffset > 0 ? 30 : -30;
-          if ((localZ === frontGateZ || localZ === backGateZ) && wx >= -4 && wx <= 4 && wy <= 10) {
-            // Add iron bars (glass) at the top of the gate
-            if (wy >= 8 && wy <= 10 && wx % 2 === 0) return BLOCK.GLASS;
-            return BLOCK.AIR;
-          }
-          
-          // Battlements
-          if (wy === 15) {
-            if (isWallZ && wx % 2 !== 0) return BLOCK.AIR;
-            if (isWallX && localZ % 2 !== 0) return BLOCK.AIR;
-            return accentBlock;
-          }
-          
-          if ((wx + wy + localZ) % 11 === 0) return BLOCK.BRICK;
-          return BLOCK.STONE;
-        }
-      }
-      
-      // Buttresses and Banners on the outside
-      if (isOuterEdgeX || isOuterEdgeZ) {
-        if (wy <= 14) {
-          const isFrontOrBack = (localZ === (zOffset > 0 ? -31 : 31));
-          if (isFrontOrBack && wx >= -6 && wx <= 6) return -1;
-          
-          // Buttresses
-          if ((isOuterEdgeX && localZ % 6 === 0) || (isOuterEdgeZ && wx % 6 === 0)) {
-            return BLOCK.STONE;
-          }
-          
-          // Banners
-          if (wy >= 8 && wy <= 13) {
-            if ((isOuterEdgeX && localZ % 10 === 5) || (isOuterEdgeZ && wx % 10 === 5)) {
-              return accentBlock;
-            }
-          }
-        }
-      }
-    }
-
-    // 3. The Keep (Center building)
-    if (wx >= -14 && wx <= 14 && localZ >= -14 && localZ <= 14) {
-      // Keep Corner Turrets
-      const isKeepTurret = (cx: number, cz: number) => {
-        const dx = wx - cx;
-        const dz = localZ - cz;
-        const distSq = dx * dx + dz * dz;
-        if (distSq <= 9 && wy >= 20 && wy <= 45) {
-          if (wy > 40) {
-             const roofRadiusSq = 9 - (wy - 40) * 2;
-             if (distSq <= roofRadiusSq) return accentBlock;
-             return -1;
-          }
-          if (distSq >= 4) {
-             if (wy === 40 && ((wx + localZ) % 2 !== 0)) return BLOCK.AIR;
-             return BLOCK.STONE;
-          }
-          return BLOCK.AIR;
-        }
-        return -1;
-      };
-      
-      const kt1 = isKeepTurret(-12, -12); if (kt1 !== -1) return kt1;
-      const kt2 = isKeepTurret(-12, 12);  if (kt2 !== -1) return kt2;
-      const kt3 = isKeepTurret(12, -12);  if (kt3 !== -1) return kt3;
-      const kt4 = isKeepTurret(12, 12);   if (kt4 !== -1) return kt4;
-
-      if (wx >= -12 && wx <= 12 && localZ >= -12 && localZ <= 12) {
-        const isKeepWall = wx === -12 || wx === 12 || localZ === -12 || localZ === 12;
-        const dx = wx;
-        const dz = localZ;
-        const distSq = dx * dx + dz * dz;
-
-        // Main Keep Body
-        if (wy <= 40) {
-          if (isKeepWall) {
-            // Keep Entrance
-            const keepGateZ = zOffset > 0 ? -12 : 12;
-            if (localZ === keepGateZ && wx >= -3 && wx <= 3 && wy <= 10) return BLOCK.AIR;
-            
-            // Grand Windows
-            if (wy > 10 && wy % 10 >= 3 && wy % 10 <= 7 && (wx % 4 === 0 || localZ % 4 === 0)) {
-              if (wy % 10 === 7) return accentBlock;
-              return BLOCK.GLASS;
-            }
-            
-            if ((wx + wy + localZ) % 7 === 0) return BLOCK.BRICK;
-            return BLOCK.STONE;
-          } else {
-            // Inside the keep
-            
-            // Roof of the keep
-            if (wy === 40) {
-               const stairAngle = Math.atan2(dz, dx);
-               let normalizedStairAngle = stairAngle >= 0 ? stairAngle : stairAngle + Math.PI * 2;
-               const stepIndex = Math.floor((normalizedStairAngle / (Math.PI * 2)) * 20);
-               if (distSq > 4 && distSq <= 49 && (stepIndex >= 18 || stepIndex <= 0)) {
-                 // Let it fall through
-               } else {
-                 return BLOCK.STONE;
-               }
-            }
-
-            // Floors
-            if (wy > 5 && wy % 10 === 0 && wy < 40) {
-              if (distSq > 49) return BLOCK.WOOD; 
-            }
-
-            // Central Pillar
-            if (distSq <= 4) return BLOCK.STONE;
-
-              // Spiral Stairs (Radius 3 to 7) - Slab ordered for faster climb
-              if (distSq > 4 && distSq <= 49) {
-                const stairAngle = Math.atan2(dz, dx);
-                let normalizedStairAngle = stairAngle >= 0 ? stairAngle : stairAngle + Math.PI * 2;
-                // 40 steps per rotation (20 full blocks height)
-                const stepIndex = Math.floor((normalizedStairAngle / (Math.PI * 2)) * 40);
-                const relativeHeight2 = (wy - 5) * 2; // Start from ground floor (wy=5)
-                
-                // Use modulo to repeat the spiral all the way up
-                if (relativeHeight2 % 40 === stepIndex) {
-                  return BLOCK.SLAB_WOOD;
-                }
-                if ((relativeHeight2 + 1) % 40 === stepIndex) {
-                  return BLOCK.PLANKS;
-                }
-              }
-
-            return BLOCK.AIR;
-          }
-        }
-        
-        // Keep Battlements and Top Room
-        if (wy > 40 && wy <= 60) {
-          if (isKeepWall && wy === 41) {
-            // Keep battlements
-            if ((localZ === -12 || localZ === 12) && wx % 2 !== 0) return BLOCK.AIR;
-            if ((wx === -12 || wx === 12) && localZ % 2 !== 0) return BLOCK.AIR;
-            return accentBlock;
-          }
-
-          // Circular tower
-          if (distSq <= 100) {
-            const isTowerWall = distSq >= 81;
-            
-            if (wy <= 50) {
-              if (isTowerWall) {
-                // Door to battlements
-                if (wy >= 41 && wy <= 43 && dz >= 8 && Math.abs(dx) <= 1) return BLOCK.AIR;
-                
-                // Windows
-                if (wy >= 44 && wy <= 48 && (Math.abs(dx) <= 1 || Math.abs(dz) <= 1)) return BLOCK.GLASS;
-                return BLOCK.STONE;
-              } else {
-                // Inside Top Room
-                // Pedestal
-                if (wy === 41 && distSq <= 9) return BLOCK.STONE;
-                
-                // Dragon Egg / Morvane Guardian
-                const dy = wy - 45;
-                if (distSq + (dy * 0.8) * (dy * 0.8) <= 12) {
-                  if (this.isSkyCastles) {
-                    // Trigger spawn at the center of the egg area
-                    if (wx === 0 && localZ === 0 && wy === 42) {
-                      this.queuedMobs.push({ type: 'Morvane', pos: new THREE.Vector3(wx, wy, wz) });
-                    }
-                    return BLOCK.AIR;
-                  }
-                  return (wy + dx + dz) % 3 === 0 ? BLOCK.GLASS : accentBlock;
-                }
-                
-                return BLOCK.AIR;
-              }
-            } else {
-              // Dome Roof
-              const roofRadiusSq = 100 - (wy - 50) * 10;
-              if (distSq <= roofRadiusSq) {
-                return accentBlock;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 4. Fountain in the courtyard
-    const fountainZ = zOffset > 0 ? -18 : 18;
-    const dxF = wx;
-    const dzF = localZ - fountainZ;
-    const distSqF = dxF * dxF + dzF * dzF;
-
-    if (distSqF <= 16 && wy >= 5 && wy <= 12) {
-      if (wy <= 6) return BLOCK.STONE; // Base
-      if (wy === 7) {
-        if (distSqF <= 1) return BLOCK.STONE; // Center pillar
-        if (distSqF >= 9) return BLOCK.STONE; // Rim
-        return BLOCK.WATER;
-      }
-      if (wy >= 8 && wy <= 10 && distSqF <= 1) return BLOCK.STONE; // Spout
-      if (wy === 11 && distSqF <= 4) return BLOCK.STONE; // Top basin
-      if (wy === 12 && distSqF <= 1) return BLOCK.WATER; // Water source
-    }
-
-    // 5. Courtyard Paths and Details
-    if (wy === 5 || wy === 6) {
-      // Path from gate to keep
-      const gateZ = zOffset > 0 ? -30 : 30;
-      const keepGateZ = zOffset > 0 ? -12 : 12;
-      const minZ = Math.min(gateZ, keepGateZ);
-      const maxZ = Math.max(gateZ, keepGateZ);
-      
-      if (wx >= -4 && wx <= 4 && localZ >= minZ && localZ <= maxZ) {
-        if (wy === 5) return (wx + localZ) % 2 === 0 ? BLOCK.STONE : BLOCK.BRICK;
-        return BLOCK.AIR;
-      }
-      
-      // Random decorative bushes
-      if (Math.abs(wx) > 5 && Math.abs(localZ) > 15 && Math.abs(wx) < 25 && Math.abs(localZ) < 25) {
-         if ((wx * 13 + localZ * 7) % 100 > 95) return BLOCK.LEAVES;
-         if (wy === 5 && (wx * 17 + localZ * 11) % 100 > 98) return BLOCK.WOOD; // Small tree trunks
-      }
-    }
-
-    return BLOCK.AIR;
-  }
-
-  getVillageBlock(wx: number, wy: number, wz: number, isBlue: boolean): number {
-    const zBase = isBlue ? 131 : -180;
-    const localZ = isBlue ? wz - 131 : wz - (-131); // localZ from 0 to 49
-    const absLocalZ = Math.abs(localZ);
-    
-    // 1. Village Fence
-    const isFenceX = (wx === -50 || wx === 50) && absLocalZ >= 0 && absLocalZ <= 49;
-    const isFenceZ = (localZ === 0 || localZ === (isBlue ? 49 : -49)) && wx >= -50 && wx <= 50;
-    
-    if (isFenceX || isFenceZ) {
-      if (wy <= 8) {
-        // Double doors in the fence (front and back)
-        const isFrontDoor = localZ === 0;
-        const isBackDoor = localZ === (isBlue ? 49 : -49);
-        if ((isFrontDoor || isBackDoor) && wx >= -4 && wx <= 4 && wy <= 10) {
-          // Open door effect: just air in the middle
-          if (Math.abs(wx) < 3) return BLOCK.AIR;
-          // Door posts/frames
-          return BLOCK.WOOD;
-        }
-        
-        // Fence style: stone base, wood top
-        if (wy <= 3) return BLOCK.STONE;
-        if (wy === 8 && wx % 2 === 0) return BLOCK.AIR; // Battlements for fence
-        return BLOCK.WOOD;
-      }
-    }
-
-    // 2. Custom Buildings
-    const drawTavern = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-        const isCorner = (dx === 0 || dx === width - 1) && (dz === 0 || dz === depth - 1);
-        
-        if (wy >= 5 && wy <= 14) {
-          if (isWall) {
-            if (wy === 5) return BLOCK.STONE;
-            if (isCorner) return BLOCK.WOOD;
-            if (wy === 10) return BLOCK.WOOD;
-            
-            // Door
-            if (dz === 0 && dx >= Math.floor(width/2) - 1 && dx <= Math.floor(width/2) + 1 && wy <= 7) return BLOCK.AIR;
-            
-            // Windows
-            if ((wy === 7 || wy === 8 || wy === 12 || wy === 13) && !isCorner && (dx % 4 === 2 || dz % 4 === 2)) return BLOCK.GLASS;
-            
-            return BLOCK.PLANKS;
-          } else {
-            if (wy === 5 || wy === 10) return BLOCK.PLANKS; // Floors
-            return BLOCK.AIR;
-          }
-        }
-        
-        // Pitched Roof
-        if (wy >= 15 && wy <= 19) {
-          const roofLayer = wy - 15;
-          if (dx >= roofLayer - 1 && dx <= width - roofLayer && dz >= -1 && dz <= depth) {
-            return BLOCK.WOOD;
-          }
-        }
-      }
-      return -1;
-    };
-
-    const drawBlacksmith = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        const isRoom = dx < 8;
-        
-        if (wy >= 5 && wy <= 10) {
-          if (isRoom) {
-            const isWall = dx === 0 || dx === 7 || dz === 0 || dz === depth - 1;
-            if (wy === 10) return BLOCK.STONE; // Flat roof
-            if (isWall) {
-              // Door
-              if (dx === 7 && dz === Math.floor(depth/2) && wy <= 7) return BLOCK.AIR;
-              // Window
-              if (dx === 0 && dz === Math.floor(depth/2) && wy === 7) return BLOCK.GLASS;
-              return BLOCK.STONE;
-            } else {
-              if (wy === 5) return BLOCK.STONE; // Floor
-              return BLOCK.AIR;
-            }
-          } else {
-            // Forge Area
-            if (wy === 10) return BLOCK.WOOD; // Awning
-            if (wy === 5) return BLOCK.STONE; // Floor
-            
-            // Pillars
-            if ((dx === width - 1 && dz === 0) || (dx === width - 1 && dz === depth - 1)) return BLOCK.WOOD;
-            
-            // Chimney & Forge
-            if (dx >= 9 && dx <= 11 && dz >= 2 && dz <= 4) {
-              if (dx === 10 && dz === 3) return BLOCK.BRICK; // Chimney core
-              if (wy <= 7) return BLOCK.BRICK; // Forge base
-            }
-            
-            // Water Trough
-            if (dx >= 10 && dx <= 11 && dz >= 7 && dz <= 9) {
-              if (wy === 6) {
-                if (dx === 10 && dz === 8) return BLOCK.WATER;
-                return BLOCK.STONE;
-              }
-            }
-            
-            return BLOCK.AIR;
-          }
-        }
-        
-        // Chimney top
-        if (wy > 10 && wy <= 14 && dx === 10 && dz === 3) return BLOCK.BRICK;
-      }
-      return -1;
-    };
-
-    const drawWatchtower = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        // Base tower
-        if (wy >= 5 && wy <= 16) {
-          if (dx >= 1 && dx <= width - 2 && dz >= 1 && dz <= depth - 2) {
-            const isWall = dx === 1 || dx === width - 2 || dz === 1 || dz === depth - 2;
-            if (isWall) {
-              // Door
-              if (dz === 1 && dx === Math.floor(width/2) && wy <= 7) return BLOCK.AIR;
-              // Slit windows
-              if (wy % 4 === 0 && dx === Math.floor(width/2)) return BLOCK.AIR;
-              return BLOCK.STONE;
-            } else {
-              // Ladder
-              if (dx === 2 && dz === 2) return BLOCK.WOOD;
-              if (wy === 5 || wy === 16) return BLOCK.PLANKS;
-              return BLOCK.AIR;
-            }
-          }
-        }
-        
-        // Platform
-        if (wy === 17) return BLOCK.PLANKS;
-        
-        // Battlements
-        if (wy === 18) {
-          const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-          if (isWall && (dx % 2 === 0 || dz % 2 === 0)) return BLOCK.WOOD;
-          return BLOCK.AIR;
-        }
-        
-        // Roof
-        if (wy === 19 && dx >= 1 && dx <= width - 2 && dz >= 1 && dz <= depth - 2) return BLOCK.WOOD;
-        if (wy === 20 && dx >= 2 && dx <= width - 3 && dz >= 2 && dz <= depth - 3) return BLOCK.WOOD;
-      }
-      return -1;
-    };
-
-    const drawFarm = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        if (wy === 5 || wy === 6) {
-          const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-          if (isWall) {
-            // Gate
-            if (dz === 0 && dx === Math.floor(width/2)) return BLOCK.AIR;
-            if (wy === 5) return BLOCK.WOOD;
-            if (wy === 6 && (dx % 3 === 0 || dz % 3 === 0)) return BLOCK.WOOD; // Fence posts
-            return BLOCK.AIR;
-          } else if (wy === 5) {
-            // Crops and water
-            if (dx % 4 === 2) return BLOCK.WATER;
-            return BLOCK.LEAVES; // Represents crops
-          }
-        }
-      }
-      return -1;
-    };
-
-    const drawLibrary = (hx: number, hz: number, width: number, depth: number, isBlue: boolean) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        if (wy >= 5 && wy <= 18) {
-          const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-          if (isWall) {
-            if (wy === 5) return BLOCK.STONE;
-            // Door facing vertical path
-            if (dx === 0 && dz >= Math.floor(depth/2) - 1 && dz <= Math.floor(depth/2) + 1 && wy <= 7) return BLOCK.AIR;
-            // Windows
-            if (wy >= 8 && wy <= 12 && (dx % 3 === 0 || dz % 3 === 0)) return BLOCK.GLASS;
-            return BLOCK.BRICK;
-          } else {
-            if (wy === 5 || wy === 12) return BLOCK.PLANKS; // Floors
-            // Bookshelves
-            if (wy >= 6 && wy <= 10 && (dx === 2 || dx === width - 3) && dz >= 2 && dz <= depth - 3) return BLOCK.WOOD;
-            return BLOCK.AIR;
-          }
-        }
-        // Roof
-        if (wy >= 19 && wy <= 23) {
-          const step = wy - 19;
-          if (dx >= step && dx < width - step && dz >= step && dz < depth - step) {
-            return isBlue ? BLOCK.BLUE_STONE : BLOCK.RED_STONE;
-          }
-        }
-      }
-      return -1;
-    };
-
-    const drawBakery = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        if (wy >= 5 && wy <= 12) {
-          const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-          if (isWall) {
-            if (wy === 5) return BLOCK.STONE;
-            // Door facing vertical path
-            if (dx === width - 1 && dz >= Math.floor(depth/2) - 1 && dz <= Math.floor(depth/2) + 1 && wy <= 7) return BLOCK.AIR;
-            // Windows
-            if (wy === 7 && (dx === 2 || dz === 2 || dz === depth - 3)) return BLOCK.GLASS;
-            return BLOCK.PLANKS;
-          } else {
-            if (wy === 5) return BLOCK.STONE; // Floor
-            // Oven
-            if (dx >= 2 && dx <= 5 && dz >= 2 && dz <= 4) {
-              if (wy <= 8) {
-                if (dx === 5 && dz === 3 && wy === 6) return BLOCK.AIR; // Oven opening
-                return BLOCK.BRICK;
-              }
-            }
-            // Counter
-            if (dx >= 7 && dx <= 10 && dz === 6 && wy <= 6) return BLOCK.WOOD;
-            return BLOCK.AIR;
-          }
-        }
-        // Roof
-        if (wy >= 13 && wy <= 16) {
-          const step = wy - 13;
-          if (dx >= step && dx < width - step && dz >= -1 && dz <= depth) {
-            return BLOCK.WOOD;
-          }
-        }
-        // Chimney
-        if (wy >= 9 && wy <= 18 && dx === 4 && dz === 3) return BLOCK.BRICK;
-      }
-      return -1;
-    };
-
-    const drawTownHall = (hx: number, hz: number, width: number, depth: number, isBlue: boolean) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        if (wy >= 5 && wy <= 18) {
-          const isWall = dx === 0 || dx === width - 1 || dz === 0 || dz === depth - 1;
-          if (isWall) {
-            if (wy === 5) return BLOCK.STONE;
-            // Grand Entrance
-            if (dz === 0 && dx >= Math.floor(width/2) - 1 && dx <= Math.floor(width/2) + 1 && wy <= 9) return BLOCK.AIR;
-            // Large Windows
-            if (wy >= 8 && wy <= 14 && (dx % 4 === 1 || dz % 4 === 1)) return BLOCK.GLASS;
-            return BLOCK.STONE;
-          } else {
-            if (wy === 5 || wy === 12) return BLOCK.PLANKS; // Floors
-            // Meeting Table
-            if (wy === 6 && dx >= 3 && dx <= width - 4 && dz >= 4 && dz <= depth - 4) return BLOCK.WOOD;
-            return BLOCK.AIR;
-          }
-        }
-        // Roof
-        if (wy >= 19 && wy <= 23) {
-          const step = wy - 19;
-          if (dx >= step && dx < width - step && dz >= step && dz < depth - step) {
-            return BLOCK.WOOD;
-          }
-        }
-        // Clock Tower
-        if (wy > 23 && wy <= 30 && dx >= Math.floor(width/2) - 2 && dx <= Math.floor(width/2) + 2 && dz >= 2 && dz <= 6) {
-           if (wy === 27 && dx === Math.floor(width/2) && dz === 2) return BLOCK.GLASS; // Clock face
-           return BLOCK.STONE;
-        }
-      }
-      return -1;
-    };
-
-    const drawMarket = (hx: number, hz: number, width: number, depth: number) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        if (wy === 5) return BLOCK.STONE; // Paved floor
-        // Stalls
-        if (wy >= 6 && wy <= 9) {
-          const isStall = (dx >= 2 && dx <= 4 && dz >= 2 && dz <= 4) || 
-                          (dx >= width - 5 && dx <= width - 3 && dz >= 2 && dz <= 4) ||
-                          (dx >= 2 && dx <= 4 && dz >= depth - 5 && dz <= depth - 3) ||
-                          (dx >= width - 5 && dx <= width - 3 && dz >= depth - 5 && dz <= depth - 3);
-          if (isStall) {
-            if (wy === 6) return BLOCK.WOOD; // Counter
-            if (wy === 9) return BLOCK.PLANKS; // Awning
-            // Poles
-            if (wy > 6 && wy < 9 && ((dx===2||dx===4||dx===width-5||dx===width-3) && (dz===2||dz===4||dz===depth-5||dz===depth-3))) return BLOCK.WOOD;
-          }
-        }
-      }
-      return -1;
-    };
-
-    const drawMageTower = (hx: number, hz: number, width: number, depth: number, isBlue: boolean) => {
-      const dx = wx - hx;
-      const dz = wz - hz;
-      if (dx >= 0 && dx < width && dz >= 0 && dz < depth) {
-        const cx = Math.floor(width/2);
-        const cz = Math.floor(depth/2);
-        const distSq = (dx - cx) * (dx - cx) + (dz - cz) * (dz - cz);
-        const radiusSq = (width/2) * (width/2);
-        
-        if (distSq <= radiusSq) {
-          if (wy >= 5 && wy <= 28) {
-            const isWall = distSq >= radiusSq - 3;
-            if (isWall) {
-              // Door
-              if (dz === 0 && dx === cx && wy <= 7) return BLOCK.AIR;
-              // Spiral Windows
-              if ((wy + dx + dz) % 6 === 0) return BLOCK.GLASS;
-              return BLOCK.BRICK;
-            } else {
-              // Floors every 6 blocks
-              if (wy % 6 === 5) return BLOCK.PLANKS;
-              // Spiral staircase
-              if ((wy + dx) % 4 === 0 && distSq >= radiusSq - 6) return BLOCK.WOOD;
-              return BLOCK.AIR;
-            }
-          }
-          // Pointy Roof
-          if (wy > 28 && wy <= 35) {
-            const roofRadiusSq = Math.max(0, radiusSq - (wy - 28) * 2);
-            if (distSq <= roofRadiusSq) return isBlue ? BLOCK.BLUE_STONE : BLOCK.RED_STONE;
-          }
-        }
-      }
-      return -1;
-    };
-
-    // Place buildings
-    const buildings = isBlue ? [
-      { type: 'tavern', x: -42, z: 135, w: 16, d: 14 },
-      { type: 'blacksmith', x: 22, z: 135, w: 14, d: 12 },
-      { type: 'farm', x: -42, z: 160, w: 16, d: 16 },
-      { type: 'watchtower', x: 30, z: 165, w: 8, d: 8 },
-      { type: 'library', x: 6, z: 135, w: 10, d: 10 },
-      { type: 'bakery', x: -20, z: 160, w: 12, d: 12 },
-      { type: 'townhall', x: -20, z: 135, w: 14, d: 14 },
-      { type: 'market', x: 6, z: 160, w: 14, d: 14 },
-      { type: 'magetower', x: 36, z: 145, w: 8, d: 8 },
-    ] : [
-      { type: 'tavern', x: -42, z: -149, w: 16, d: 14 },
-      { type: 'blacksmith', x: 22, z: -147, w: 14, d: 12 },
-      { type: 'farm', x: -42, z: -176, w: 16, d: 16 },
-      { type: 'watchtower', x: 30, z: -173, w: 8, d: 8 },
-      { type: 'library', x: 6, z: -145, w: 10, d: 10 },
-      { type: 'bakery', x: -20, z: -172, w: 12, d: 12 },
-      { type: 'townhall', x: -20, z: -149, w: 14, d: 14 },
-      { type: 'market', x: 6, z: -174, w: 14, d: 14 },
-      { type: 'magetower', x: 36, z: -153, w: 8, d: 8 },
-    ];
-
-    for (const b of buildings) {
-      let res = -1;
-      if (b.type === 'tavern') res = drawTavern(b.x, b.z, b.w, b.d);
-      else if (b.type === 'blacksmith') res = drawBlacksmith(b.x, b.z, b.w, b.d);
-      else if (b.type === 'farm') res = drawFarm(b.x, b.z, b.w, b.d);
-      else if (b.type === 'watchtower') res = drawWatchtower(b.x, b.z, b.w, b.d);
-      else if (b.type === 'library') res = drawLibrary(b.x, b.z, b.w, b.d, isBlue);
-      else if (b.type === 'bakery') res = drawBakery(b.x, b.z, b.w, b.d);
-      else if (b.type === 'townhall') res = drawTownHall(b.x, b.z, b.w, b.d, isBlue);
-      else if (b.type === 'market') res = drawMarket(b.x, b.z, b.w, b.d);
-      else if (b.type === 'magetower') res = drawMageTower(b.x, b.z, b.w, b.d, isBlue);
-      
-      if (res !== -1) return res;
-    }
-
-    // 3. Fountain in the middle
-    const fountainZ = isBlue ? 155 : -155;
-    const dx = wx - 0;
-    const dz = wz - fountainZ;
-    const distSq = dx * dx + dz * dz;
-    if (distSq <= 16) {
-      if (wy <= 4) return BLOCK.STONE;
-      if (wy === 5) {
-        if (distSq <= 4) return BLOCK.WATER;
-        return BLOCK.STONE;
-      }
-      if (wy === 6) {
-        if (distSq <= 1) return BLOCK.STONE; // Center pillar
-        if (distSq >= 9) return BLOCK.STONE; // Rim
-        return BLOCK.WATER;
-      }
-      if (wy >= 7 && wy <= 9 && distSq <= 1) return BLOCK.STONE; // Spout
-    }
-
-    return BLOCK.AIR;
-  }
 
 
 
@@ -1736,25 +927,49 @@ export class World {
           continue;
         }
 
-        const isBlueSide = worldZ >= 70;
-        const isRedSide = worldZ <= -70;
+        const isBlueSide = this.isSkyCastles ? worldZ >= 70 : worldZ >= 0;
+        const isRedSide = this.isSkyCastles ? worldZ <= -70 : worldZ < 0;
         const isVoid = !isBlueSide && !isRedSide;
-        const isBridge = isVoid && worldX >= -8 && worldX <= 8;
-        
-        const { height: terrainHeight, biome, isProtected: isAreaProtected } = getTerrainData(worldX, worldZ, this.isSkyCastles, this.isHub, this.worldSize);
-        const isVillageOrCastle = (worldX >= -50 && worldX <= 50) && ((worldZ >= 70 && worldZ <= 410) || (worldZ <= -70 && worldZ >= -410));
-        const isBridgeArea = worldX >= -12 && worldX <= 12 && worldZ > -70 && worldZ < 70;
-        const isProtected = isVillageOrCastle || isBridgeArea || isAreaProtected;
+        const isBridge = this.isSkyCastles ? isVoid && worldX >= -8 && worldX <= 8 : false;
 
+        const t_bridge = Math.max(-1, Math.min(1, worldZ / 70));
+        const curveOffset = 45 * (1 - t_bridge * t_bridge);
+        const rightCenterX = 30 + curveOffset;
+        const leftCenterX = -30 - curveOffset;
+        const isRightCurve = Math.abs(worldX - rightCenterX) <= 2;
+        const isLeftCurve = Math.abs(worldX - leftCenterX) <= 2;
+        const isRightIsland = Math.pow(worldX - 75, 2) + Math.pow(worldZ, 2) <= 100;
+        const isLeftIsland = Math.pow(worldX + 75, 2) + Math.pow(worldZ, 2) <= 100;
+        const isSideBridge = isVoid && (isRightCurve || isLeftCurve);
+        const isSideIsland = isVoid && (isRightIsland || isLeftIsland);
+        
+        if (this.isSkyCastles) {
+          if (Math.abs(worldZ) >= 320 || Math.abs(worldX) > 95) {
+            for (let y = 0; y < CHUNK_HEIGHT; y++) chunk.setBlockFast(x, y, z, BLOCK.AIR);
+            // DO NOT continue here, so that Pirate Ship structures can be drawn later!
+          }
+        }
+
+        const { height: terrainHeight, biome, isProtected: isAreaProtected, minHeight: terrainMinHeight } = getTerrainData(worldX, worldZ, this.isSkyCastles, this.isHub, this.worldSize);
+        const maxProtectedZ = this.isSkyCastles ? 500 : 410;
+        const villageStart = this.isSkyCastles ? 70 : 61;
+        const protectionWidth = this.isSkyCastles ? 100 : 50;
+        const isVillageOrCastle = (worldX >= -protectionWidth && worldX <= protectionWidth) && ((worldZ >= villageStart && maxProtectedZ >= worldZ) || (worldZ <= -villageStart && worldZ >= -maxProtectedZ));
+        const isBridgeArea = this.isSkyCastles ? worldX >= -12 && worldX <= 12 && worldZ > -70 && worldZ < 70 : false;
+        const isProtected = isVillageOrCastle || isBridgeArea || isAreaProtected;
         if (this.isHub) {
-          this.generateHubTerrain(chunk, x, z, worldX, worldZ);
+          generateHubTerrain(chunk, x, z, worldX, worldZ);
         } else if (isBlueSide || isRedSide) {
           const hasCaves = !this.isSkyCastles && !isProtected && biome !== this.biomes.OCEAN && noise2D(worldX * 0.01, worldZ * 0.01) > 0.3;
-          const isBlueVillage = worldZ >= 131 && worldZ <= 180;
-          const isRedVillage = worldZ <= -131 && worldZ >= -180;
+          const blueVillageStart = this.isSkyCastles ? 300 : 61;
+          const blueVillageEnd = this.isSkyCastles ? 350 : 110;
+          const isBlueVillage = worldZ >= blueVillageStart && worldZ <= blueVillageEnd;
+          const isRedVillage = worldZ <= -blueVillageStart && worldZ >= -blueVillageEnd;
           
-          const minIslandY = this.isSkyCastles ? 30 : 0;
-          for (let y = minIslandY; y <= terrainHeight; y++) {
+          let minIslandY = terrainMinHeight;
+          if (!this.isSkyCastles) minIslandY = 0;
+          
+          for (let y = Math.max(0, Math.floor(minIslandY)); y <= terrainHeight; y++) {
             if (y === minIslandY) {
               chunk.setBlockFast(x, y, z, BLOCK.STONE); // Bedrock/Bottom layer
             } else {
@@ -1786,17 +1001,18 @@ export class World {
                   // Path logic inside villages/castles
                   let isPath = false;
                   
-                  if ((isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
-                    const wellZ = isBlueVillage ? 155 : -155;
+                  if (!this.isSkyCastles && (isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
+                    const villageOffset = this.isSkyCastles ? 169 : -70;
+                    const wellZ = isBlueVillage ? (85 + villageOffset) : -(85 + villageOffset);
                     if (worldX >= -3 && worldX <= 3) isPath = true;
                     else if (worldZ >= wellZ - 3 && worldZ <= wellZ + 3 && worldX >= -45 && worldX <= 45) isPath = true;
                     else if (worldX >= -30 && worldX <= -26 && Math.abs(worldZ - wellZ) <= 20) isPath = true;
                     else if (worldX >= 26 && worldX <= 30 && Math.abs(worldZ - wellZ) <= 20) isPath = true;
-                    else if (worldX >= -9 && worldX <= -3 && Math.abs(worldZ - (isBlueVillage ? 166 : -166)) <= 2) isPath = true;
-                    else if (worldX >= 3 && worldX <= 6 && Math.abs(worldZ - (isBlueVillage ? 140 : -140)) <= 2) isPath = true;
-                    else if (worldX >= -15 && worldX <= -11 && Math.abs(worldZ - (isBlueVillage ? 135 : -149)) <= 2) isPath = true;
-                    else if (worldX >= 6 && worldX <= 20 && Math.abs(worldZ - (isBlueVillage ? 167 : -167)) <= 2) isPath = true;
-                    else if (worldX >= 38 && worldX <= 42 && Math.abs(worldZ - (isBlueVillage ? 145 : -153)) <= 2) isPath = true;
+                    else if (worldX >= -9 && worldX <= -3 && Math.abs(worldZ - (isBlueVillage ? (96 + villageOffset) : -(96 + villageOffset))) <= 2) isPath = true;
+                    else if (worldX >= 3 && worldX <= 6 && Math.abs(worldZ - (isBlueVillage ? (70 + villageOffset) : -(70 + villageOffset))) <= 2) isPath = true;
+                    else if (worldX >= -15 && worldX <= -11 && Math.abs(worldZ - (isBlueVillage ? (65 + villageOffset) : -(79 + villageOffset))) <= 2) isPath = true;
+                    else if (worldX >= 6 && worldX <= 20 && Math.abs(worldZ - (isBlueVillage ? (97 + villageOffset) : -(97 + villageOffset))) <= 2) isPath = true;
+                    else if (worldX >= 38 && worldX <= 42 && Math.abs(worldZ - (isBlueVillage ? (75 + villageOffset) : -(83 + villageOffset))) <= 2) isPath = true;
                     
                     if (isPath) {
                       const distSq = (worldX) * (worldX) + (worldZ - wellZ) * (worldZ - wellZ);
@@ -1818,6 +1034,9 @@ export class World {
 
                   if (isPath) {
                     chunk.setBlockFast(x, y, z, (worldX + worldZ) % 3 === 0 ? BLOCK.STONE : BLOCK.SAND);
+                  } else if (this.isSkyCastles && Math.abs(worldX) <= 5 && ((Math.abs(worldZ) >= 70 && Math.abs(worldZ) <= 170) || (Math.abs(worldZ) >= 230 && Math.abs(worldZ) <= 300))) {
+                    // Majestic Stairs refinement
+                    chunk.setBlockFast(x, y, z, BLOCK.SLAB_WOOD);
                   } else if (!isProtected && terrainHeight <= 61) {
                     chunk.setBlockFast(x, y, z, BLOCK.SAND);
                   } else {
@@ -2001,7 +1220,7 @@ export class World {
           }
 
           // Animals (only outside protected areas)
-          if (!isProtected && terrainHeight >= 63) {
+          if (!this.isSkyCastles && !isProtected && terrainHeight >= 63) {
             const animalNoise = noise2D(worldX * 123.45, worldZ * 123.45);
             if (animalNoise > 0.99) {
               const typeNoise = noise2D(worldX * 0.2, worldZ * 0.2);
@@ -2013,46 +1232,106 @@ export class World {
           }
 
           // Castles
-          const isBlueCastleArea = isBlueSide && worldX >= -35 && worldX <= 35 && worldZ >= 65 && worldZ <= 135;
-          const isRedCastleArea = isRedSide && worldX >= -35 && worldX <= 35 && worldZ >= -135 && worldZ <= -65;
+          const castleZCenter = this.isSkyCastles ? 200 : 100;
+          const isBlueCastleArea = isBlueSide && worldX >= -35 && worldX <= 35 && worldZ >= (castleZCenter - 35) && worldZ <= (castleZCenter + 35);
+          const isRedCastleArea = isRedSide && worldX >= -35 && worldX <= 35 && worldZ >= -(castleZCenter + 35) && worldZ <= -(castleZCenter - 35);
           
-          if (isBlueCastleArea || isRedCastleArea) {
+          if (this.isSkyCastles && (isBlueCastleArea || isRedCastleArea)) {
+            const castleYOffset = this.isSkyCastles ? 60 : 0;
             for (let y = 65; y < CHUNK_HEIGHT; y++) {
               let block = BLOCK.AIR;
-              if (isBlueCastleArea) {
-                block = this.getCastleBlock(worldX, y - 60, worldZ, 100, BLOCK.BLUE_STONE);
-              } else if (isRedCastleArea) {
-                block = this.getCastleBlock(worldX, y - 60, worldZ, -100, BLOCK.RED_STONE);
+              if (y >= 65 + castleYOffset) {
+                if (isBlueCastleArea) {
+                  block = getCastleBlock(worldX, y - 60 - castleYOffset, worldZ, castleZCenter, BLOCK.BLUE_STONE, this.isSkyCastles, this.queuedMobs);
+                } else if (isRedCastleArea) {
+                  block = getCastleBlock(worldX, y - 60 - castleYOffset, worldZ, -castleZCenter, BLOCK.RED_STONE, this.isSkyCastles, this.queuedMobs);
+                }
               }
-              if (block !== BLOCK.AIR) {
+              if (block !== BLOCK.AIR && block !== -1) {
                 chunk.setBlockFast(x, y, z, block);
+              } else if (block === BLOCK.AIR && y >= 65 + castleYOffset) {
+                chunk.setBlockFast(x, y, z, BLOCK.AIR);
               }
             }
           }
 
           // Villages
-          if ((isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
+          if (!this.isSkyCastles && (isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
             for (let y = 65; y < CHUNK_HEIGHT; y++) {
-              const block = this.getVillageBlock(worldX, y - 60, worldZ, isBlueVillage);
+              const block = getVillageBlock(worldX, y - 60, worldZ, isBlueVillage, this.isSkyCastles);
               if (block !== BLOCK.AIR) {
                 chunk.setBlockFast(x, y, z, block);
               }
             }
           }
         } else if (isBridge) {
-          // Enchanted Medieval Bridge structure
+          if (this.isSkyCastles) {
+            // "Wide flank floating" - Generate large floating platforms instead of a bridge
+            // Use absolute Z for perfect symmetry between teams
+            const islandNoise = noise2D(worldX * 0.04, Math.abs(worldZ) * 0.03);
+            const detailNoise = noise2D(worldX * 0.2, Math.abs(worldZ) * 0.2);
+            
+            // Special logic for an elevated flat flank just in the middle
+            const isMiddle = Math.abs(worldZ) < 12;
+            const middleWidth = Math.abs(worldX) < 14; 
+            
+            if (isMiddle && middleWidth) {
+              const centerHeight = 75;
+              const centerThickness = 5;
+              
+              const distFromCenter = Math.sqrt((worldX * worldX) / 200 + (worldZ * worldZ) / 144);
+              if (distFromCenter < 1.0) {
+                for (let y = centerHeight - centerThickness; y <= centerHeight; y++) {
+                  let block = BLOCK.STONE;
+                  if (y === centerHeight) {
+                    block = (Math.abs(worldX) < 12 && Math.abs(worldZ) < 10) ? BLOCK.GRASS : BLOCK.STONE_BRICKS;
+                  } else if (y > centerHeight - 2) {
+                    block = BLOCK.DIRT;
+                  }
+                  chunk.setBlockFast(x, y, z, block);
+                }
+                
+                if (Math.abs(worldX) % 8 === 0 && Math.abs(worldZ) % 8 === 0) {
+                    chunk.setBlockFast(x, centerHeight + 1, z, BLOCK.SEA_LANTERN);
+                }
+                
+                continue;
+              }
+            }
+
+            if (islandNoise > 0.1) {
+              const baseHeight = 60 + Math.floor(noise2D(Math.abs(worldZ) * 0.01, 0) * 10);
+              const thickness = 4 + Math.floor((islandNoise - 0.1) * 10) + Math.floor(detailNoise * 2);
+              
+              for (let y = baseHeight - thickness; y <= baseHeight; y++) {
+                let block = BLOCK.STONE;
+                if (y === baseHeight) {
+                  block = (detailNoise > 0.5) ? BLOCK.GRASS : BLOCK.STONE_BRICKS;
+                } else if (y > baseHeight - 2) {
+                  block = BLOCK.DIRT;
+                }
+                if (y < baseHeight - thickness + 1 && detailNoise < -0.5) continue;
+                chunk.setBlockFast(x, y, z, block);
+              }
+              if (islandNoise > 0.4 && detailNoise > 0.8) {
+                chunk.setBlockFast(x, baseHeight + 1, z, BLOCK.SEA_LANTERN);
+              }
+            }
+            continue; 
+          }
+
+          // Enchanted Medieval Bridge structure (Original logic for non-Skycastles)
           for (let y = 50; y <= 64; y++) {
             const isPillarPos = Math.abs(worldZ) % 15 <= 2;
             const isLampPos = Math.abs(worldZ) % 15 === 0;
             const isSide = worldX === -8 || worldX === 8;
-            const isOuterSide = worldX === -9 || worldX === 9; 
-            
-            // Generate Archway and Pillar Supports
+            const isOuterSide = worldX === -9 || worldX === 9;
+
             if (y < 63) {
               const archHeight = 6;
               const zOffset = Math.abs(worldZ) % 15;
               const archY = 56 + Math.floor(Math.sin((zOffset / 15) * Math.PI) * archHeight);
-              
+                
               if (isSide || isOuterSide) {
                 // Main pillars and arches
                 if (y <= archY || isPillarPos) {
@@ -2115,17 +1394,194 @@ export class World {
               }
             }
           }
+        } else if (isSideIsland) {
+            const distRightSq = Math.pow(worldX - 75, 2) + Math.pow(worldZ, 2);
+            const distLeftSq = Math.pow(worldX + 75, 2) + Math.pow(worldZ, 2);
+            const distSq = worldX > 0 ? distRightSq : distLeftSq;
+            const dist = Math.sqrt(distSq);
+
+            const islandDepth = Math.max(1, 10 - dist);
+            const islandBase = 64 - Math.floor(islandDepth);
+
+            for (let y = islandBase; y <= 64; y++) {
+               if (y === 64) {
+                 chunk.setBlockFast(x, y, z, BLOCK.GRASS);
+               } else if (y >= 64 - 2) {
+                 chunk.setBlockFast(x, y, z, BLOCK.DIRT);
+               } else {
+                 chunk.setBlockFast(x, y, z, BLOCK.STONE);
+               }
+            }
+
+            if (dist < 1.0) {
+               for (let ty = 65; ty <= 68; ty++) chunk.setBlockFast(x, ty, z, BLOCK.DARK_OAK_LOG);
+               for (let ly=67; ly<=69; ly++) {
+                 for (let lx=-2; lx<=2; lx++) {
+                   for (let lz=-2; lz<=2; lz++) {
+                     if (Math.abs(lx)+Math.abs(lz) < 3 || ly===68) {
+                        const targetX = x+lx;
+                        const targetZ = z+lz;
+                        if (targetX >= 0 && targetX < CHUNK_SIZE && targetZ >= 0 && targetZ < CHUNK_SIZE) {
+                           if (chunk.getBlock(targetX, ly, targetZ) === BLOCK.AIR) {
+                             chunk.setBlockFast(targetX, ly, targetZ, BLOCK.DARK_OAK_LEAVES);
+                           }
+                        }
+                     }
+                   }
+                 }
+               }
+            } else if (dist > 3 && dist < 4 && Math.abs(worldX + worldZ) % 3 === 0) {
+               chunk.setBlockFast(x, 65, z, BLOCK.TALL_GRASS);
+            }
+        } else if (isSideBridge) {
+            const isRightSideEdge = worldX > 0 && Math.abs(worldX - rightCenterX) >= 1.5;
+            const isLeftSideEdge = worldX < 0 && Math.abs(worldX - leftCenterX) >= 1.5;
+            const isEdge = isRightSideEdge || isLeftSideEdge;
+            const sketchyHole = noise2D(worldX * 0.4, worldZ * 0.4) > 0.6;
+
+            if (!sketchyHole || isEdge) {
+               chunk.setBlockFast(x, 64, z, isEdge ? BLOCK.SPRUCE_LOG : BLOCK.SPRUCE_PLANKS);
+            }
+
+            if (!isEdge && !sketchyHole) {
+               chunk.setBlockFast(x, 63, z, BLOCK.SPRUCE_PLANKS);
+            }
+
+            if (isEdge && Math.abs(worldZ) % 15 === 0) {
+               chunk.setBlockFast(x, 65, z, BLOCK.SPRUCE_LOG);
+            }
         }
 
-        // Shelters
+        // Giant Mythical Pirate Ships replacing Shelters
         if (!this.isHub) {
-          const shelterStart = this.isSkyCastles ? 190 : 300;
-          const shelterEnd = this.isSkyCastles ? 295 : 405;
-          if (worldZ >= shelterStart && worldZ <= shelterEnd && worldX >= -25 && worldX <= 25) {
-            this.generateShelter(chunk, x, z, worldX, worldZ, true);
+          const pShipStart = 200;
+          const pShipEnd = 430;
+          const poolCenterZ = 310;
+          const distToBlueShipSq = worldX * worldX + (worldZ - poolCenterZ) * (worldZ - poolCenterZ);
+          const distToRedShipSq = worldX * worldX + (worldZ + poolCenterZ) * (worldZ + poolCenterZ);
+          
+          if (worldZ >= pShipStart && worldZ <= pShipEnd && worldX >= -45 && worldX <= 45) {
+             for (let y = 130; y <= 255; y++) {
+                const shipBlock = getGiantMythicalShipBlock(worldX, y, worldZ, true);
+                if (shipBlock !== BLOCK.AIR) chunk.setBlockFast(x, y, z, shipBlock);
+             }
+             if (distToBlueShipSq <= 400) {
+                 const dist = Math.sqrt(distToBlueShipSq);
+                 const depth = Math.floor(20 - dist);
+                 if (depth > 0) {
+                     const poolSurfaceY = 64;
+                     for (let y = poolSurfaceY - depth; y <= poolSurfaceY; y++) {
+                         const isEdge = y === poolSurfaceY - depth || dist >= 19;
+                         chunk.setBlockFast(x, y, z, isEdge ? BLOCK.MOSSY_COBBLESTONE : BLOCK.WATER); 
+                     }
+                     for (let y = poolSurfaceY + 1; y <= Math.min(poolSurfaceY + 15, CHUNK_HEIGHT - 1); y++) {
+                         chunk.setBlockFast(x, y, z, BLOCK.AIR);
+                     }
+                 }
+             }
           }
-          if (worldZ <= -shelterStart && worldZ >= -shelterEnd && worldX >= -25 && worldX <= 25) {
-            this.generateShelter(chunk, x, z, worldX, worldZ, false);
+          if (worldZ <= -pShipStart && worldZ >= -pShipEnd && worldX >= -45 && worldX <= 45) {
+             for (let y = 130; y <= 255; y++) {
+                const shipBlock = getGiantMythicalShipBlock(worldX, y, worldZ, false);
+                if (shipBlock !== BLOCK.AIR) chunk.setBlockFast(x, y, z, shipBlock);
+             }
+             if (distToRedShipSq <= 400) {
+                 const dist = Math.sqrt(distToRedShipSq);
+                 const depth = Math.floor(20 - dist);
+                 if (depth > 0) {
+                     const poolSurfaceY = 64;
+                     for (let y = poolSurfaceY - depth; y <= poolSurfaceY; y++) {
+                         const isEdge = y === poolSurfaceY - depth || dist >= 19;
+                         chunk.setBlockFast(x, y, z, isEdge ? BLOCK.MOSSY_COBBLESTONE : BLOCK.WATER); 
+                     }
+                     for (let y = poolSurfaceY + 1; y <= Math.min(poolSurfaceY + 15, CHUNK_HEIGHT - 1); y++) {
+                         chunk.setBlockFast(x, y, z, BLOCK.AIR);
+                     }
+                 }
+             }
+          }
+          
+          // Note: Old Pirate Ships removed in favor of Giant Mythical Pirate Ships
+          
+          // Side Mines (Underground Tunnels connecting bases)
+          const isLeftMineArea = worldX >= -40 && worldX <= -24;
+          const isRightMineArea = worldX >= 24 && worldX <= 40;
+          const mineZLimit = this.isSkyCastles ? 310 : 140; 
+          
+          if ((isLeftMineArea || isRightMineArea) && worldZ >= -mineZLimit && worldZ <= mineZLimit) {
+            const centerX = worldX < 0 ? -32 : 32;
+            const tunnelY = 6; // Floor at Y=6, walk at Y=7
+            
+            // Check if we are at the entry shafts (Z = ±78)
+            const isEntryZ = Math.abs(worldZ - 78) <= 2 || Math.abs(worldZ + 78) <= 2;
+            const isEntryX = Math.abs(worldX - centerX) <= 2;
+            const isEntryShaft = isEntryZ && isEntryX;
+            
+            // Tunnel dimensions
+            const dyCenter = tunnelY + 3;
+            const sqDistToCenter = (worldX - centerX) * (worldX - centerX);
+            
+            for (let y = 0; y <= CHUNK_HEIGHT - 1; y++) {
+               const dyTop = (y - dyCenter);
+               const distSq = sqDistToCenter + dyTop * dyTop;
+               const innerRadiusSq = 3 * 3;
+               const outerRadiusSq = 5 * 5;
+               
+               const isInsideTunnel = distSq <= innerRadiusSq;
+               const isTunnelShell = distSq <= outerRadiusSq + noise3D(worldX * 0.1, y * 0.1, worldZ * 0.1) * 5;
+               
+               let blockToPlace: number | null = null;
+               
+               // Generate Shaft
+               if (isEntryShaft) {
+                   if (y >= tunnelY && y <= terrainHeight) {
+                       // Hollow out the core of the shaft, place ladders/vines? or stairs
+                       const shaftDistSq = (worldX - centerX) * (worldX - centerX) + Math.min(Math.abs(worldZ - 78), Math.abs(worldZ + 78)) ** 2;
+                       if (shaftDistSq <= 2) {
+                           // Water elevator or just air? Let's use scaffolding or air
+                           // Actually we'll just put air for the shaft and water at the bottom
+                           if (y === tunnelY && shaftDistSq === 0) blockToPlace = BLOCK.WATER;
+                           else blockToPlace = BLOCK.AIR;
+                       } else if (shaftDistSq <= 6) {
+                           // Walls of the shaft
+                           if (y > tunnelY) blockToPlace = BLOCK.STONE_BRICKS;
+                       }
+                   }
+               }
+               
+               // Generate Tunnel
+               if (blockToPlace === null && isInsideTunnel) {
+                   if (y >= tunnelY && y <= tunnelY + 4) {
+                       blockToPlace = BLOCK.AIR;
+                       // Decorations
+                       const localX = worldX - centerX;
+                       if (Math.abs(worldZ) % 8 <= 1) {
+                           if (Math.abs(localX) === 2 || y === tunnelY + 4 || y === tunnelY) {
+                               blockToPlace = BLOCK.STRIPPED_OAK_LOG;
+                           }
+                       }
+                       if (Math.abs(worldZ) % 8 === 0 && y === tunnelY + 2 && Math.abs(localX) === 1) {
+                           blockToPlace = BLOCK.TORCH;
+                       }
+                   } else if (y === tunnelY - 1) {
+                       blockToPlace = BLOCK.STONE;
+                   }
+               } else if (blockToPlace === null && isTunnelShell) {
+                   if (y < Math.max(terrainHeight - 3, tunnelY + 5) || terrainHeight === 0) {
+                       if (Math.random() < 0.2) blockToPlace = BLOCK.DEEPSLATE;
+                       else if (Math.random() < 0.3) blockToPlace = BLOCK.MOSSY_COBBLESTONE;
+                       else blockToPlace = BLOCK.COBBLESTONE;
+                   }
+               }
+               
+               if (blockToPlace !== null) {
+                   const curr = chunk.getBlock(x, y, z);
+                   // Ensure we don't overwrite bedrock or very top blocks unless it is our shaft
+                   if (y > 0 && curr !== BLOCK.CHEST) {
+                        chunk.setBlockFast(x, y, z, blockToPlace);
+                   }
+               }
+            }
           }
         }
         
@@ -2196,84 +1652,9 @@ export class World {
     return chunk;
   }
 
-  private generateShelter(chunk: Chunk, lx: number, lz: number, worldX: number, worldZ: number, isBlue: boolean) {
-    const shelterStart = this.isSkyCastles ? 190 : 300;
-    const shelterMainStart = this.isSkyCastles ? 254 : 364;
-    const shelterMainEnd = this.isSkyCastles ? 294 : 404;
-    
-    const startZ = isBlue ? shelterStart : -shelterStart;
-    const distToStart = Math.abs(worldZ - startZ);
-    const blockType = isBlue ? BLOCK.BLUE_STONE : BLOCK.RED_STONE;
 
-    // Stairs
-    if (Math.abs(worldZ) >= shelterStart && Math.abs(worldZ) < shelterMainStart) { // Extended range for gentler slope
-      if (worldX >= -5 && worldX <= 5) {
-        const stairY2 = 124 - distToStart; // Height in half-blocks
-        const stairY = Math.floor(stairY2 / 2);
-        const hasSlab = stairY2 % 2 === 1;
-        const slabType = isBlue ? BLOCK.SLAB_BLUE_STONE : BLOCK.SLAB_RED_STONE;
 
-        for (let y = stairY - 1; y <= stairY + 6; y++) {
-          if (y === stairY - 1) {
-            chunk.setBlockFast(lx, y, lz, blockType); // Floor
-            if (hasSlab) {
-              chunk.setBlockFast(lx, y + 1, lz, slabType); // Slab on top of floor
-            }
-          } else if (worldX === -5 || worldX === 5) {
-            chunk.setBlockFast(lx, y, lz, blockType); // Walls
-          } else if (y === stairY + 6) {
-            if (distToStart > 3) {
-              chunk.setBlockFast(lx, y, lz, blockType); // Roof
-            } else {
-              chunk.setBlockFast(lx, y, lz, BLOCK.AIR); // Open roof at entrance
-            }
-          } else {
-            // Only clear if not a slab we just placed
-            if (!hasSlab || y !== stairY) {
-              chunk.setBlockFast(lx, y, lz, BLOCK.AIR); // Air inside
-            }
-          }
-        }
-        // Clear anything above the entrance
-        if (distToStart <= 3) {
-          for (let y = stairY + 6; y < CHUNK_HEIGHT; y++) {
-            chunk.setBlockFast(lx, y, lz, BLOCK.AIR);
-          }
-        }
-      }
-    }
-
-    // Main Room
-    if (Math.abs(worldZ) >= shelterMainStart && Math.abs(worldZ) <= shelterMainEnd) {
-      if (worldX >= -20 && worldX <= 20) {
-        for (let y = 30; y <= 45; y++) {
-          const isWall = worldX === -20 || worldX === 20 || Math.abs(worldZ) === shelterMainStart || Math.abs(worldZ) === shelterMainEnd || y === 30 || y === 45;
-          if (isWall) {
-            // Doorway
-            if (Math.abs(worldZ) === shelterMainStart && worldX > -5 && worldX < 5 && y >= 31 && y <= 36) {
-              chunk.setBlockFast(lx, y, lz, BLOCK.AIR);
-            } else {
-              chunk.setBlockFast(lx, y, lz, blockType);
-            }
-          } else {
-            chunk.setBlockFast(lx, y, lz, BLOCK.AIR);
-            // Pillars
-            if (worldX % 10 === 0 && worldZ % 10 === 0) {
-              chunk.setBlockFast(lx, y, lz, blockType);
-            }
-            // Lights on pillars
-            if (worldX % 10 === 0 && worldZ % 10 === 0 && y === 40) {
-              chunk.setBlockFast(lx, y, lz, BLOCK.GLASS);
-            }
-            // Crates along the walls
-            if (y === 31 && Math.abs(worldX) > 15 && worldZ % 3 !== 0) {
-              chunk.setBlockFast(lx, y, lz, BLOCK.WOOD);
-            }
-          }
-        }
-      }
-    }
-  }
+  
 
   applyNetworkBlockChanges(chunk: Chunk, cx: number, cz: number) {
     if (!networkManager || !networkManager.blockChanges) return;
@@ -2320,8 +1701,8 @@ export class World {
           let inFrustum = true;
           if (camera) {
             const box = new THREE.Box3(
-              new THREE.Vector3(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE),
-              new THREE.Vector3((cx + 1) * CHUNK_SIZE, 128, (cz + 1) * CHUNK_SIZE)
+              new THREE.Vector3(cx * CHUNK_SIZE, WORLD_Y_OFFSET, cz * CHUNK_SIZE),
+              new THREE.Vector3((cx + 1) * CHUNK_SIZE, WORLD_Y_OFFSET + CHUNK_HEIGHT, (cz + 1) * CHUNK_SIZE)
             );
             inFrustum = frustum.intersectsBox(box);
           }
@@ -2379,8 +1760,8 @@ export class World {
         let inFrustum = true;
         if (camera) {
           const box = new THREE.Box3(
-            new THREE.Vector3(chunk.x * CHUNK_SIZE, 0, chunk.z * CHUNK_SIZE),
-            new THREE.Vector3((chunk.x + 1) * CHUNK_SIZE, 128, (chunk.z + 1) * CHUNK_SIZE)
+            new THREE.Vector3(chunk.x * CHUNK_SIZE, WORLD_Y_OFFSET, chunk.z * CHUNK_SIZE),
+            new THREE.Vector3((chunk.x + 1) * CHUNK_SIZE, WORLD_Y_OFFSET + CHUNK_HEIGHT, (chunk.z + 1) * CHUNK_SIZE)
           );
           inFrustum = frustum.intersectsBox(box);
         }

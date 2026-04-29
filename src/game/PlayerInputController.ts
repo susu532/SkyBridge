@@ -227,6 +227,8 @@ export class PlayerInputController {
           if (networkManager.serverName === 'hub') {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
           }
+        } else if (npc.id.startsWith('bren')) {
+          window.dispatchEvent(new CustomEvent('openLaunchMenu'));
         } else {
           window.dispatchEvent(new CustomEvent('openShop', { detail: { npc } }));
         }
@@ -305,12 +307,19 @@ export class PlayerInputController {
         if (isCrit) {
           for(let i=0; i<3; i++) {
             window.dispatchEvent(new CustomEvent('spawnParticles', { 
-              detail: { pos: player.currentPos.clone().add(new THREE.Vector3(0, 0.5, 0)), type: 73 } 
+              detail: { pos: player.group.position.clone().add(new THREE.Vector3(0, 0.5, 0)), type: 73 } 
             }));
           }
         }
-        window.dispatchEvent(new CustomEvent('mobDamage', { detail: { amount: Math.floor(damage), isCrit } }));
+        
+        const pPos = player.group.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+        pPos.project(this.player.camera);
+        const screenX = (pPos.x * 0.5 + 0.5) * window.innerWidth;
+        const screenY = -(pPos.y * 0.5 - 0.5) * window.innerHeight;
+        
+        window.dispatchEvent(new CustomEvent('mobDamage', { detail: { amount: Math.floor(damage), isCrit, screenX, screenY } }));
         this.damageWeapon();
+        return;
       }
 
       const mob = this.player.entityManager.raycastMob(rayOrigin, direction, 4, this.player.camera);
@@ -340,8 +349,13 @@ export class PlayerInputController {
         // Also note: we are just predicting the visual hit here.
         // Mobs update their actual death logic from the server loop via 'mobDespawned' and 'mobsUpdate' events.
 
+        const pPos = mob.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+        pPos.project(this.player.camera);
+        const screenX = (pPos.x * 0.5 + 0.5) * window.innerWidth;
+        const screenY = -(pPos.y * 0.5 - 0.5) * window.innerHeight;
+
         window.dispatchEvent(new CustomEvent('mobDamage', { 
-          detail: { amount: Math.floor(damage), isCrit } 
+          detail: { amount: Math.floor(damage), isCrit, screenX, screenY } 
         }));
 
         if (lootType !== null) {

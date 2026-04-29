@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BLOCK, getBlockUVs, isTransparent, isCutout, isSolidBlock, isSlab, isWater, ATLAS_TILES, isPlant, isLeaves, isAnyTorch } from './TextureAtlas';
 
 export const CHUNK_SIZE = 16;
-export const CHUNK_HEIGHT = 128;
+export const CHUNK_HEIGHT = 256;
 export const WORLD_Y_OFFSET = -60;
 
 export class Chunk {
@@ -103,7 +103,7 @@ export class Chunk {
       if (!isWater(b)) return -1;
       
       let above;
-      if (ly + 1 < 128) {
+      if (ly + 1 < CHUNK_HEIGHT) {
         if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) {
           above = this.blocks[lx | (lz << 4) | ((ly + 1) << 8)];
         } else {
@@ -178,7 +178,7 @@ export class Chunk {
 
       if (isWater(blockType) && dir !== 3) {
         let above;
-        if (y + 1 < 128) {
+        if (y + 1 < CHUNK_HEIGHT) {
           above = this.blocks[x | (z << 4) | ((y + 1) << 8)];
         } else {
           above = BLOCK.AIR;
@@ -201,7 +201,7 @@ export class Chunk {
         const nx = x + dx;
         const ny = y + dy;
         const nz = z + dz;
-        if (ny < 0 || ny >= 128) return false;
+        if (ny < 0 || ny >= CHUNK_HEIGHT) return false;
         
         if ((nx & ~15) === 0 && (nz & ~15) === 0) {
           return isSolidBlock(this.blocks[nx | (nz << 4) | (ny << 8)]);
@@ -461,19 +461,19 @@ export class Chunk {
     };
 
     const masks = [
-      new Int32Array(16 * 128 * 16), // 0: Right (+X)
-      new Int32Array(16 * 128 * 16), // 1: Left (-X)
-      new Int32Array(16 * 16 * 128), // 2: Top (+Y)
-      new Int32Array(16 * 16 * 128), // 3: Bottom (-Y)
-      new Int32Array(16 * 128 * 16), // 4: Front (+Z)
-      new Int32Array(16 * 128 * 16)  // 5: Back (-Z)
+      new Int32Array(16 * CHUNK_HEIGHT * 16), // 0: Right (+X)
+      new Int32Array(16 * CHUNK_HEIGHT * 16), // 1: Left (-X)
+      new Int32Array(16 * 16 * CHUNK_HEIGHT), // 2: Top (+Y)
+      new Int32Array(16 * 16 * CHUNK_HEIGHT), // 3: Bottom (-Y)
+      new Int32Array(16 * CHUNK_HEIGHT * 16), // 4: Front (+Z)
+      new Int32Array(16 * CHUNK_HEIGHT * 16)  // 5: Back (-Z)
     ];
 
     const isSolid = (x: number, y: number, z: number, dx: number, dy: number, dz: number) => {
       const nx = x + dx;
       const ny = y + dy;
       const nz = z + dz;
-      if (ny < 0 || ny >= 128) return false;
+      if (ny < 0 || ny >= CHUNK_HEIGHT) return false;
       if ((nx & ~15) === 0 && (nz & ~15) === 0) {
         return isSolidBlock(this.blocks[nx | (nz << 4) | (ny << 8)]);
       } else {
@@ -489,7 +489,7 @@ export class Chunk {
       const nx = x + dx;
       const ny = y + dy;
       const nz = z + dz;
-      if (ny < 0 || ny >= 128) return 15;
+      if (ny < 0 || ny >= CHUNK_HEIGHT) return 15;
       if ((nx & ~15) === 0 && (nz & ~15) === 0) {
         return this.light[nx | (nz << 4) | (ny << 8)];
       } else {
@@ -541,7 +541,7 @@ export class Chunk {
                 ao3 = getAO(isSolid(x,y,z,1,1,0), isSolid(x,y,z,1,0,1), isSolid(x,y,z,1,1,1));
               }
               const light = getLightLevel(x,y,z,1,0,0);
-              masks[0][z + y * 16 + x * 2048] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[0][z + y * 16 + x * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 0, type, layer);
             }
@@ -565,14 +565,14 @@ export class Chunk {
                 ao3 = getAO(isSolid(x,y,z,-1,1,0), isSolid(x,y,z,-1,0,-1), isSolid(x,y,z,-1,1,-1));
               }
               const light = getLightLevel(x,y,z,-1,0,0);
-              masks[1][z + y * 16 + x * 2048] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[1][z + y * 16 + x * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 1, type, layer);
             }
           }
           
           // Top (dir 2)
-          nType = y < 127 ? this.blocks[x | (z << 4) | ((y + 1) << 8)] : BLOCK.AIR;
+          nType = y < (CHUNK_HEIGHT - 1) ? this.blocks[x | (z << 4) | ((y + 1) << 8)] : BLOCK.AIR;
           if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || typeIsSlab || isSlab(nType)) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
@@ -625,7 +625,7 @@ export class Chunk {
                 ao3 = getAO(isSolid(x,y,z,-1,0,1), isSolid(x,y,z,0,1,1), isSolid(x,y,z,-1,1,1));
               }
               const light = getLightLevel(x,y,z,0,0,1);
-              masks[4][x + y * 16 + z * 2048] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[4][x + y * 16 + z * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 4, type, layer);
             }
@@ -649,7 +649,7 @@ export class Chunk {
                 ao3 = getAO(isSolid(x,y,z,1,0,-1), isSolid(x,y,z,0,1,-1), isSolid(x,y,z,1,1,-1));
               }
               const light = getLightLevel(x,y,z,0,0,-1);
-              masks[5][x + y * 16 + z * 2048] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[5][x + y * 16 + z * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 5, type, layer);
             }
@@ -668,9 +668,9 @@ export class Chunk {
     for (let dir = 0; dir < 6; dir++) {
       const mask = masks[dir];
       let sliceMax, iMax, jMax;
-      if (dir === 0 || dir === 1) { sliceMax = 16; iMax = 128; jMax = 16; } // X slices. i=y, j=z
-      else if (dir === 2 || dir === 3) { sliceMax = 128; iMax = 16; jMax = 16; } // Y slices. i=z, j=x
-      else { sliceMax = 16; iMax = 128; jMax = 16; } // Z slices. i=y, j=x
+      if (dir === 0 || dir === 1) { sliceMax = 16; iMax = CHUNK_HEIGHT; jMax = 16; } // X slices. i=y, j=z
+      else if (dir === 2 || dir === 3) { sliceMax = CHUNK_HEIGHT; iMax = 16; jMax = 16; } // Y slices. i=z, j=x
+      else { sliceMax = 16; iMax = CHUNK_HEIGHT; jMax = 16; } // Z slices. i=y, j=x
 
       for (let slice = 0; slice < sliceMax; slice++) {
         for (let i = 0; i < iMax; i++) {

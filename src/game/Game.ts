@@ -51,13 +51,13 @@ export class Game {
     const heightHalf = window.innerHeight / 2;
     this.camera.getWorldDirection(this._tempCameraDir);
 
-    const projectEntity = (id: string, pos: THREE.Vector3, type: string, health: number, maxHealth: number, level: number, name?: string, isPassive: boolean = false) => {
+    const projectEntity = (id: string, pos: THREE.Vector3, type: string, health: number, maxHealth: number, level: number, name?: string, isPassive: boolean = false, heightOffset?: number) => {
       // Distance check
       const distSq = pos.distanceToSquared(this.camera.position);
       if (isNaN(distSq) || distSq > 2500) return; // 50 blocks for players
 
       this._tagTempVec.copy(pos);
-      this._tagTempVec.y += (type === 'Slime') ? 1.0 : 2.2;
+      this._tagTempVec.y += heightOffset !== undefined ? heightOffset : ((type === 'Slime') ? 1.0 : 2.2);
       
       this._tagToEntity.subVectors(this._tagTempVec, this.camera.position).normalize();
       if (this._tempCameraDir.dot(this._tagToEntity) < 0) return;
@@ -82,7 +82,8 @@ export class Game {
 
     this.entityManager.remotePlayers.forEach((player) => {
       const combatLevel = player.skills?.Combat?.level || 1;
-      projectEntity(player.id, player.group.position, 'Player', 100, 100, combatLevel, player.name, true);
+      const heightOffset = player.isCrouching ? 1.8 : 2.2;
+      projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset);
     });
 
     return tags;
@@ -310,7 +311,7 @@ export class Game {
 
       // 2. Check sunlight exposure (raycast straight up)
       let isExposed = true;
-      const maxHeight = 68; // CHUNK_HEIGHT (128) + WORLD_Y_OFFSET (-60)
+      const maxHeight = 196; // CHUNK_HEIGHT (256) + WORLD_Y_OFFSET (-60)
       for (let y = py + 1; y < maxHeight; y++) {
         const block = this.world.getBlock(px, y, pz);
         if (block !== 0 && !isTransparent(block)) { // Consider non-transparent blocks as occluding

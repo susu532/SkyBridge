@@ -158,9 +158,11 @@ export class NetworkManager {
           isSwinging: !!(stateMask & 16),
           isGrounded: !!(stateMask & 32),
           isBlocking: !!(stateMask & 64),
+          isGliding: !!(stateMask & 128),
           swingSpeed: packed[6],
           heldItem: packed[7],
-          offHandItem: packed[8]
+          offHandItem: packed[8],
+          health: packed[9]
         };
 
         let isNew = false;

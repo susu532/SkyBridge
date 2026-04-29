@@ -115,9 +115,8 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
 
     if (remaining < item.count) {
       audioManager.play('pop', 0.8, 1.5);
-      // Modify inventory slot directly (it's not React state)
-      item.count = remaining;
-      if (item.count === 0) inventory.slots[invIndex] = null;
+      // Update inventory slot immutably
+      inventory.slots[invIndex] = remaining > 0 ? { ...item, count: remaining } : null;
       
       // Update both state and ref immediately so next click sees the true state
       tradeOfferRef.current = newOffer;

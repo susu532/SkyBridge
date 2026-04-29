@@ -37,6 +37,7 @@ export class RemotePlayer {
   isSprinting = false;
   isSwinging = false;
   isBlocking = false;
+  isGliding = false;
   isGrounded = true;
   swingSpeed = 15;
   
@@ -51,6 +52,13 @@ export class RemotePlayer {
   swimTransition = 0;
   blockTransition = 0;
   climbTransition = 0;
+  gliderOpenAmount = 0;
+  
+  gliderGroup: THREE.Group | null = null;
+  gliderLeftWing: THREE.Mesh | null = null;
+  gliderRightWing: THREE.Mesh | null = null;
+  
+  health: number = 100;
   
   // Head and body rotation tracking
   name: string;
@@ -229,6 +237,9 @@ export class RemotePlayer {
     this.capeMesh.receiveShadow = true;
     this.bodyMesh.add(this.capeMesh);
 
+    // Glider
+    this.createGlider();
+
     // Held Item (Child of Right Arm)
     const itemGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
     const itemMat = new THREE.MeshStandardMaterial({ 
@@ -246,6 +257,49 @@ export class RemotePlayer {
     this.torchLight = new THREE.PointLight(0xffbd5c, 160.0, 35); 
     this.torchLight.visible = false;
     this.group.add(this.torchLight);
+  }
+
+  private createGlider() {
+    this.gliderGroup = new THREE.Group();
+    this.gliderGroup.position.set(0, 0.45, 0.1);
+    this.bodyMesh.add(this.gliderGroup);
+
+    // Main Wings
+    const wingSizeX = 2.4;
+    const wingSizeY = 1.2;
+    const wingGeo = new THREE.PlaneGeometry(wingSizeX, wingSizeY);
+    wingGeo.translate(wingSizeX / 2, -wingSizeY / 4, 0); // Pivot at top-inner corner
+    
+    const wingMat = new THREE.MeshStandardMaterial({ 
+      color: 0x33ccff, 
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.4,
+      metalness: 0.1
+    });
+
+    // Frame/Spar
+    const sparGeo = new THREE.BoxGeometry(wingSizeX, 0.1, 0.1);
+    sparGeo.translate(wingSizeX / 2, 0, 0.05);
+    const sparMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f });
+
+    this.gliderLeftWing = new THREE.Group() as any;
+    const leftCanvas = new THREE.Mesh(wingGeo, wingMat);
+    const leftSpar = new THREE.Mesh(sparGeo, sparMat);
+    this.gliderLeftWing!.add(leftCanvas);
+    this.gliderLeftWing!.add(leftSpar);
+    this.gliderLeftWing!.rotation.y = Math.PI;
+    this.gliderGroup.add(this.gliderLeftWing!);
+
+    this.gliderRightWing = new THREE.Group() as any;
+    const rightCanvas = new THREE.Mesh(wingGeo, wingMat);
+    const rightSpar = new THREE.Mesh(sparGeo, sparMat);
+    this.gliderRightWing!.add(rightCanvas);
+    this.gliderRightWing!.add(rightSpar);
+    this.gliderGroup.add(this.gliderRightWing!);
+
+    this.gliderGroup.visible = false;
   }
 
   setHeldItem(type: number, offHandType: number = 0) {
@@ -498,7 +552,7 @@ export class RemotePlayer {
     }
 
     if (this.isSwinging) {
-      this.swingTimer += delta * this.swingSpeed * 2.0; // Make swing snappier by doubling speed
+      this.swingTimer += delta * this.swingSpeed; // Make swing smooth
       if (this.swingTimer > Math.PI) {
         this.swingTimer = 0;
         this.isSwinging = false;
@@ -515,6 +569,48 @@ export class RemotePlayer {
     this.climbTransition = THREE.MathUtils.lerp(this.climbTransition, isClimbing ? 1 : 0, delta * 10);
 
     this.animateModel(delta, isMoving, horizontalVelocity);
+    this.updateGlider(delta);
+  }
+
+  private updateGlider(delta: number) {
+    if (!this.gliderGroup || !this.gliderLeftWing || !this.gliderRightWing) return;
+
+    const targetOpen = this.isGliding ? 1 : 0;
+    this.gliderOpenAmount = THREE.MathUtils.lerp(
+      this.gliderOpenAmount,
+      targetOpen,
+      delta * (this.isGliding ? 8 : 4)
+    );
+
+    if (this.gliderOpenAmount > 0.01) {
+      this.gliderGroup.visible = true;
+      
+      // Aerodynamic pitch
+      this.gliderGroup.rotation.x = THREE.MathUtils.lerp(0.5, -0.2, this.gliderOpenAmount);
+
+      const openAngle = 1.3;
+      const closedAngle = 0.15;
+      const angle = THREE.MathUtils.lerp(closedAngle, openAngle, this.gliderOpenAmount);
+
+      this.gliderRightWing.rotation.y = angle;
+      this.gliderLeftWing.rotation.y = Math.PI - angle;
+
+      if (this.isGliding) {
+        const time = performance.now() * 0.005;
+        const flap = Math.sin(time) * 0.05;
+        this.gliderRightWing.rotation.z = flap;
+        this.gliderLeftWing.rotation.z = -flap;
+        this.gliderGroup.rotation.z = Math.sin(time * 0.5) * 0.03;
+      } else {
+        this.gliderRightWing.rotation.z = 0;
+        this.gliderLeftWing.rotation.z = 0;
+        this.gliderGroup.rotation.z = 0;
+      }
+      const scale = this.gliderOpenAmount;
+      this.gliderGroup.scale.set(scale, scale, scale);
+    } else {
+      this.gliderGroup.visible = false;
+    }
   }
 
   private animateModel(delta: number, isMoving: boolean, horizontalVelocity: number) {
@@ -676,9 +772,9 @@ export class RemotePlayer {
       const t = this.crouchTransition;
       
       // Lower the body mesh specifically to simulate the crouch
-      const crouchDrop = 0.15 * t; // Reduced to elevate torso
+      const crouchDrop = 0.35 * t; // More obvious drop
       this.bodyMesh.position.y -= crouchDrop;
-      this.bodyMesh.position.z -= 0.1 * t; // Move torso forward
+      this.bodyMesh.position.z -= 0.15 * t; // Move torso forward
       
       // Squash torso to look shorter
       const bodyScaleY = 1.0 - 0.2 * t;

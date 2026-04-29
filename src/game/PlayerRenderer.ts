@@ -26,6 +26,10 @@ export class PlayerRenderer {
   fpHeldItemModel: THREE.Group | null = null;
   fpOffHandHeldItemModel: THREE.Group | null = null;
   breakingMesh: THREE.Mesh | null = null;
+  gliderGroup: THREE.Group | null = null;
+  gliderLeftWing: THREE.Mesh | null = null;
+  gliderRightWing: THREE.Mesh | null = null;
+  gliderOpenAmount: number = 0;
   
   heldItemMesh: THREE.Mesh | null = null;
   heldItemModel: THREE.Group | null = null;
@@ -251,6 +255,9 @@ export class PlayerRenderer {
     this.capeMesh.receiveShadow = true;
     this.bodyMesh.add(this.capeMesh);
 
+    // Glider
+    this.createGlider();
+
     // Held Item (3rd Person)
     const itemGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
     const itemMat = new THREE.MeshStandardMaterial({ 
@@ -275,6 +282,94 @@ export class PlayerRenderer {
     if (this.leftArmMesh) {
       this.leftArmMesh.add(this.offHandItemModel);
       this.leftArmMesh.add(this.offHandItemMesh);
+    }
+  }
+
+  private createGlider() {
+    this.gliderGroup = new THREE.Group();
+    this.gliderGroup.position.set(0, 0.45, 0.1);
+    this.bodyMesh?.add(this.gliderGroup);
+
+    // Main Wings
+    const wingSizeX = 2.4;
+    const wingSizeY = 1.2;
+    const wingGeo = new THREE.PlaneGeometry(wingSizeX, wingSizeY);
+    wingGeo.translate(wingSizeX / 2, -wingSizeY / 4, 0); // Pivot at top-inner corner
+    
+    const wingMat = new THREE.MeshStandardMaterial({ 
+      color: 0x33ccff, 
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.4,
+      metalness: 0.1
+    });
+
+    // Frame/Spar (The structural part)
+    const sparGeo = new THREE.BoxGeometry(wingSizeX, 0.1, 0.1);
+    sparGeo.translate(wingSizeX / 2, 0, 0.05);
+    const sparMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f }); // Dark wood
+
+    this.gliderLeftWing = new THREE.Group() as any;
+    const leftCanvas = new THREE.Mesh(wingGeo, wingMat);
+    const leftSpar = new THREE.Mesh(sparGeo, sparMat);
+    this.gliderLeftWing!.add(leftCanvas);
+    this.gliderLeftWing!.add(leftSpar);
+    this.gliderLeftWing!.rotation.y = Math.PI;
+    this.gliderGroup.add(this.gliderLeftWing!);
+
+    this.gliderRightWing = new THREE.Group() as any;
+    const rightCanvas = new THREE.Mesh(wingGeo, wingMat);
+    const rightSpar = new THREE.Mesh(sparGeo, sparMat);
+    this.gliderRightWing!.add(rightCanvas);
+    this.gliderRightWing!.add(rightSpar);
+    this.gliderGroup.add(this.gliderRightWing!);
+
+    this.gliderGroup.visible = false;
+  }
+
+  public update(delta: number, isGliding: boolean) {
+    if (!this.gliderGroup || !this.gliderLeftWing || !this.gliderRightWing) return;
+
+    const targetOpen = isGliding ? 1 : 0;
+    this.gliderOpenAmount = THREE.MathUtils.lerp(
+      this.gliderOpenAmount,
+      targetOpen,
+      delta * (isGliding ? 8 : 4) // Open faster than close
+    );
+
+    if (this.gliderOpenAmount > 0.01) {
+      this.gliderGroup.visible = true;
+      
+      // Aerodynamic pitch: tilt the whole glider forward when open
+      this.gliderGroup.rotation.x = THREE.MathUtils.lerp(0.5, -0.2, this.gliderOpenAmount);
+
+      const openAngle = 1.3;
+      const closedAngle = 0.15;
+      const angle = THREE.MathUtils.lerp(closedAngle, openAngle, this.gliderOpenAmount);
+
+      this.gliderRightWing.rotation.y = angle;
+      this.gliderLeftWing.rotation.y = Math.PI - angle;
+
+      // Animation: Gentle flap and tilt
+      if (isGliding) {
+        const time = performance.now() * 0.005;
+        const flap = Math.sin(time) * 0.05;
+        this.gliderRightWing.rotation.z = flap;
+        this.gliderLeftWing.rotation.z = -flap;
+        
+        // Slight sway
+        this.gliderGroup.rotation.z = Math.sin(time * 0.5) * 0.03;
+      } else {
+        this.gliderRightWing.rotation.z = 0;
+        this.gliderLeftWing.rotation.z = 0;
+        this.gliderGroup.rotation.z = 0;
+      }
+      
+      const scale = this.gliderOpenAmount;
+      this.gliderGroup.scale.set(scale, scale, scale);
+    } else {
+      this.gliderGroup.visible = false;
     }
   }
 

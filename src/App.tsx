@@ -31,6 +31,7 @@ import { GameMessages } from './components/GameMessages';
 import { LevelUpUI } from './components/LevelUpUI';
 import { DebugInfo } from './components/DebugInfo';
 import { EntityTags } from './components/EntityTags';
+import { LaunchMenuUI } from './components/LaunchMenuUI';
 import { settingsManager } from './game/Settings';
 import { Settings as SettingsIcon, Maximize } from 'lucide-react';
 import { useUI } from './store/UIStore';
@@ -45,6 +46,7 @@ export default function App() {
     isSettingsOpen, setSettingsOpen,
     isPauseMenuOpen, setPauseMenuOpen,
     isServerJoinOpen, setServerJoinOpen,
+    isLaunchMenuOpen, setLaunchMenuOpen,
     isTyping, setTyping,
     isLocked, setLocked,
     isHUDVisible, setHUDVisible,
@@ -62,6 +64,7 @@ export default function App() {
     isSettingsOpen,
     isPauseMenuOpen,
     isServerJoinOpen,
+    isLaunchMenuOpen,
     isTyping,
     isLocked,
     isUnderwater,
@@ -75,13 +78,14 @@ export default function App() {
       isSettingsOpen,
       isPauseMenuOpen,
       isServerJoinOpen,
+      isLaunchMenuOpen,
       isTyping,
       isLocked,
       isUnderwater,
       isUnderLava,
       isHUDVisible
     };
-  }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
+  }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
 
   const [showDebug, setShowDebug] = useState(false);
   const [targetInfo, setTargetInfo] = useState<{ type: 'block' | 'npc' | null, name: string | null, id?: string }>({ type: null, name: null });
@@ -186,6 +190,12 @@ export default function App() {
       newGame.controls.unlock();
     };
 
+    const handleOpenLaunchMenu = () => {
+      suppressPauseMenu.current = true;
+      setLaunchMenuOpen(true);
+      newGame.controls.unlock();
+    };
+
     let fastUIAF: number;
     let lastRaycastTime = 0;
     const updateFastUI = (time: number) => {
@@ -242,6 +252,7 @@ export default function App() {
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('openShop', handleOpenShop as EventListener);
     window.addEventListener('openServerJoin', handleOpenServerJoin as EventListener);
+    window.addEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
     window.addEventListener('requestRespawn', handleRequestRespawn as EventListener);
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -265,6 +276,7 @@ export default function App() {
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('openShop', handleOpenShop as EventListener);
       window.removeEventListener('openServerJoin', handleOpenServerJoin as EventListener);
+      window.removeEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
       window.removeEventListener('requestRespawn', handleRequestRespawn as EventListener);
     };
   }, [gameKey]);
@@ -473,6 +485,22 @@ export default function App() {
               window.history.pushState({}, '', `/?server=${targetServer}`);
               networkManager.connect(targetServer);
               setGameKey(k => k + 1);
+            }}
+          />
+          <LaunchMenuUI
+            isOpen={isLaunchMenuOpen}
+            onClose={() => {
+              setLaunchMenuOpen(false);
+              handleStart(null);
+            }}
+            onLaunch={() => {
+              setLaunchMenuOpen(false);
+              handleStart(null);
+              if (game) {
+                // Launch the player
+                game.player.velocity.y = 80;
+                game.player.isGliding = true;
+              }
             }}
           />
         </div>
