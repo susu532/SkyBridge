@@ -37,19 +37,19 @@ export class EnvironmentManager {
     dirLight.castShadow = true;
     
     // High-Precision Shadow Settings for Ultra-Realistic Soft Shadows
-    const shadowSize = 180; // Larger frustum
+    const shadowSize = 120; // Reduced frustum for higher pixel density
     dirLight.shadow.camera.top = shadowSize / 2;
     dirLight.shadow.camera.bottom = -shadowSize / 2;
     dirLight.shadow.camera.left = -shadowSize / 2;
     dirLight.shadow.camera.right = shadowSize / 2;
     dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 500;
+    dirLight.shadow.camera.far = 300;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = -0.0005;
-    dirLight.shadow.normalBias = 0.05;
+    dirLight.shadow.bias = -0.00001; // Extremely tiny bias
+    dirLight.shadow.normalBias = 0.001; // Barely any normal bias
     dirLight.shadow.autoUpdate = true;
-    dirLight.shadow.radius = 4; // High blur radius for soft shadows (variable penumbra)
+    dirLight.shadow.radius = 1; // Sharper, higher quality soft shadow
     
     this.game.scene.add(dirLight);
     this.game.scene.add(dirLight.target);
@@ -373,10 +373,10 @@ export class EnvironmentManager {
     // Lights
     const dirLight = this.game.scene.getObjectByName('sun') as THREE.DirectionalLight;
     if (dirLight) {
-      const sunDist = 200;
+      const sunDist = 150;
       const lightOffset = new THREE.Vector3(sunX * sunDist, Math.max(Math.abs(sunY), 0.1) * sunDist * (isDay ? 1 : -1), 0);
       
-      const shadowFrustumSize = 180;
+      const shadowFrustumSize = 120;
       const texelSize = shadowFrustumSize / 4096;
       
       const snappedPos = this.game.player.worldPosition.clone();

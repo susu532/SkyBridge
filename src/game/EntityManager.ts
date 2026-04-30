@@ -10,6 +10,7 @@ import { World } from './World';
 import { settingsManager } from './Settings';
 import { Rarity, ItemMetadata } from './SkyBridgeManager';
 import { DroppedItemData, DroppedItemInstancedManager } from './DroppedItemInstancedManager';
+import npcsData from './data/npcs.json';
 
 export class EntityManager {
   npcs: Map<string, NPC> = new Map();
@@ -150,12 +151,16 @@ export class EntityManager {
   }
 
   private spawnInitialNPCs() {
-    // Only spawn village merchants if we are NOT in the hub
+    // Spawn local NPCs immediately to prevent pop-in delay from the network
     const urlParams = new URLSearchParams(window.location.search);
-    const isHub = (urlParams.get('server') || 'hub') === 'hub';
-    if (isHub) return;
+    const serverName = urlParams.get('server') || 'hub';
     
-    // Now sent by the server init packet
+    const localNPCs = (npcsData as any)[serverName];
+    if (localNPCs) {
+      for (const npcData of localNPCs) {
+        this.addNPCFromData(npcData);
+      }
+    }
   }
 
   addNPCFromData(data: any) {

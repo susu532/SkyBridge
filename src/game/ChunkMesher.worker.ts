@@ -316,7 +316,7 @@ class LayerData {
       }
       const light = getLightLevel(x,y,z,lx,ly,lz);
       const isEmissive = blockType === BLOCK.GLOWSTONE || blockType === BLOCK.LAVA || isAnyTorch(blockType);
-      const lightMult = isEmissive ? 1.0 : Math.max(0.1, Math.pow(0.85, 15 - light));
+      const lightMult = isEmissive ? 1.0 : Math.max(0.35, Math.pow(0.85, 15 - light));
       
       const l0 = (layer === transparent || isEmissive) ? lightMult : ((ao[0] + 1) / 4) * lightMult;
       const l1 = (layer === transparent || isEmissive) ? lightMult : ((ao[1] + 1) / 4) * lightMult;
@@ -466,7 +466,7 @@ class LayerData {
         }
         layer.normals.push12(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); // Up normal for simplicity
         const light = getLightLevel(x,y,z,0,0,0);
-        const lightMult = isTorch ? 1.0 : Math.max(0.1, Math.pow(0.85, 15 - light));
+        const lightMult = isTorch ? 1.0 : Math.max(0.35, Math.pow(0.85, 15 - light));
         const color = isTorch ? 1.4 : lightMult;
         
         // Add subtle AO by darkening the bottom vertices
@@ -504,7 +504,7 @@ class LayerData {
       }
 
       const isEmissive = blockType === BLOCK.GLOWSTONE || blockType === BLOCK.LAVA || isAnyTorch(blockType);
-      const lightMult = isEmissive ? 1.0 : Math.max(0.1, Math.pow(0.85, 15 - light));
+      const lightMult = isEmissive ? 1.0 : Math.max(0.35, Math.pow(0.85, 15 - light));
       const l0 = (layer === transparent || isEmissive) ? lightMult : ((ao0 + 1) / 4) * lightMult;
       const l1 = (layer === transparent || isEmissive) ? lightMult : ((ao1 + 1) / 4) * lightMult;
       const l2 = (layer === transparent || isEmissive) ? lightMult : ((ao2 + 1) / 4) * lightMult;
@@ -595,7 +595,7 @@ class LayerData {
           } else {
             const c = { blocks: data.neighborsBlocks[2 + 1 * 3], light: data.neighborsLight[2 + 1 * 3] };
             const isCMeshed = !!(c && c.blocks);
-            nType = isCMeshed ? c.blocks[0 | (z << 4) | (y << 8)] : (typeIsWater && y <= 62 ? BLOCK.WATER : BLOCK.AIR);
+            nType = isCMeshed ? c.blocks[0 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
           if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
             if (isFullBlock) {
@@ -619,7 +619,7 @@ class LayerData {
           } else {
             const c = { blocks: data.neighborsBlocks[0 + 1 * 3], light: data.neighborsLight[0 + 1 * 3] };
             const isCMeshed = !!(c && c.blocks);
-            nType = isCMeshed ? c.blocks[15 | (z << 4) | (y << 8)] : (typeIsWater && y <= 62 ? BLOCK.WATER : BLOCK.AIR);
+            nType = isCMeshed ? c.blocks[15 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
           if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
             if (isFullBlock) {
@@ -679,7 +679,7 @@ class LayerData {
           } else {
             const c = { blocks: data.neighborsBlocks[1 + 2 * 3], light: data.neighborsLight[1 + 2 * 3] };
             const isCMeshed = !!(c && c.blocks);
-            nType = isCMeshed ? c.blocks[x | (0 << 4) | (y << 8)] : (typeIsWater && y <= 62 ? BLOCK.WATER : BLOCK.AIR);
+            nType = isCMeshed ? c.blocks[x | (0 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
           if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
             if (isFullBlock) {
@@ -703,7 +703,7 @@ class LayerData {
           } else {
             const c = { blocks: data.neighborsBlocks[1 + 0 * 3], light: data.neighborsLight[1 + 0 * 3] };
             const isCMeshed = !!(c && c.blocks);
-            nType = isCMeshed ? c.blocks[x | (15 << 4) | (y << 8)] : (typeIsWater && y <= 62 ? BLOCK.WATER : BLOCK.AIR);
+            nType = isCMeshed ? c.blocks[x | (15 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
           if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
             if (isFullBlock) {

@@ -444,29 +444,16 @@ export class World {
             // Dynamic Caustics
             float caustic1 = sin(vWorldPos.x * 0.8 + uTime * 1.5) * cos(vWorldPos.z * 0.8 + uTime * 1.2);
             float caustic2 = sin(vWorldPos.x * 1.5 - uTime * 0.8) * cos(vWorldPos.z * 1.5 - uTime * 1.1);
-            shimmer = pow(max(0.0, (caustic1 + caustic2) * 0.5), 10.0) * 0.8; // Sharpen and strengthen caustics
-            
-            // Fresnel equation for Reflection/Refraction blend
-            fresnel = max(0.0, 1.0 - dot(viewDir, normalize(vWorldNormal)));
-            fresnel = pow(fresnel, 3.0); // Less aggressive grazing angle requirements
+            shimmer = pow(max(0.0, (caustic1 + caustic2) * 0.5), 3.0) * 0.3; // Much softer, broader waves instead of sharp dots
           }
           vec4 texelColor = texture2D( map, animatedUv );
           texelColor.rgb += shimmer; // Apply the cooling shimmer
 
-          // Screen-space reflection approximation (blend sky blue into water at grazing angles)
+          // Apply a deeper water color for better aesthetics without the white curtain
           if (uShaders > 0.5 && uPerformanceMode < 0.5 && vTileBase.y > 0.90 && vTileBase.y < 0.91 && vTileBase.x < 0.01) {
-            // Better water color and sky reflection blend
-            vec3 deepWaterColor = vec3(0.05, 0.2, 0.4);
-            vec3 skyReflectColor = vec3(0.6, 0.8, 0.95);
-            
-            // Blend base texture with deep water color
+            vec3 deepWaterColor = vec3(0.08, 0.3, 0.5);
             texelColor.rgb = mix(texelColor.rgb, deepWaterColor, 0.5);
-            
-            // Apply sky reflection based on fresnel
-            texelColor.rgb = mix(texelColor.rgb, skyReflectColor, fresnel * 0.8);
-            
-            // Increase opacity for reflections, keep it transparent otherwise
-            texelColor.a = mix(0.6, 0.98, fresnel);
+            texelColor.a = 0.85; // Give it a slight consistent transparency
           }
 
           #ifndef DEPTH_PACKING
