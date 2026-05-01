@@ -216,15 +216,15 @@ export class PlayerInputController {
       const npc = this.player.entityManager.raycastNPC(rayOrigin, direction, 4, this.player.camera);
       if (npc) {
         if (npc.id === 'hub_npc_q') {
-          if (networkManager.serverName === 'hub') {
+          if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skybridge' } }));
           }
         } else if (npc.id === 'hub_npc_r') {
-          if (networkManager.serverName === 'hub') {
+          if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skycastles' } }));
           }
         } else if (npc.id === 'hub_npc_v') {
-          if (networkManager.serverName === 'hub') {
+          if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
           }
         } else if (npc.id.startsWith('bren')) {

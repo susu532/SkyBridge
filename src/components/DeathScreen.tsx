@@ -7,10 +7,8 @@ export const DeathScreen: React.FC = () => {
 
   useEffect(() => {
     const handlePlayerDied = () => {
-      setIsDead(true);
-      if (document.pointerLockElement) {
-        document.exitPointerLock();
-      }
+      // Auto-respawn instantly without showing the pop-up
+      window.dispatchEvent(new CustomEvent('requestRespawn'));
     };
 
     const handlePlayerRespawn = () => {

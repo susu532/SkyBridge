@@ -166,10 +166,19 @@ export class Game {
 
     // Network setup
     networkManager.onInit = (data) => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const serverName = urlParams.get('server') || 'hub';
+
+      // Clear the world chunks to prevent terrain bleeding between domains
+      this.world.reset(serverName);
+
       // The world generation routine now automatically checks networkManager.blockChanges 
       // preventing far-chunks from dismissing updates before they generate.
       // Any chunks already in frustum will be flagged to rebuild.
       this.world.rebuildAllChunks();
+      
+      // Clear out all previous entities before processing the newly arrived ones
+      this.entityManager.clearEntities();
       
       if (!this.world.isHub) {
         // Load local skills if they exist, otherwise use server skills
@@ -182,8 +191,8 @@ export class Game {
         
         if (savedSkills) {
           skyBridgeManager.setSkills(JSON.parse(savedSkills));
-        } else if (data.players[networkManager.socket.id]?.skills) {
-          skyBridgeManager.setSkills(data.players[networkManager.socket.id].skills);
+        } else if (networkManager.id && data.players[networkManager.id]?.skills) {
+          skyBridgeManager.setSkills(data.players[networkManager.id].skills);
         }
       } else {
         // Ensure SkyBridge state is blank in the hub
@@ -192,7 +201,7 @@ export class Game {
 
       // Add existing players
       for (const id in data.players) {
-        if (id !== networkManager.socket.id) {
+        if (id !== networkManager.id) {
           this.entityManager.addRemotePlayer(id, data.players[id].skinSeed, data.players[id].name);
           this.entityManager.updateRemotePlayer(id, data.players[id]);
         }
@@ -239,16 +248,47 @@ export class Game {
       if (data.dayTime !== undefined) {
         this.environmentManager.dayTime = data.dayTime;
       }
+
+      // Join the game
+      const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+      cameraEuler.setFromQuaternion(this.camera.quaternion);
+      
+      // Persist skin and name
+      let mySkinSeed = null;
+      let myName = null;
+      try {
+        mySkinSeed = localStorage.getItem('skyBridge_skin_seed');
+        if (!mySkinSeed) {
+          mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
+          localStorage.setItem('skyBridge_skin_seed', mySkinSeed);
+        }
+        
+        myName = localStorage.getItem('skyBridge_player_name');
+        if (!myName) {
+          myName = 'Player ' + Math.floor(Math.random() * 1000);
+          localStorage.setItem('skyBridge_player_name', myName);
+        }
+      } catch (e) {
+        console.warn('Failed to access localStorage for player info', e);
+        if (!mySkinSeed) mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
+        if (!myName) myName = 'Player ' + Math.floor(Math.random() * 1000);
+      }
+  
+      const joinPos = new THREE.Vector3(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
+      networkManager.join(joinPos, cameraEuler, mySkinSeed, myName, skyBridgeManager.skills, this.player.inventory.slots[this.player.hotbarIndex]?.type || 0);
+      
+      // Update local player skin
+      this.player.updateSkin(mySkinSeed);
     };
 
     networkManager.onPlayerJoined = (player) => {
-      if (player.id !== networkManager.socket.id) {
+      if (player.id !== networkManager.id) {
         this.entityManager.addRemotePlayer(player.id, player.skinSeed, player.name);
       }
     };
 
     networkManager.onPlayerMoved = (player) => {
-      if (player.id !== networkManager.socket.id) {
+      if (player.id !== networkManager.id) {
         this.entityManager.updateRemotePlayer(player.id, player);
       }
     };
@@ -337,37 +377,6 @@ export class Game {
       // For now, just set to ensure perfect sync
       this.environmentManager.dayTime = data.dayTime;
     };
-
-    // Join the game
-    const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-    cameraEuler.setFromQuaternion(this.camera.quaternion);
-    
-    // Persist skin and name
-    let mySkinSeed = null;
-    let myName = null;
-    try {
-      mySkinSeed = localStorage.getItem('skyBridge_skin_seed');
-      if (!mySkinSeed) {
-        mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
-        localStorage.setItem('skyBridge_skin_seed', mySkinSeed);
-      }
-      
-      myName = localStorage.getItem('skyBridge_player_name');
-      if (!myName) {
-        myName = 'Player ' + Math.floor(Math.random() * 1000);
-        localStorage.setItem('skyBridge_player_name', myName);
-      }
-    } catch (e) {
-      console.warn('Failed to access localStorage for player info', e);
-      if (!mySkinSeed) mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
-      if (!myName) myName = 'Player ' + Math.floor(Math.random() * 1000);
-    }
-
-    const joinPos = new THREE.Vector3(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
-    networkManager.join(joinPos, cameraEuler, mySkinSeed, myName, skyBridgeManager.skills, this.player.inventory.slots[this.player.hotbarIndex]?.type || 0);
-    
-    // Update local player skin
-    this.player.updateSkin(mySkinSeed);
 
     // Sync skills when they change
     skyBridgeManager.onSkillChange = (skill, progress) => {

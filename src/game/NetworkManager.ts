@@ -8,6 +8,8 @@ export class NetworkManager {
   serverName: string = 'hub';
   players: Record<string, any> = {};
   blockChanges: Record<string, number> = {};
+  private pendingEmits: { event: string, args: any[] }[] = [];
+  get id() { return this.socket?.id; }
   private _onInit?: (data: any) => void;
   get onInit() { return this._onInit; }
   set onInit(callback: ((data: any) => void) | undefined) {
@@ -66,9 +68,34 @@ export class NetworkManager {
   }
 
   constructor() {
+    this.initMatchmaking();
+  }
+
+  async initMatchmaking(modeOverride?: string) {
     const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get('server') || 'hub';
-    this.connect(serverName);
+    const mode = modeOverride || urlParams.get('server') || 'hub';
+    
+    // Immediately update URL to provide instant visual feedback of server transition
+    if (modeOverride) {
+      window.history.pushState({}, '', `/?server=${mode}`);
+    }
+    
+    try {
+      const resp = await fetch(`/api/matchmake?mode=${mode}`);
+      const data = await resp.json();
+      if (data.serverId) {
+        // serverId already starts with / e.g. /hub_1
+        this.connect(data.serverId.replace('/', ''));
+        window.history.pushState({}, '', `/?server=${data.serverId.replace('/', '')}`);
+      } else {
+        this.connect(mode + '_1');
+        window.history.pushState({}, '', `/?server=${mode}_1`);
+      }
+    } catch (e) {
+      console.error('Matchmaking failed:', e);
+      this.connect(mode + '_1');
+      window.history.pushState({}, '', `/?server=${mode}_1`);
+    }
   }
 
   public connect(serverName: string) {
@@ -82,8 +109,15 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+   const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     this.socket = io(`${BACKEND_URL}/${serverName}`);
+
+    this.socket.on('connect', () => {
+      for (const pending of this.pendingEmits) {
+        this.socket.emit(pending.event, ...pending.args);
+      }
+      this.pendingEmits = [];
+    });
 
     this.socket.on('init', (data) => {
       this.initData = data;
@@ -104,8 +138,15 @@ export class NetworkManager {
       if (this.onMobSpawned) this.onMobSpawned(data);
     });
 
-    this.socket.on('mobsUpdate', (updates) => {
-      if (this.onMobsUpdate) this.onMobsUpdate(updates);
+    this.socket.on('mobsUpdate', (updates: Record<string, any[] | ArrayBuffer>) => {
+      // Create a modified updates object with Float32Array unpacked
+      const unpacked: Record<string, any[]> = {};
+      for (const id in updates) {
+        const packedData = updates[id];
+        const packed = packedData instanceof ArrayBuffer ? new Float32Array(packedData) : packedData as any[];
+        unpacked[id] = [packed[0], packed[1], packed[2], packed[3]];
+      }
+      if (this.onMobsUpdate) this.onMobsUpdate(unpacked);
     });
 
     this.socket.on('requestSpawnCheck', (data) => {
@@ -141,10 +182,11 @@ export class NetworkManager {
       if (this.onPlayerJoined) this.onPlayerJoined(player);
     });
 
-    this.socket.on('playersUpdate', (updates: Record<string, any[]>) => {
+    this.socket.on('playersUpdate', (updates: Record<string, any[] | ArrayBuffer>) => {
       for (const id in updates) {
-        if (id === this.socket.id) continue;
-        const packed = updates[id];
+        if (id === this.id) continue;
+        const packedData = updates[id];
+        const packed = packedData instanceof ArrayBuffer ? new Float32Array(packedData) : packedData as any[];
         
         const stateMask = packed[5];
         const player = {
@@ -184,6 +226,14 @@ export class NetworkManager {
 
     this.socket.on('playerLeft', (id) => {
       delete this.players[id];
+      if (this.onPlayerLeft) this.onPlayerLeft(id);
+    });
+
+    this.socket.on('playerDied', (data) => {
+      const id = data.id || data; // handle both object with id or string
+      if (this.players[id]) {
+        delete this.players[id];
+      }
       if (this.onPlayerLeft) this.onPlayerLeft(id);
     });
 
@@ -230,8 +280,22 @@ export class NetworkManager {
     });
   }
 
+  private _emit(event: string, ...args: any[]) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit(event, ...args);
+    } else {
+      this.pendingEmits.push({ event, args });
+    }
+  }
+
+  private _volatile_emit(event: string, ...args: any[]) {
+    if (this.socket && this.socket.connected) {
+      this.socket.volatile.emit(event, ...args);
+    }
+  }
+
   join(position: THREE.Vector3, rotation: THREE.Euler, skinSeed: string, name: string, skills?: any, heldItem: number = 0, offHandItem: number = 0) {
-    this.socket.emit('join', {
+    this._emit('join', {
       position: { x: position.x, y: position.y, z: position.z },
       rotation: { x: rotation.x, y: rotation.y, z: rotation.z },
       skinSeed,
@@ -243,7 +307,7 @@ export class NetworkManager {
   }
 
   updateSkills(skill: string, progress: any) {
-    this.socket.emit('skillUpdate', { skill, progress });
+    this._emit('skillUpdate', { skill, progress });
   }
 
   move(position: THREE.Vector3, rotation: THREE.Euler) {
@@ -255,51 +319,59 @@ export class NetworkManager {
     view.setFloat32(12, rotation.x);
     view.setFloat32(16, rotation.y);
     
-    this.socket.volatile.emit('moveP', buffer);
+    this._volatile_emit('moveP', buffer);
   }
 
   updateState(state: any) {
-    this.socket.emit('playerState', state);
+    this._emit('playerState', state);
   }
 
   setBlock(x: number, y: number, z: number, type: number, force: boolean = false) {
-    this.socket.emit('setBlock', { x, y, z, type, force });
+    this._emit('setBlock', { x, y, z, type, force });
   }
 
   sendChatMessage(message: string) {
-    this.socket.emit('chatMessage', message);
+    this._emit('chatMessage', message);
   }
 
   dropItem(type: number, position: {x: number, y: number, z: number}, velocity?: {x: number, y: number, z: number}) {
-    this.socket.emit('dropItem', { type, position, velocity });
+    this._emit('dropItem', { type, position, velocity });
   }
 
   pickupItem(id: string) {
-    this.socket.emit('pickupItem', id);
+    this._emit('pickupItem', id);
   }
 
   spawnMinion(type: number, position: {x: number, y: number, z: number}) {
-    this.socket.emit('spawnMinion', { type, position });
+    this._emit('spawnMinion', { type, position });
   }
 
   removeMinion(id: string) {
-    this.socket.emit('removeMinion', id);
+    this._emit('removeMinion', id);
   }
 
   collectMinion(id: string) {
-    this.socket.emit('collectMinion', id);
+    this._emit('collectMinion', id);
   }
 
   spawnMob(type: string, position: {x: number, y: number, z: number}, level?: number) {
-    this.socket.emit('spawnMob', { type, position, level });
+    this._emit('spawnMob', { type, position, level });
   }
 
   mobHit(id: string, damage: number, knockbackDir: {x: number, y: number, z: number}) {
-    this.socket.emit('mobHit', { id, damage, knockbackDir });
+    this._emit('mobHit', { id, damage, knockbackDir });
   }
 
   attack(targetId: string, isMob: boolean, knockbackDir: {x: number, y: number, z: number}, isSprinting: boolean) {
-    this.socket.emit('attack', { targetId, isMob, knockbackDir, isSprinting });
+    this._emit('attack', { targetId, isMob, knockbackDir, isSprinting });
+  }
+
+  requestRespawn() {
+    this._emit('requestRespawn');
+  }
+
+  playerHit(id: string, damage: number, knockbackDir: {x: number, y: number, z: number}, attackerId: string) {
+    this._emit('playerHit', { id, damage, knockbackDir, attackerId });
   }
 }
 

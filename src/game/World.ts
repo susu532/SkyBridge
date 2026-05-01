@@ -77,8 +77,8 @@ export class World {
     this.scene = scene;
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
-    this.isHub = serverName === 'hub';
-    this.isSkyCastles = serverName === 'skycastles' || serverName === 'voidtrail';
+    this.isHub = serverName.startsWith('hub');
+    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
     this.lightingManager = new LightingManager(this);
     const texture = createTextureAtlas();
     
@@ -621,7 +621,8 @@ export class World {
     let isHub = false;
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      isHub = (urlParams.get('server') || 'hub') === 'hub';
+      const serverName = urlParams.get('server') || 'hub';
+      isHub = serverName.startsWith('hub');
     }
     
     // The entire hub world is indestructible to prevent players from mining the spawn
@@ -1176,7 +1177,13 @@ export class World {
           }
 
           // Plants (Tall grass, flowers, wheat)
-          if (!isProtected && !this.isSkyCastles && terrainHeight >= 63 && biome.plantChance > 0) {
+          let allowPlants = !isProtected && !this.isSkyCastles;
+          if (this.isSkyCastles) {
+            const isCastleArea = Math.abs(worldZ) >= 170 && Math.abs(worldZ) <= 230 && Math.abs(worldX) <= 25;
+            const isPathArea = Math.abs(worldX) <= 6;
+            allowPlants = !isCastleArea && !isPathArea;
+          }
+          if (allowPlants && terrainHeight >= 63 && biome.plantChance > 0) {
             const plantNoise = noise2D(worldX * 42.42, worldZ * 42.42);
             if (plantNoise > 1 - biome.plantChance * 2) {
               const typeNoise = noise2D(worldX * 0.5, worldZ * 0.5);
@@ -1442,7 +1449,7 @@ export class World {
         // Giant Mythical Pirate Ships replacing Shelters
         if (!this.isHub) {
           const pShipStart = 200;
-          const pShipEnd = 430;
+          const pShipEnd = 550;
           const poolCenterZ = 310;
           const distToBlueShipSq = worldX * worldX + (worldZ - poolCenterZ) * (worldZ - poolCenterZ);
           const distToRedShipSq = worldX * worldX + (worldZ + poolCenterZ) * (worldZ + poolCenterZ);
@@ -1791,6 +1798,28 @@ export class World {
     this.chunks.forEach(chunk => {
       chunk.needsUpdate = true;
     });
+  }
+
+  reset(serverName: string) {
+    this.isHub = serverName.startsWith('hub');
+    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
+
+    this.chunks.forEach(chunk => {
+      if (chunk.mesh) {
+        this.scene.remove(chunk.mesh);
+        chunk.mesh.geometry.dispose();
+      }
+      if (chunk.transparentMesh) {
+        this.scene.remove(chunk.transparentMesh);
+        chunk.transparentMesh.geometry.dispose();
+      }
+    });
+    this.chunks.clear();
+    this.generatingChunks.clear();
+    this.meshesToAdd = [];
+    this.fallingBlocks.clear();
+    this.waterUpdates.clear();
+    this.queuedMobs = [];
   }
 
   // Raycasting for block placement/breaking

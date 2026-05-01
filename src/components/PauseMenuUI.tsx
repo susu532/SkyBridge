@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Play, Settings, LogOut } from 'lucide-react';
 import { audioManager } from '../game/AudioManager';
 
+import { networkManager } from '../game/NetworkManager';
+
 interface PauseMenuUIProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,7 +35,8 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
       label: 'Quit Game', 
       icon: <LogOut className="w-5 h-5" />, 
       onClick: () => {
-        window.location.href = '/?server=hub';
+        networkManager.initMatchmaking('hub');
+        window.dispatchEvent(new CustomEvent('requestGameRestart'));
       }
     },
   ];

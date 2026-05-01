@@ -151,8 +151,14 @@ export class Player {
     this.world = world;
     this.entityManager = entityManager;
     
+    // Add random offsets so players don't all spawn exactly inside each other
+    const rx = (Math.random() - 0.5) * 4;
+    const rz = (Math.random() - 0.5) * 4;
+
+    this.worldPosition = new THREE.Vector3(rx, 10, rz);
+    
     // Initial position on the bridge
-    this.camera.position.set(0, 6, 0);
+    this.camera.position.set(rx, 6, rz);
     
     this.renderer = new PlayerRenderer(this);
     this.world.scene.add(this.renderer.modelGroup);
@@ -160,7 +166,7 @@ export class Player {
     // Initialize camera rotation state
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
-    const isHub = serverName === 'hub';
+    const isHub = serverName.startsWith('hub');
 
     if (isHub) {
       this.camera.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -189,13 +195,13 @@ export class Player {
   }
 
   onNetworkPlayerHit = (e: any) => {
-    if (e.detail.id === networkManager.socket.id) {
+    if (e.detail.id === networkManager.id) {
       this.takeDamage(e.detail.damage, new THREE.Vector3(e.detail.knockbackDir.x, e.detail.knockbackDir.y, e.detail.knockbackDir.z), true);
     }
   };
 
   onNetworkPlayerRespawn = (e: any) => {
-    if (e.detail.id === networkManager.socket.id) {
+    if (e.detail.id === networkManager.id) {
       const wasDead = this.isDead;
       this.isDead = false;
       this.isDeadThisFrame = true; // For camera reset
@@ -242,21 +248,30 @@ export class Player {
   public takeDamage(damage: number, knockbackDir?: THREE.Vector3, isNetworkHit: boolean = false, reason: string = "died") {
     if (this.isDead || this.world.isHub) return;
     
-    const stats = skyBridgeManager.getEffectiveStats(this.inventory, this.hotbarIndex);
-    
-    // True SkyBridge Defense Formula
-    // Damage Reduction = Defense / (Defense + 100)
-    let defense = stats.defense || 0;
-    
-    // Sword blocking halves damage
-    let blockMultiplier = 1.0;
-    if (this.isBlocking) {
-      blockMultiplier = 0.5;
-      audioManager.play('step_stone', 0.8, 1.2); // Block sound
+    // Play block sound if blocking, regardless of network hit origin
+    if (this.isBlocking && isNetworkHit) {
+      audioManager.play('step_stone', 0.8, 1.2); 
     }
-    
-    const damageReduction = defense / (defense + 100);
-    const actualDamage = damage * (1 - damageReduction) * blockMultiplier;
+
+    let actualDamage = damage;
+
+    if (!isNetworkHit) {
+      const stats = skyBridgeManager.getEffectiveStats(this.inventory, this.hotbarIndex);
+      
+      // True SkyBridge Defense Formula
+      // Damage Reduction = Defense / (Defense + 100)
+      let defense = stats.defense || 0;
+      
+      // Sword blocking halves damage
+      let blockMultiplier = 1.0;
+      if (this.isBlocking) {
+        blockMultiplier = 0.5;
+        audioManager.play('step_stone', 0.8, 1.2); // Block sound
+      }
+      
+      const damageReduction = defense / (defense + 100);
+      actualDamage = damage * (1 - damageReduction) * blockMultiplier;
+    }
     
     skyBridgeManager.stats.health -= actualDamage;
     this.health = skyBridgeManager.stats.health;
@@ -289,18 +304,15 @@ export class Player {
     
     if (!isNetworkHit) {
       // Notify server to broadcast respawn
-      networkManager.socket.emit('playerHit', { 
-        id: networkManager.socket.id, 
-        damage: 999999, // Force death on server
-        knockbackDir: {x: 0, y: 0, z: 0},
-        attackerId: networkManager.socket.id, // Self-inflicted
-        reason: reason
-      });
+      const id = networkManager.id;
+      if (id) {
+        networkManager.playerHit(id, 999999, {x: 0, y: 0, z: 0}, id);
+      }
     }
   }
 
   public respawn() {
-    networkManager.socket.emit('requestRespawn');
+    networkManager.requestRespawn();
   }
 
   public performBlockBreak(pos: THREE.Vector3, blockType: number) {

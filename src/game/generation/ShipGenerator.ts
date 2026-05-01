@@ -4,7 +4,7 @@ import { BLOCK } from '../TextureAtlas';
 // Removed 'private' from signature
 export function getGiantMythicalShipBlock(wx: number, wy: number, wz: number, isBlue: boolean): number {
     
-        const shipCenterZ = 340;
+    const shipCenterZ = 450;
         const centerZ = isBlue ? shipCenterZ : -shipCenterZ;
     
         const localX = wx;
@@ -18,13 +18,13 @@ export function getGiantMythicalShipBlock(wx: number, wy: number, wz: number, is
         if (localY < 30 || localY > 180) return BLOCK.AIR;      
     const absX = Math.abs(localX);
 
-    // Ship limits: length 160. localZ from -110 (front) to 75 (back)
-    if (localZ < -110 || localZ > 75) return BLOCK.AIR;
+    // Ship limits: localZ from -130 (front bowsprit) to 75 (back)
+    if (localZ < -130 || localZ > 75) return BLOCK.AIR;
 
     // Width curve
     let currentMaxWidth = 0;
     if (localZ < -30) { // Bow taper (sharp)
-        currentMaxWidth = Math.max(0, 22 - Math.floor(Math.pow(localZ + 30, 2) / 290));
+        currentMaxWidth = Math.max(0, 22 - Math.floor(Math.pow(localZ + 30, 2) / 160));
     } else if (localZ < 30) { // Mid body (belly)
         currentMaxWidth = 22 + Math.floor(Math.sin((localZ + 30) / 60 * Math.PI) * 4);
     } else { // Stern taper (blunt)
@@ -48,10 +48,16 @@ export function getGiantMythicalShipBlock(wx: number, wy: number, wz: number, is
     let b = BLOCK.AIR;
 
     // --- HULL ---
-    if (localY >= bottomY && localY <= baseDeckY) {
+    let effBottomY = bottomY;
+    if (localZ < -30) {
+        // Keel slopes up towards the bow to create a curved, realistic front profile
+        effBottomY += Math.floor(Math.pow(Math.abs(localZ + 30) / 9.5, 2));
+    }
+
+    if (localY >= effBottomY && localY <= baseDeckY) {
         const depth = baseDeckY - localY;
         const taper = Math.floor(depth / 2.5);
-        const curveTaper = Math.floor(Math.pow(depth / (baseDeckY - bottomY), 2) * 8); 
+        const curveTaper = Math.floor(Math.pow(depth / (baseDeckY - effBottomY + 1), 2) * 8); 
         const w = currentMaxWidth - taper - curveTaper - (localZ > 50 ? 1 : 0);
 
         if (w >= 0 && absX <= w) {
@@ -197,16 +203,18 @@ export function getGiantMythicalShipBlock(wx: number, wy: number, wz: number, is
 
     // --- DETAILS ---
 
-    if (localZ < -70 && localZ > -105) {
-        const poleY = baseDeckY + Math.floor((-70 - localZ) / 1.5);
+    if (localZ < -80 && localZ > -125) {
+        // Angled bowsprit pole projecting off the front of the ship
+        const poleY = baseDeckY + 6 + Math.floor((-80 - localZ) / 2.0);
         if (localY === poleY && absX <= 1) return secondaryColor; 
         if (localY === poleY - 1 && absX <= 1) return accentColor; 
         if (localY === poleY - 2 && absX === 0) return brightColor;
         
-        if (localZ === -90 || localZ === -85) { 
-            if (localY >= poleY && localY <= poleY + 4 && absX <= 3) return primaryColor;
-            if (localY === poleY + 5 && absX <= 3) return accentColor;
-            if (localY === poleY + 6 && absX <= 1) return BLOCK.GOLD_BLOCK;
+        // Front Figurehead and support straps
+        if (localZ === -90 || localZ === -100) { 
+            if (localY >= poleY && localY <= poleY + 3 && absX <= 2) return primaryColor;
+            if (localY === poleY + 4 && absX <= 2) return accentColor;
+            if (localY === poleY + 5 && absX === 0) return BLOCK.GOLD_BLOCK;
         }
     }
 

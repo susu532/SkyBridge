@@ -37,6 +37,7 @@ export class Mob {
   level: number = 1;
   name: string = "Zombie";
   isPassive: boolean = false;
+  lastNetworkUpdate: number = Date.now();
   textureAtlas: THREE.Texture | null = null;
   
   velocity = new THREE.Vector3();

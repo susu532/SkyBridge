@@ -24,7 +24,7 @@ export class EntityManager {
   droppedItemManager: DroppedItemInstancedManager;
   private networkPlayerHitHandler = (e: any) => {
     // If we are the attacker, we already played the client-side prediction
-    if (e.detail.attackerId === networkManager.socket?.id) return;
+    if (e.detail.attackerId === networkManager.id) return;
     
     const player = this.remotePlayers.get(e.detail.id);
     if (player) {
@@ -76,6 +76,7 @@ export class EntityManager {
     };
 
     networkManager.onMobsUpdate = (updates) => {
+      const now = Date.now();
       for (const id in updates) {
         const mob = this.mobs.get(id);
         if (mob) {
@@ -83,6 +84,7 @@ export class EntityManager {
           mob.lastNetPos.copy(mob.group.position);
           mob.targetPosition.set(data[0], data[1], data[2]);
           mob.interpolationTimer = 0;
+          mob.lastNetworkUpdate = now;
           
           if (data[3] !== undefined && mob.health !== data[3]) {
              mob.health = data[3];
@@ -154,8 +156,9 @@ export class EntityManager {
     // Spawn local NPCs immediately to prevent pop-in delay from the network
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
+    const baseServerName = serverName.split('_')[0];
     
-    const localNPCs = (npcsData as any)[serverName];
+    const localNPCs = (npcsData as any)[baseServerName];
     if (localNPCs) {
       for (const npcData of localNPCs) {
         this.addNPCFromData(npcData);
@@ -324,7 +327,13 @@ export class EntityManager {
     for (const minion of this.minions.values()) {
       minion.update(Date.now());
     }
+    const now = Date.now();
     for (const mob of this.mobs.values()) {
+      // 10 seconds without updates = probably out of range or dead, despawn locally
+      if (now - (mob.lastNetworkUpdate || Date.now()) > 10000) {
+        this.removeMob(mob.id);
+        continue;
+      }
       mob.update(playerPos, delta, this.world);
     }
     
@@ -407,6 +416,42 @@ export class EntityManager {
       }
     }
     return closestPlayer;
+  }
+
+  clearEntities() {
+    const disposeObject = (obj: any) => {
+      if (!obj) return;
+      obj.traverse?.((child: any) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m: any) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      if (obj.parent) obj.parent.remove(obj);
+    };
+
+    this.npcs.forEach(npc => disposeObject(npc.group));
+    this.remotePlayers.forEach(player => disposeObject(player.group));
+    this.minions.forEach(minion => disposeObject(minion.mesh));
+    this.mobs.forEach(mob => disposeObject(mob.group));
+    
+    this.npcs.clear();
+    this.remotePlayers.clear();
+    this.minions.clear();
+    this.mobs.clear();
+
+    const oldTexture = this.droppedItemManager?.textureAtlas;
+    if (this.droppedItemManager) {
+        this.droppedItemManager.destroy();
+    }
+    this.droppedItemManager = new DroppedItemInstancedManager(this.scene, this.world, {} as any);
+    if (oldTexture) {
+        this.droppedItemManager.textureAtlas = oldTexture;
+    }
   }
 
   destroy() {

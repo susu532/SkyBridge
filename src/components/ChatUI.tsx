@@ -27,7 +27,8 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
         if (val.startsWith('/server ')) {
           const target = val.split(' ')[1];
           if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'voidtrail') {
-             window.location.href = `/?server=${target}`;
+             networkManager.initMatchmaking(target);
+             window.dispatchEvent(new CustomEvent('requestGameRestart'));
           } else {
              useGameStore.getState().addChatMessage('System', `§cUnknown server: ${target}`);
           }

@@ -242,6 +242,14 @@ export default function App() {
       newGame.player.respawn();
     };
 
+    const handleRequestGameRestart = () => {
+      setPauseMenuOpen(false);
+      setServerJoinOpen(false);
+      setShopOpen(false);
+      setInventoryOpen(false);
+      setGameKey(k => k + 1);
+    };
+
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
@@ -251,19 +259,31 @@ export default function App() {
     document.addEventListener('wheel', handleWheel, { passive: false });
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('openShop', handleOpenShop as EventListener);
+    const handlePopState = () => {
+      const p = new URLSearchParams(window.location.search);
+      const server = p.get('server') || 'hub';
+      networkManager.initMatchmaking(server).then(() => {
+        setGameKey(k => k + 1);
+      }).catch(() => {
+        setGameKey(k => k + 1);
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('openServerJoin', handleOpenServerJoin as EventListener);
     window.addEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
     window.addEventListener('requestRespawn', handleRequestRespawn as EventListener);
+    window.addEventListener('requestGameRestart', handleRequestGameRestart as EventListener);
 
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
-    if (serverName === 'hub') {
+    if (serverName.startsWith('hub')) {
       setTimeout(() => {
         networkManager.receiveLocalMessage('System', '§bWelcome to the SkyBridge Hub! §eExplore the area or use /server skybridge or /server skycastles or /server voidtrail to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : 'SkyBridge'}!`);
+        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('voidtrail') ? 'Voidtrail' : 'SkyBridge'}!`);
       }, 2000);
     }
 
@@ -274,10 +294,12 @@ export default function App() {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('wheel', handleWheel, { passive: false } as any);
       document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('openShop', handleOpenShop as EventListener);
       window.removeEventListener('openServerJoin', handleOpenServerJoin as EventListener);
       window.removeEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
       window.removeEventListener('requestRespawn', handleRequestRespawn as EventListener);
+      window.removeEventListener('requestGameRestart', handleRequestGameRestart as EventListener);
     };
   }, [gameKey]);
 
@@ -383,7 +405,7 @@ export default function App() {
           {targetInfo.type && (
             <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
               {targetInfo.name}
-              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v') && networkManager.serverName === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
+              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v') && networkManager.serverName.startsWith('hub') && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
               {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && targetInfo.id !== 'hub_npc_v' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
             </div>
           )}
@@ -397,10 +419,10 @@ export default function App() {
       {isHUDVisible && <EntityTags game={game} />}
 
       {/* SkyBridge Sidebar */}
-      {isHUDVisible && networkManager.serverName !== 'hub' && <SkyBridgeSidebar />}
+      {isHUDVisible && !networkManager.serverName.startsWith('hub') && <SkyBridgeSidebar />}
 
       {/* SkyBridge UI */}
-      {isHUDVisible && networkManager.serverName !== 'hub' && (
+      {isHUDVisible && !networkManager.serverName.startsWith('hub') && (
         <>
           <SkyBridgeActionBar />
           <SkyBridgeXPPopup />
@@ -417,9 +439,9 @@ export default function App() {
       <DeathScreen />
 
       {/* Toolbar */}
-      {isHUDVisible && networkManager.serverName !== 'hub' && <HotbarUI game={game} />}
+      {isHUDVisible && !networkManager.serverName.startsWith('hub') && <HotbarUI game={game} />}
 
-      {game && networkManager.serverName !== 'hub' && (
+      {game && !networkManager.serverName.startsWith('hub') && (
         <div onClick={(e) => e.stopPropagation()}>
           <InventoryUI 
             inventory={game.player.inventory} 
@@ -482,9 +504,11 @@ export default function App() {
               setServerJoinOpen(false);
               setShopOpen(false);
               setCurrentNPC(null);
-              window.history.pushState({}, '', `/?server=${targetServer}`);
-              networkManager.connect(targetServer);
-              setGameKey(k => k + 1);
+              networkManager.initMatchmaking(targetServer).then(() => {
+                setGameKey(k => k + 1);
+              }).catch(() => {
+                setGameKey(k => k + 1);
+              });
             }}
           />
           <LaunchMenuUI
