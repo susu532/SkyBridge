@@ -83,6 +83,55 @@ export class PlayerRenderer {
     }
   }
 
+  public updateTeam(team?: string) {
+    if (this.capeMesh) {
+      const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
+      (this.capeMesh.material as THREE.MeshStandardMaterial).color.setHex(capeColor);
+    }
+    
+    // Update glider materials if they exist
+    if (this.gliderLeftWing && this.gliderRightWing) {
+      const baseColor = 0x1f1f2e;
+      let emissiveColor = 0x2a1b4d;
+      let accentColor = 0x8a2be2;
+      let accentEmissive = 0x9b59b6;
+      
+      if (team === 'red') {
+        emissiveColor = 0x4d1b1b;
+        accentColor = 0xe22b2b;
+        accentEmissive = 0xb65959;
+      } else if (team === 'blue') {
+        emissiveColor = 0x1b1b4d;
+        accentColor = 0x2b2be2;
+        accentEmissive = 0x5959b6;
+      }
+      
+      this.gliderLeftWing.children.forEach(child => {
+        if (child instanceof THREE.Mesh) {
+          if (child.scale.x === 12) { // It's an accent
+             (child.material as THREE.MeshStandardMaterial).color.setHex(accentColor);
+             (child.material as THREE.MeshStandardMaterial).emissive.setHex(accentEmissive);
+          } else {
+             (child.material as THREE.MeshStandardMaterial).color.setHex(baseColor);
+             (child.material as THREE.MeshStandardMaterial).emissive.setHex(emissiveColor);
+          }
+        }
+      });
+      
+      this.gliderRightWing.children.forEach(child => {
+        if (child instanceof THREE.Mesh) {
+          if (child.scale.x === 12) { // It's an accent
+             (child.material as THREE.MeshStandardMaterial).color.setHex(accentColor);
+             (child.material as THREE.MeshStandardMaterial).emissive.setHex(accentEmissive);
+          } else {
+             (child.material as THREE.MeshStandardMaterial).color.setHex(baseColor);
+             (child.material as THREE.MeshStandardMaterial).emissive.setHex(emissiveColor);
+          }
+        }
+      });
+    }
+  }
+
   public updateSkin(skinSeed: string) {
     const skinTexture = generateSkin(skinSeed);
     const skinMaterial = new THREE.MeshStandardMaterial({ 
@@ -287,42 +336,90 @@ export class PlayerRenderer {
 
   private createGlider() {
     this.gliderGroup = new THREE.Group();
-    this.gliderGroup.position.set(0, 0.45, 0.1);
+    // Positioned at the upper back
+    this.gliderGroup.position.set(0, 0.55, 0.25);
     this.bodyMesh?.add(this.gliderGroup);
 
-    // Main Wings
-    const wingSizeX = 2.4;
-    const wingSizeY = 1.2;
-    const wingGeo = new THREE.PlaneGeometry(wingSizeX, wingSizeY);
-    wingGeo.translate(wingSizeX / 2, -wingSizeY / 4, 0); // Pivot at top-inner corner
+    // Modern "Cyber Elytra" Shape
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0); // Root
+    wingShape.lineTo(0.6, 0.2); // Top edge sweeps out
+    wingShape.lineTo(2.0, -0.4); // Outer wingtip
+    wingShape.lineTo(1.6, -1.2); // Lower trailing edge
+    wingShape.lineTo(0.7, -2.0); // Bottom wingtip
+    wingShape.lineTo(0.3, -1.0); // Inner trailing edge
+    wingShape.lineTo(0, -0.4); // Back to root
+    wingShape.lineTo(0, 0);
+
+    const extrudeSettings = { 
+      depth: 0.04, 
+      bevelEnabled: true, 
+      bevelSegments: 2, 
+      steps: 1, 
+      bevelSize: 0.015, 
+      bevelThickness: 0.015 
+    };
     
+    const wingGeo = new THREE.ExtrudeGeometry(wingShape, extrudeSettings);
+    // Center it on Z
+    wingGeo.translate(0, 0, -0.02);
+
+    // Sleek dark grey with a purple sheen
     const wingMat = new THREE.MeshStandardMaterial({ 
-      color: 0x33ccff, 
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-      roughness: 0.4,
-      metalness: 0.1
+      color: 0x1f1f2e, 
+      roughness: 0.3,
+      metalness: 0.8,
+      emissive: 0x2a1b4d, // subtle purple/indigo glow
+      emissiveIntensity: 0.6
     });
 
-    // Frame/Spar (The structural part)
-    const sparGeo = new THREE.BoxGeometry(wingSizeX, 0.1, 0.1);
-    sparGeo.translate(wingSizeX / 2, 0, 0.05);
-    const sparMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f }); // Dark wood
+    // Glowing accent lines
+    const accentGeo = new THREE.BoxGeometry(0.04, 0.04, 0.06);
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: 0x8a2be2, // Blue-violet
+      emissive: 0x9b59b6,
+      emissiveIntensity: 2.5,
+      roughness: 0.2
+    });
 
-    this.gliderLeftWing = new THREE.Group() as any;
-    const leftCanvas = new THREE.Mesh(wingGeo, wingMat);
-    const leftSpar = new THREE.Mesh(sparGeo, sparMat);
-    this.gliderLeftWing!.add(leftCanvas);
-    this.gliderLeftWing!.add(leftSpar);
-    this.gliderLeftWing!.rotation.y = Math.PI;
+    const createWing = () => {
+      const g = new THREE.Group() as any;
+      const canvas = new THREE.Mesh(wingGeo, wingMat);
+      g.add(canvas);
+
+      // Add accents
+      const a1 = new THREE.Mesh(accentGeo, accentMat);
+      a1.position.set(0.5, 0.1, 0);
+      a1.rotation.z = Math.PI / 8;
+      a1.scale.set(12, 1, 1);
+      g.add(a1);
+
+      const a2 = new THREE.Mesh(accentGeo, accentMat);
+      a2.position.set(1.2, -0.2, 0);
+      a2.rotation.z = -Math.PI / 10;
+      a2.scale.set(18, 1, 1);
+      g.add(a2);
+
+      const a3 = new THREE.Mesh(accentGeo, accentMat);
+      a3.position.set(0.6, -1.0, 0);
+      a3.rotation.z = -Math.PI / 3;
+      a3.scale.set(22, 1, 1);
+      g.add(a3);
+
+      const a4 = new THREE.Mesh(accentGeo, accentMat);
+      a4.position.set(1.1, -0.85, 0);
+      a4.rotation.z = Math.PI / 3;
+      a4.scale.set(10, 1, 1);
+      g.add(a4);
+
+      return g;
+    };
+
+    this.gliderLeftWing = createWing();
+    this.gliderLeftWing!.rotation.y = Math.PI; // Flip horizontally
     this.gliderGroup.add(this.gliderLeftWing!);
 
-    this.gliderRightWing = new THREE.Group() as any;
-    const rightCanvas = new THREE.Mesh(wingGeo, wingMat);
-    const rightSpar = new THREE.Mesh(sparGeo, sparMat);
-    this.gliderRightWing!.add(rightCanvas);
-    this.gliderRightWing!.add(rightSpar);
+    this.gliderRightWing = createWing();
     this.gliderGroup.add(this.gliderRightWing!);
 
     this.gliderGroup.visible = false;
@@ -341,11 +438,11 @@ export class PlayerRenderer {
     if (this.gliderOpenAmount > 0.01) {
       this.gliderGroup.visible = true;
       
-      // Aerodynamic pitch: tilt the whole glider forward when open
-      this.gliderGroup.rotation.x = THREE.MathUtils.lerp(0.5, -0.2, this.gliderOpenAmount);
+      // Aerodynamic pitch
+      this.gliderGroup.rotation.x = THREE.MathUtils.lerp(0.5, 0.2, this.gliderOpenAmount);
 
-      const openAngle = 1.3;
-      const closedAngle = 0.15;
+      const openAngle = 0.15; // Swept back slightly when flying
+      const closedAngle = 1.6; // Folded straight back when not flying
       const angle = THREE.MathUtils.lerp(closedAngle, openAngle, this.gliderOpenAmount);
 
       this.gliderRightWing.rotation.y = angle;

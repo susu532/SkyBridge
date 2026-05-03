@@ -108,8 +108,10 @@ export class NetworkManager {
     this.players = {};
     this.blockChanges = {};
     this.serverName = serverName;
+    
+    useGameStore.getState().setCurrentMode(serverName.split('_')[0] || 'hub');
 
-   const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+    const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     this.socket = io(`${BACKEND_URL}/${serverName}`);
 
     this.socket.on('connect', () => {
@@ -235,6 +237,11 @@ export class NetworkManager {
         delete this.players[id];
       }
       if (this.onPlayerLeft) this.onPlayerLeft(id);
+      window.dispatchEvent(new CustomEvent('networkPlayerDied', { detail: { id } }));
+    });
+
+    this.socket.on('skycoinsRewarded', (data) => {
+      window.dispatchEvent(new CustomEvent('skycoinsRewarded', { detail: data }));
     });
 
     this.socket.on('batchedPlayerHits', (hits: any[]) => {

@@ -202,7 +202,7 @@ export class Game {
       // Add existing players
       for (const id in data.players) {
         if (id !== networkManager.id) {
-          this.entityManager.addRemotePlayer(id, data.players[id].skinSeed, data.players[id].name);
+          this.entityManager.addRemotePlayer(id, data.players[id].skinSeed, data.players[id].name, data.players[id].team);
           this.entityManager.updateRemotePlayer(id, data.players[id]);
         }
       }
@@ -283,7 +283,7 @@ export class Game {
 
     networkManager.onPlayerJoined = (player) => {
       if (player.id !== networkManager.id) {
-        this.entityManager.addRemotePlayer(player.id, player.skinSeed, player.name);
+        this.entityManager.addRemotePlayer(player.id, player.skinSeed, player.name, player.team);
       }
     };
 

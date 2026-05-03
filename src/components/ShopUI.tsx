@@ -18,6 +18,7 @@ interface ShopUIProps {
 
 export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose }) => {
   const inventoryVersion = useGameStore(state => state.inventoryVersion);
+  const currentMode = useGameStore(state => state.currentMode);
   const [hoveredItem, setHoveredItem] = useState<ItemStack | null>(null);
   const [tradeOffer, setTradeOffer] = useState<(ItemStack | null)[]>(new Array(10).fill(null));
 
@@ -32,19 +33,33 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
 
   // Refund trade offer items when closing
   useEffect(() => {
-    if (!isOpen) {
-      tradeOffer.forEach(item => {
+    return () => {
+      let refunded = false;
+      tradeOfferRef.current.forEach(item => {
         if (item) {
           inventory.addItem(item.type, item.count, item.metadata);
+          refunded = true;
         }
       });
-      setTradeOffer(new Array(10).fill(null));
-    }
-  }, [isOpen, inventory]);
+      if (refunded) {
+        useGameStore.getState().incrementInventoryVersion();
+      }
+    };
+  }, [inventory]);
 
-  const playerCoins = useGameStore(state => state.skycoins);
+  const playerCoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
+
+  const getCurrencyCount = React.useCallback((type: ItemType) => {
+    if (type === ItemType.SKYCOIN) return playerCoins;
+    let count = 0;
+    for (const slot of inventory.slots) {
+      if (slot && slot.type === type) count += slot.count;
+    }
+    return count;
+  }, [playerCoins, inventory, inventoryVersion]);
 
   const handleBuy = React.useCallback((shopItem: ShopItem) => {
+    console.log('[ShopUI] handleBuy clicked', shopItem);
     const spendType = shopItem.currency;
     const spendAmount = shopItem.price;
     const gainType = shopItem.type;
@@ -52,7 +67,8 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
     const gainMetadata = shopItem.metadata;
 
     // Get latest coins directly from state to avoid stale closure issues
-    const currentCoins = useGameStore.getState().skycoins;
+    const currentCoins = useGameStore.getState().getSkycoins();
+    console.log('[ShopUI] currentCoins:', currentCoins, 'spendType:', spendType, 'spendAmount:', spendAmount);
 
     let spendCount = 0;
     if (spendType === ItemType.SKYCOIN) {
@@ -63,8 +79,11 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
       }
     }
 
+    console.log('[ShopUI] spendCount available:', spendCount);
     if (spendCount >= spendAmount) {
-      if (inventory.removeItem(spendType, spendAmount)) {
+      const removed = inventory.removeItem(spendType, spendAmount);
+      console.log('[ShopUI] removeItem returned:', removed);
+      if (removed) {
         inventory.addItem(gainType, gainAmount, gainMetadata);
         audioManager.play('pop', 0.6, 1.2);
         useGameStore.getState().incrementInventoryVersion();
@@ -240,7 +259,7 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                   <div className="grid grid-cols-5 gap-3">
                     {buyItems.map((item, i) => {
-                      const canAfford = playerCoins >= item.price;
+                      const canAfford = getCurrencyCount(item.currency) >= item.price;
                       return (
                         <div key={i} className="flex flex-col items-center gap-2">
                           <Slot 
@@ -249,7 +268,7 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
                             onClick={() => handleBuy(item)}
                           />
                           <div className={`text-[10px] font-bold flex items-center gap-0.5 ${canAfford ? 'text-[#373737]' : 'text-red-700'}`}>
-                            {item.price} <Coins size={10} />
+                            {item.price} {item.currency === ItemType.SKYCOIN ? <Coins size={10} /> : <span className="uppercase">{ITEM_NAMES[item.currency]?.substring(0, 3)}</span>}
                           </div>
                         </div>
                       );

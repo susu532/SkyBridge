@@ -35,7 +35,7 @@ export class NPC {
     this.rotation = rotation;
     this.scale = scale;
     this.autoRotate = autoRotate;
-    this.isHubNPC = id === 'hub_npc_q' || id === 'hub_npc_r' || id === 'hub_npc_v'; // Automatically detect hub NPCs
+    this.isHubNPC = id === 'hub_npc_q' || id === 'hub_npc_r' || id === 'hub_npc_v' || id === 'hub_npc_dungeon'; // Automatically detect hub NPCs
     this.shopItems = shopItems;
     this.modelPath = modelPath;
     this.group = new THREE.Group();
@@ -108,6 +108,11 @@ export class NPC {
     });
     
     const nameTag = new THREE.Mesh(geometry, material);
+    
+    // Rotate name tag for specific NPCs if requested (e.g., Jerry)
+    if (this.id.includes('jerry')) {
+      nameTag.rotation.y = Math.PI;
+    }
     
     // Elevate it significantly above the NPC (approx 4 blocks high)
     nameTag.position.y = 3.8;

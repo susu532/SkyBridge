@@ -227,6 +227,10 @@ export class PlayerInputController {
           if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
           }
+        } else if (npc.id === 'hub_npc_dungeon') {
+          if (networkManager.serverName.startsWith('hub')) {
+            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'dungeondelver' } }));
+          }
         } else if (npc.id.startsWith('bren')) {
           window.dispatchEvent(new CustomEvent('openLaunchMenu'));
         } else {
@@ -412,6 +416,26 @@ export class PlayerInputController {
       } else if (event.button === 2) { // Right click: place block
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         
+        if (
+          blockType === ItemType.LAUNCHER ||
+          blockType === ItemType.LAUNCHER_WALL_X_POS ||
+          blockType === ItemType.LAUNCHER_WALL_X_NEG ||
+          blockType === ItemType.LAUNCHER_WALL_Z_POS ||
+          blockType === ItemType.LAUNCHER_WALL_Z_NEG
+        ) {
+          // Launch player up and forward
+          const lookDir = new THREE.Vector3(0, 0, -1);
+          lookDir.applyEuler(new THREE.Euler(0, this.player.cameraYaw, 0, 'YXZ'));
+          
+          this.player.velocity.x += lookDir.x * 40;
+          this.player.velocity.z += lookDir.z * 40;
+          this.player.velocity.y = 70; // Big jump up
+          
+          this.player.isGliding = true;
+          audioManager.play('pop', 0.8, 1.5);
+          return;
+        }
+
         const selectedStack = this.player.inventory.getStackInSlot(this.player.hotbarIndex);
         if (!selectedStack || selectedStack.count <= 0) return;
 
@@ -419,32 +443,33 @@ export class PlayerInputController {
 
         // Restriction for Torches and Plants: only place on top of solid blocks
         const isTorch = selectedStack.type === ItemType.TORCH;
-        if (isTorch) {
+        const isLauncher = selectedStack.type === ItemType.LAUNCHER;
+        if (isTorch || isLauncher) {
           const dx = hitResult.prevPos.x - hitResult.blockPos.x;
           const dz = hitResult.prevPos.z - hitResult.blockPos.z;
           const dy = hitResult.prevPos.y - hitResult.blockPos.y;
 
           if (dy === 1) {
             // Placed on top
-            placeType = ItemType.TORCH;
+            placeType = isTorch ? ItemType.TORCH : ItemType.LAUNCHER;
           } else if (dx === 1) {
-            placeType = ItemType.TORCH_WALL_X_NEG; // Attached to +X block face, so torch is at +X relative to block, leaning -X
+            placeType = isTorch ? ItemType.TORCH_WALL_X_NEG : ItemType.LAUNCHER_WALL_X_NEG; 
           } else if (dx === -1) {
-            placeType = ItemType.TORCH_WALL_X_POS;
+            placeType = isTorch ? ItemType.TORCH_WALL_X_POS : ItemType.LAUNCHER_WALL_X_POS;
           } else if (dz === 1) {
-            placeType = ItemType.TORCH_WALL_Z_NEG; // Attached to +Z block face
+            placeType = isTorch ? ItemType.TORCH_WALL_Z_NEG : ItemType.LAUNCHER_WALL_Z_NEG; 
           } else if (dz === -1) {
-            placeType = ItemType.TORCH_WALL_Z_POS;
+            placeType = isTorch ? ItemType.TORCH_WALL_Z_POS : ItemType.LAUNCHER_WALL_Z_POS;
           } else {
             return; // Can't place torch from bottom!
           }
 
           let supportBlock = BLOCK.AIR;
-          if (placeType === ItemType.TORCH) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y - 1, hitResult.prevPos.z);
-          else if (placeType === ItemType.TORCH_WALL_X_NEG) supportBlock = this.player.world.getBlock(hitResult.prevPos.x - 1, hitResult.prevPos.y, hitResult.prevPos.z);
-          else if (placeType === ItemType.TORCH_WALL_X_POS) supportBlock = this.player.world.getBlock(hitResult.prevPos.x + 1, hitResult.prevPos.y, hitResult.prevPos.z);
-          else if (placeType === ItemType.TORCH_WALL_Z_NEG) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y, hitResult.prevPos.z - 1);
-          else if (placeType === ItemType.TORCH_WALL_Z_POS) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y, hitResult.prevPos.z + 1);
+          if (placeType === ItemType.TORCH || placeType === ItemType.LAUNCHER) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y - 1, hitResult.prevPos.z);
+          else if (placeType === ItemType.TORCH_WALL_X_NEG || placeType === ItemType.LAUNCHER_WALL_X_NEG) supportBlock = this.player.world.getBlock(hitResult.prevPos.x - 1, hitResult.prevPos.y, hitResult.prevPos.z);
+          else if (placeType === ItemType.TORCH_WALL_X_POS || placeType === ItemType.LAUNCHER_WALL_X_POS) supportBlock = this.player.world.getBlock(hitResult.prevPos.x + 1, hitResult.prevPos.y, hitResult.prevPos.z);
+          else if (placeType === ItemType.TORCH_WALL_Z_NEG || placeType === ItemType.LAUNCHER_WALL_Z_NEG) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y, hitResult.prevPos.z - 1);
+          else if (placeType === ItemType.TORCH_WALL_Z_POS || placeType === ItemType.LAUNCHER_WALL_Z_POS) supportBlock = this.player.world.getBlock(hitResult.prevPos.x, hitResult.prevPos.y, hitResult.prevPos.z + 1);
 
           if (!isSolidBlock(supportBlock)) {
             return;

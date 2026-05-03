@@ -37,7 +37,8 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
   const heldItemRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const inventoryVersion = useGameStore(state => state.inventoryVersion);
-  const skycoins = useGameStore(state => state.skycoins);
+  const currentMode = useGameStore(state => state.currentMode);
+  const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
 
   // Dragging state
   const [dragState, setDragState] = useState<{

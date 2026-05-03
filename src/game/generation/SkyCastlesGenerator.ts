@@ -197,7 +197,7 @@ export function getCastleBlock(wx: number, wy: number, wz: number, zOffset: numb
           if (distSq <= 100) {
             const isTowerWall = distSq >= 81;
             
-            if (wy <= 50) {
+            if (wy <= 55) {
               if (isTowerWall) {
                 // Door to battlements
                 if (wy >= 41 && wy <= 43 && dz >= 8 && Math.abs(dx) <= 1) return BLOCK.AIR;
@@ -216,8 +216,8 @@ export function getCastleBlock(wx: number, wy: number, wz: number, zOffset: numb
                   if (isSkyCastles) {
                     // Trigger spawn at the center of the egg area
                     if (wx === 0 && localZ === 0 && wy === 44 && queuedMobs) {
-                      const worldY = wy + 58 ;
-                      queuedMobs.push({ type: 'Morvane', pos: new THREE.Vector3(wx, worldY, wz) });
+                      const worldY = wy + 60;
+                      queuedMobs.push({ type: 'Morvane', pos: new THREE.Vector3(wx + 0.5, worldY, wz + 0.5) });
                     }
                     return BLOCK.AIR;
                   }
@@ -228,7 +228,7 @@ export function getCastleBlock(wx: number, wy: number, wz: number, zOffset: numb
               }
             } else {
               // Dome Roof
-              const roofRadiusSq = 100 - (wy - 50) * 10;
+              const roofRadiusSq = 100 - (wy - 55) * 10;
               if (distSq <= roofRadiusSq) {
                 return accentBlock;
               }

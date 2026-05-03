@@ -171,7 +171,7 @@ export class EntityManager {
     const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
     
     // Apply special settings only for the Hub NPCs (SkyBridge and SkyCastles)
-    const isHubNPC = data.id === 'hub_npc_q' || data.id === 'hub_npc_r' || data.id === 'hub_npc_v';
+    const isHubNPC = data.id === 'hub_npc_q' || data.id === 'hub_npc_r' || data.id === 'hub_npc_v' || data.id === 'hub_npc_dungeon';
     const scale = isHubNPC ? 2.5 : (data.scale || 1.0);
     const autoRotate = false; // Rotation disabled per user request
 
@@ -240,9 +240,9 @@ export class EntityManager {
     }
   }
 
-  addRemotePlayer(id: string, skinSeed: string, name: string) {
+  addRemotePlayer(id: string, skinSeed: string, name: string, team?: string) {
     if (!this.remotePlayers.has(id)) {
-      const player = new RemotePlayer(id, skinSeed, name, this.scene);
+      const player = new RemotePlayer(id, skinSeed, name, this.scene, team);
       this.remotePlayers.set(id, player);
     }
   }
@@ -329,8 +329,8 @@ export class EntityManager {
     }
     const now = Date.now();
     for (const mob of this.mobs.values()) {
-      // 10 seconds without updates = probably out of range or dead, despawn locally
-      if (now - (mob.lastNetworkUpdate || Date.now()) > 10000) {
+      // 10 seconds without updates = probably out of range or dead, despawn locally (except for bosses like Morvane)
+      if (mob.type !== MobType.MORVANE && now - (mob.lastNetworkUpdate || Date.now()) > 10000) {
         this.removeMob(mob.id);
         continue;
       }

@@ -145,6 +145,8 @@ export class Player {
   get fpHeldItemModel() { return this.renderer.fpHeldItemModel; }
   get breakingMesh() { return this.renderer.breakingMesh; }
 
+  team?: string;
+
   constructor(camera: THREE.PerspectiveCamera, controls: PointerLockControls, world: World, entityManager: EntityManager) {
     this.camera = camera;
     this.controls = controls;
@@ -202,10 +204,15 @@ export class Player {
 
   onNetworkPlayerRespawn = (e: any) => {
     if (e.detail.id === networkManager.id) {
+      if (e.detail.team) {
+        this.team = e.detail.team;
+        this.renderer.updateTeam(this.team);
+      }
+      
       const wasDead = this.isDead;
       this.isDead = false;
       this.isDeadThisFrame = true; // For camera reset
-      this.worldPosition.set(e.detail.position.x, e.detail.position.y, e.detail.position.z);
+      this.worldPosition.set(e.detail.position.x, e.detail.position.y + this.playerHeight, e.detail.position.z);
       this.velocity.set(0, 0, 0);
       skyBridgeManager.stats.health = skyBridgeManager.effectiveStats.maxHealth;
       this.health = skyBridgeManager.stats.health;

@@ -1,16 +1,19 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Server, Play, ShieldAlert } from 'lucide-react';
+import { X, Server, Play, ShoppingCart } from 'lucide-react';
+import { NPC } from '../game/NPC';
 
 interface ServerJoinUIProps {
   isOpen: boolean;
   serverName?: string;
+  npc?: NPC | null;
   onClose: () => void;
   onJoin: () => void;
+  onOpenShop?: () => void;
 }
 
-export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName = 'skybridge', onClose, onJoin }) => {
-  const displayName = serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : 'SkyBridge';
+export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName = 'skybridge', npc, onClose, onJoin, onOpenShop }) => {
+  const displayName = serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : serverName === 'dungeondelver' ? 'Dungeon Delver' : 'SkyBridge';
   return (
     <AnimatePresence>
       {isOpen && (
@@ -37,9 +40,7 @@ export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName =
                {displayName}
             </h2>
             
-         
-
-            <div className="w-full flex flex-col gap-3">
+            <div className="w-full flex flex-col gap-3 mt-4">
               <button
                 onClick={onJoin}
                 className="w-full h-12 bg-white text-black hover:bg-[#FFFF55] font-bold rounded-xl transition-all flex items-center justify-center gap-2 group active:scale-95"
@@ -48,7 +49,15 @@ export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName =
                 JOIN GAME
               </button>
 
-            
+              {npc && npc.shopItems && npc.shopItems.length > 0 && onOpenShop && (
+                <button
+                  onClick={onOpenShop}
+                  className="w-full h-12 bg-[#373737] text-white hover:bg-[#444] border-2 border-[#555] font-bold rounded-xl transition-all flex items-center justify-center gap-2 group active:scale-95"
+                >
+                  <ShoppingCart className="w-4 h-4 transition-transform group-hover:scale-110" />
+                  OPEN SHOP
+                </button>
+              )}
             </div>
 
             <button 

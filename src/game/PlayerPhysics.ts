@@ -109,6 +109,17 @@ export class PlayerPhysics {
   applyGravityAndCollision(delta: number) {
     const p = this.player;
 
+    // Check if the chunk below the player is loaded
+    const cx = Math.floor(p.worldPosition.x / 16);
+    const cz = Math.floor(p.worldPosition.z / 16);
+    const isChunkLoaded = p.world.getChunk(cx, cz) !== undefined;
+
+    if (!isChunkLoaded) {
+      // Pause physics if chunk is not loaded
+      p.velocity.set(0, 0, 0);
+      return;
+    }
+
     // Check for water
     const headBlock = p.world.getBlock(Math.floor(p.worldPosition.x), Math.floor(p.worldPosition.y), Math.floor(p.worldPosition.z));
     const feetBlock = p.world.getBlock(Math.floor(p.worldPosition.x), Math.floor(p.worldPosition.y - p.playerHeight + 0.1), Math.floor(p.worldPosition.z));

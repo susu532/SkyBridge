@@ -4,7 +4,8 @@ import { useGameStore } from '../store/gameStore';
 import { skyBridgeManager, PlayerStats } from '../game/SkyBridgeManager';
 
 export const SkyBridgeSidebar: React.FC = () => {
-  const skycoins = useGameStore(state => state.skycoins);
+  const currentMode = useGameStore(state => state.currentMode);
+  const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
   const playerStats = useGameStore(state => state.playerStats);
   const playerSkills = useGameStore(state => state.playerSkills);
 

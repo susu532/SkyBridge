@@ -20,6 +20,7 @@ import { audioManager } from './game/AudioManager';
 import { SettingsUI } from './components/SettingsUI';
 import { PauseMenuUI } from './components/PauseMenuUI';
 import { SkyBridgeSidebar } from './components/SkyBridgeSidebar';
+import { SkyCastlesSidebar } from './components/SkyCastlesSidebar';
 import { SkyBridgeActionBar } from './components/SkyBridgeActionBar';
 import { SkyBridgeXPPopup } from './components/SkyBridgeXPPopup';
 import { DamageOverlay } from './components/DamageOverlay';
@@ -55,7 +56,7 @@ export default function App() {
   const [isUnderwater, setIsUnderwater] = useState(false);
   const [isUnderLava, setIsUnderLava] = useState(false);
   const [targetServer, setTargetServer] = useState<string>('skybridge');
-
+  const currentMode = useGameStore(state => state.currentMode);
 
   // Refs for event listeners to avoid stale closures
   const stateRef = useRef({
@@ -185,6 +186,7 @@ export default function App() {
     const handleOpenServerJoin = (e: any) => {
       const server = e.detail?.server || 'skybridge';
       setTargetServer(server);
+      setCurrentNPC(e.detail?.npc || null);
       suppressPauseMenu.current = true;
       setServerJoinOpen(true);
       newGame.controls.unlock();
@@ -405,8 +407,8 @@ export default function App() {
           {targetInfo.type && (
             <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
               {targetInfo.name}
-              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v') && networkManager.serverName.startsWith('hub') && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
-              {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && targetInfo.id !== 'hub_npc_v' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
+              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v' || targetInfo.id === 'hub_npc_dungeon') && currentMode === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
+              {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && targetInfo.id !== 'hub_npc_v' && targetInfo.id !== 'hub_npc_dungeon' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
             </div>
           )}
         </div>
@@ -419,10 +421,11 @@ export default function App() {
       {isHUDVisible && <EntityTags game={game} />}
 
       {/* SkyBridge Sidebar */}
-      {isHUDVisible && !networkManager.serverName.startsWith('hub') && <SkyBridgeSidebar />}
+      {isHUDVisible && currentMode !== 'hub' && currentMode !== 'skycastles' && <SkyBridgeSidebar />}
+      {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar />}
 
       {/* SkyBridge UI */}
-      {isHUDVisible && !networkManager.serverName.startsWith('hub') && (
+      {isHUDVisible && currentMode !== 'hub' && (
         <>
           <SkyBridgeActionBar />
           <SkyBridgeXPPopup />
@@ -439,9 +442,9 @@ export default function App() {
       <DeathScreen />
 
       {/* Toolbar */}
-      {isHUDVisible && !networkManager.serverName.startsWith('hub') && <HotbarUI game={game} />}
+      {isHUDVisible && currentMode !== 'hub' && <HotbarUI game={game} />}
 
-      {game && !networkManager.serverName.startsWith('hub') && (
+      {game && currentMode !== 'hub' && (
         <div onClick={(e) => e.stopPropagation()}>
           <InventoryUI 
             inventory={game.player.inventory} 
@@ -496,6 +499,7 @@ export default function App() {
           <ServerJoinUI
             isOpen={isServerJoinOpen}
             serverName={targetServer}
+            npc={currentNPC}
             onClose={() => {
               setServerJoinOpen(false);
               handleStart(null);
@@ -510,6 +514,10 @@ export default function App() {
                 setGameKey(k => k + 1);
               });
             }}
+            onOpenShop={() => {
+              setServerJoinOpen(false);
+              setShopOpen(true);
+            }}
           />
           <LaunchMenuUI
             isOpen={isLaunchMenuOpen}
@@ -522,7 +530,7 @@ export default function App() {
               handleStart(null);
               if (game) {
                 // Launch the player
-                game.player.velocity.y = 80;
+                game.player.velocity.y = 160;
                 game.player.isGliding = true;
               }
             }}
