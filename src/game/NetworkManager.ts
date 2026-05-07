@@ -1,7 +1,6 @@
 import { useGameStore } from '../store/gameStore';
 import { io, Socket } from 'socket.io-client';
 import * as THREE from 'three';
-import { getSecureBackendUrl } from '../utils/security';
 
 export class NetworkManager {
   socket!: Socket;
