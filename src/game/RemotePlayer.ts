@@ -514,31 +514,33 @@ export class RemotePlayer {
     };
 
     if (this.bodyMesh) {
-      const bodyArmor = createArmorMesh(0.44, 0.64, 0.24);
+      const bodyArmor = createArmorMesh(0.44, 0.54, 0.24);
+      bodyArmor.position.y = -0.27;
       this.bodyMesh.add(bodyArmor);
     }
     if (this.headMesh) {
-      const headArmor = createArmorMesh(0.44, 0.44, 0.44);
+      const headArmor = createArmorMesh(0.44, 0.24, 0.44);
+      headArmor.position.y = 0.11;
       this.headMesh.add(headArmor);
     }
     if (this.leftArmMesh) {
-      const leftArmArmor = createArmorMesh(0.24, 0.64, 0.24);
-      leftArmArmor.position.y = -0.3;
+      const leftArmArmor = createArmorMesh(0.24, 0.28, 0.24);
+      leftArmArmor.position.y = -0.14;
       this.leftArmMesh.add(leftArmArmor);
     }
     if (this.rightArmMesh) {
-      const rightArmArmor = createArmorMesh(0.24, 0.64, 0.24);
-      rightArmArmor.position.y = -0.3;
+      const rightArmArmor = createArmorMesh(0.24, 0.28, 0.24);
+      rightArmArmor.position.y = -0.14;
       this.rightArmMesh.add(rightArmArmor);
     }
     if (this.leftLegMesh) {
-      const leftLegArmor = createArmorMesh(0.24, 0.64, 0.24);
-      leftLegArmor.position.y = -0.3;
+      const leftLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      leftLegArmor.position.y = -0.22;
       this.leftLegMesh.add(leftLegArmor);
     }
     if (this.rightLegMesh) {
-      const rightLegArmor = createArmorMesh(0.24, 0.64, 0.24);
-      rightLegArmor.position.y = -0.3;
+      const rightLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      rightLegArmor.position.y = -0.22;
       this.rightLegMesh.add(rightLegArmor);
     }
   }
