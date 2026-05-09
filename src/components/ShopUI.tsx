@@ -245,9 +245,9 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
             </div>
 
             {/* Main Split Section */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
               {/* Left Section: NPC BUYING */}
-              <div className="flex-1 border-r-[4px] border-[#222] flex flex-col p-6 bg-[#C6C6C6]">
+              <div className="flex-1 md:border-r-[4px] border-b-[4px] md:border-b-0 border-[#222] flex flex-col p-4 md:p-6 bg-[#C6C6C6] min-h-[400px]">
                 <div className="flex items-center justify-between mb-4 px-1">
                   <h3 className="text-[#373737] font-bold uppercase tracking-tight flex items-center gap-2">
                     <TrendingUp size={18} className="text-green-600" />
@@ -344,7 +344,7 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
                     <span className="opacity-50">Click to add to Sell Box</span>
                   </div>
                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar bg-black/5 p-2 rounded">
-                    <div className="grid grid-cols-9 md:grid-cols-6 lg:grid-cols-8 gap-1.5 content-start">
+                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-6 lg:grid-cols-8 gap-1.5 content-start">
                       {inventory.slots.slice(0, 36).map((slot, i) => {
                         const canSell = slot && sellItems.some(s => s.type === slot.type);
                         return (

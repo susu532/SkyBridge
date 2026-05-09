@@ -24,32 +24,44 @@ export const Slot: React.FC<{
       if (onDoubleClick) onDoubleClick();
     }}
     onMouseEnter={() => {
-      onHover(item);
+      if (onHover) onHover(item);
       if (isDragging) onClick(item, dragButton!, false, true);
     }}
-    onMouseLeave={() => onHover(null)}
-    className={`w-10 h-10 mc-slot flex items-center justify-center cursor-pointer hover:bg-[#A0A0A0] transition-colors relative group`}
+    onMouseLeave={() => {
+      if (onHover) onHover(null);
+    }}
+    className={`w-[34px] h-[34px] sm:w-10 sm:h-10 mc-slot flex items-center justify-center cursor-pointer hover:bg-[#A0A0A0] transition-colors relative group`}
     style={{ 
       borderWidth: item?.metadata?.rarity && item.metadata.rarity !== Rarity.COMMON ? '3px' : '2px',
       borderColor: item?.metadata?.rarity ? RARITY_COLORS[item.metadata.rarity] : undefined,
       contentVisibility: 'auto',
-      containIntrinsicSize: '40px 40px',
+      containIntrinsicSize: '34px 34px',
       transform: 'translateZ(0)'
     }}
   >
     <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 pointer-events-none" />
     {item && <ItemIcon item={item} />}
-    {item?.metadata?.durability !== undefined && item?.metadata?.maxDurability !== undefined && (
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none">
-        <div 
-          className="h-full"
-          style={{ 
-            width: `${(item.metadata.durability / item.metadata.maxDurability) * 100}%`,
-            backgroundColor: (item.metadata.durability / item.metadata.maxDurability) > 0.5 ? '#00FF00' : (item.metadata.durability / item.metadata.maxDurability) > 0.2 ? '#FFFF00' : '#FF0000'
-          }}
-        />
-      </div>
-    )}
+    {(() => {
+      const isSword = item?.type && item.type >= 441 && item.type <= 445;
+      const isTool = item?.type && ((item.type >= 436 && item.type <= 440) || (item.type >= 446 && item.type <= 455));
+      const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'hub' : 'hub';
+      const isSkyCastles = serverName.startsWith('skycastles');
+      const shouldShow = item?.metadata?.durability !== undefined && item?.metadata?.maxDurability !== undefined && !isSword && !(isTool && isSkyCastles);
+      
+      if (!shouldShow) return null;
+
+      return (
+        <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none">
+          <div 
+            className="h-full"
+            style={{ 
+              width: `${(item.metadata!.durability! / item.metadata!.maxDurability!) * 100}%`,
+              backgroundColor: (item.metadata!.durability! / item.metadata!.maxDurability!) > 0.5 ? '#00FF00' : (item.metadata!.durability! / item.metadata!.maxDurability!) > 0.2 ? '#FFFF00' : '#FF0000'
+            }}
+          />
+        </div>
+      );
+    })()}
   </div>
 ), (prev, next) => {
   if (prev.isDragging !== next.isDragging) return false;
@@ -76,10 +88,10 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
   
   if (item.type === ItemType.MINION) {
     return (
-      <div className="relative w-8 h-8 flex items-center justify-center select-none bg-gradient-to-br from-[#FFFF55] to-[#DADA44] rounded-sm border-2 border-black/40 shadow-lg">
-        <div className="text-[9px] font-black text-black text-center leading-tight uppercase tracking-tighter">MINION</div>
+      <div className="relative w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center select-none bg-gradient-to-br from-[#FFFF55] to-[#DADA44] rounded-sm border-2 border-black/40 shadow-lg">
+        <div className="text-[6px] sm:text-[9px] font-black text-black text-center leading-tight uppercase tracking-tighter">MINION</div>
         {item.count > 1 && (
-          <span className="absolute -bottom-1 -right-1 text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
+          <span className="absolute -bottom-1 -right-1 text-[10px] sm:text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
             {item.count}
           </span>
         )}
@@ -96,8 +108,8 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
     const side2 = uvs[5] || uvs[1]; // Use right side if available, fallback to side/back
 
     return (
-      <div className="relative w-8 h-8 flex items-center justify-center select-none" style={{ perspective: '800px', willChange: 'transform' }}>
-        <div className="relative w-6 h-6 flex items-center justify-center" style={{ transformStyle: 'preserve-3d', transform: 'rotateX(-25deg) rotateY(45deg)', willChange: 'transform' }}>
+      <div className="relative w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center select-none" style={{ perspective: '800px', willChange: 'transform' }}>
+        <div className="relative w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center" style={{ transformStyle: 'preserve-3d', transform: 'rotateX(-25deg) rotateY(45deg)', willChange: 'transform' }}>
            {/* Top Face */}
            <div 
              className="absolute w-full h-full bg-no-repeat"
@@ -139,7 +151,7 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
            />
         </div>
         {item.count > 1 && (
-          <span className="absolute -bottom-1 -right-1 text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
+          <span className="absolute -bottom-1 -right-1 text-[10px] sm:text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
             {item.count}
           </span>
         )}
@@ -152,10 +164,10 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
   const [x, y] = face;
   
   return (
-    <div className="relative w-8 h-8 flex items-center justify-center select-none">
+    <div className="relative w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center select-none">
       <motion.div 
         whileHover={{ scale: 1.15, rotate: 5 }}
-        className="w-7 h-7" 
+        className="w-5 h-5 sm:w-7 sm:h-7" 
         style={{ 
           backgroundImage: `url(${atlasUrl})`,
           backgroundSize: '3200% 3200%',
@@ -166,21 +178,31 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
         title={ITEM_NAMES[item.type]}
       />
       {item.count > 1 && (
-        <span className="absolute -bottom-1 -right-1 text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
+        <span className="absolute -bottom-1 -right-1 text-[10px] sm:text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
           {item.count}
         </span>
       )}
-      {item.metadata?.maxDurability && item.metadata.durability !== undefined && (
-        <div className="absolute -bottom-[2px] left-0 w-full h-[3px] bg-black pointer-events-none border border-black">
-          <div 
-            className="h-full transition-all duration-300" 
-            style={{ 
-              width: `${Math.max(0, (item.metadata.durability / item.metadata.maxDurability) * 100)}%`,
-              backgroundColor: item.metadata.durability / item.metadata.maxDurability > 0.5 ? '#00FF00' : item.metadata.durability / item.metadata.maxDurability > 0.2 ? '#FFFF00' : '#FF0000'
-            }} 
-          />
-        </div>
-      )}
+      {(() => {
+        const isSword = item?.type && item.type >= 441 && item.type <= 445;
+        const isTool = item?.type && ((item.type >= 436 && item.type <= 440) || (item.type >= 446 && item.type <= 455));
+        const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'hub' : 'hub';
+        const isSkyCastles = serverName.startsWith('skycastles');
+        const shouldShow = item.metadata?.maxDurability && item.metadata.durability !== undefined && !isSword && !(isTool && isSkyCastles);
+
+        if (!shouldShow) return null;
+
+        return (
+          <div className="absolute -bottom-[2px] left-0 w-full h-[3px] bg-black pointer-events-none border border-black">
+            <div 
+              className="h-full transition-all duration-300" 
+              style={{ 
+                width: `${Math.max(0, (item.metadata!.durability! / item.metadata!.maxDurability!) * 100)}%`,
+                backgroundColor: item.metadata!.durability! / item.metadata!.maxDurability! > 0.5 ? '#00FF00' : item.metadata!.durability! / item.metadata!.maxDurability! > 0.2 ? '#FFFF00' : '#FF0000'
+              }} 
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 });

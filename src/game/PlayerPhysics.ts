@@ -48,43 +48,6 @@ export class PlayerPhysics {
       }
     }
 
-    // Remote player collision
-    const radiusSum = this.player.playerRadius * 2;
-    const radiusSumSq = radiusSum * radiusSum;
-    
-    for (const remotePlayer of this.player.entityManager.remotePlayers.values()) {
-      const rpPos = remotePlayer.group.position;
-      const dx = pos.x - rpPos.x;
-      if (Math.abs(dx) > radiusSum) continue;
-
-      const dz = pos.z - rpPos.z;
-      if (Math.abs(dz) > radiusSum) continue;
-
-      const dy = pos.y - rpPos.y;
-      if (dy <= -1.8 || dy >= this.player.playerHeight) continue;
-
-      if (dx * dx + dz * dz < radiusSumSq) {
-        return true;
-      }
-    }
-
-    // NPC collision
-    for (const npc of this.player.entityManager.npcs.values()) {
-      const npcPos = npc.group.position;
-      const dx = pos.x - npcPos.x;
-      if (Math.abs(dx) > radiusSum) continue;
-
-      const dz = pos.z - npcPos.z;
-      if (Math.abs(dz) > radiusSum) continue;
-
-      const dy = pos.y - npcPos.y;
-      if (dy <= -1.8 || dy >= this.player.playerHeight) continue;
-
-      if (dx * dx + dz * dz < radiusSumSq) {
-        return true;
-      }
-    }
-
     return false;
   }
 

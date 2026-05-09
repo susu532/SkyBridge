@@ -8,21 +8,23 @@ export const SkyBridgeSidebar: React.FC = () => {
   const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
   const playerStats = useGameStore(state => state.playerStats);
   const playerSkills = useGameStore(state => state.playerSkills);
+  const serverId = useGameStore(state => state.serverId);
+  const dateStr = new Date().toLocaleDateString('en-GB', { year: '2-digit', month: '2-digit', day: '2-digit' });
 
   // Fallback to initial values if the store hasn't received its first update yet
   const stats = playerStats || skyBridgeManager.effectiveStats;
   const skills = playerSkills && Object.keys(playerSkills).length > 0 ? playerSkills : skyBridgeManager.skills;
 
   return (
-    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-none mc-font">
+    <div className="absolute right-2 md:right-4 top-16 md:top-20 flex flex-col gap-2 pointer-events-none mc-font transform scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
       {/* Sidebar Container */}
-      <div className="bg-black/60 backdrop-blur-md p-4 border-l-4 border-[#FFFF55] text-white text-base shadow-2xl min-w-[200px]">
-        <div className="text-[#FFFF55] font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">SkyBridge</div>
-        <div className="text-white/60 text-xs text-center mb-3 border-b border-white/10 pb-2 mc-text-shadow">04/11/26 <span className="text-[#55FF55]">m123</span></div>
+      <div className="bg-black/60 backdrop-blur-md p-3 md:p-4 border-l-4 border-[#FFFF55] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
+        <div className="text-[#FFFF55] font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">skybridge</div>
+        <div className="text-white/60 text-xs text-center mb-3 border-b border-white/10 pb-2 mc-text-shadow">{dateStr} <span className="text-[#55FF55]">{serverId || 'm123'}</span></div>
         
         <div className="space-y-2">
           <div className="flex flex-col">
-            <span className="text-white text-sm mc-text-shadow">SkyBridge Level: <span className="text-[#55FFFF] font-bold">1</span></span>
+            <span className="text-white text-sm mc-text-shadow">Level: <span className="text-[#55FFFF] font-bold">1</span></span>
             <div className="w-full h-1.5 bg-black/40 mt-1 rounded-full overflow-hidden">
               <div className="h-full bg-[#55FFFF] w-[15%]" />
             </div>
@@ -91,7 +93,7 @@ export const SkyBridgeSidebar: React.FC = () => {
         </div>
 
         <div className="mt-6 text-center text-xs text-[#FFFF55] font-bold tracking-tighter opacity-50 mc-text-shadow">
-          WWW.SKYBRIDGE.NET
+          SKYBRIDGE
         </div>
       </div>
     </div>

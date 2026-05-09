@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Chunk, CHUNK_SIZE, CHUNK_HEIGHT, WORLD_Y_OFFSET } from './Chunk';
 import { BLOCK, createTextureAtlas, isSolidBlock, isWater, isAnyTorch } from './TextureAtlas';
+import { getBattleRoyaleBlock } from './generation/BattleRoyaleGenerator';
 import { audioManager } from './AudioManager';
 import { settingsManager } from './Settings';
 import { LightingManager } from './LightingManager';
@@ -30,10 +31,11 @@ export class World {
   lightingManager: LightingManager;
   tickAccumulator: number = 0;
   tickRate: number = 0.1; // Tick every 100ms
-  queuedMobs: { type: any, pos: THREE.Vector3 }[] = [];
+  queuedMobs: { type: any, pos: THREE.Vector3, team?: string }[] = [];
   isHub: boolean = false;
   isSkyCastles: boolean = false;
   isDungeonDelver: boolean = false;
+  isBattleRoyale: boolean = false;
 
   // BAKED_BLOCKS_START
   bakedBlocks = new Map<string, number>([
@@ -1446,6 +1448,7 @@ export class World {
     this.isHub = serverName.startsWith('hub');
     this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
+    this.isBattleRoyale = serverName.startsWith('battleroyale');
     this.lightingManager = new LightingManager(this);
     const texture = createTextureAtlas();
     
@@ -1996,11 +1999,48 @@ export class World {
     if (isHub) return true;
 
     const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
-    if (this.isSkyCastles && skycastlesBakedBlocks.has(key) && skycastlesBakedBlocks.get(key) !== 0) return true;
-    if (this.bakedBlocks.has(key) && this.bakedBlocks.get(key) !== 0) return true;
+    if (this.isSkyCastles) {
+      if (skycastlesBakedBlocks.has(key) && skycastlesBakedBlocks.get(key) !== 0) return true;
+      if (this.bakedBlocks.has(key) && this.bakedBlocks.get(key) !== 0) return true;
+      if (x === 5 && y === 65 && Math.abs(z) === 189) return true;
+    }
 
     // Bedrock is always indestructible
     if (y === -60) return true;
+
+    if (this.isSkyCastles) {
+      const absX = Math.abs(x);
+      const absZ = Math.abs(z);
+      const currentBlock = this.getBlock(x, y, z);
+
+      // Huge protective zone on the entire void space from y -60 to 25, limited to between z -70 and 70
+      if (y >= -60 && y <= 25 && z >= -70 && z <= 70) {
+        if (currentBlock !== BLOCK.AIR) return true;
+      }
+
+      // 3. The stairs of the mountain castle unbreakable
+      if (absX <= 6 && (absZ >= 65 && absZ <= 175)) {
+        const groundY = getTerrainData(x, z, true, false, 800).height - 60;
+        if (y <= groundY && currentBlock !== BLOCK.AIR) return true;
+      }
+
+      // 4. The flanks in the middle void and the tunnels unbreakable
+      // Flanks
+      if (absZ <= 13 && absX <= 15) {
+        const groundY = getTerrainData(x, z, true, false, 800).height - 60;
+        if (y <= groundY && currentBlock !== BLOCK.AIR) return true;
+      }
+      
+      // Tunnels (Main tube and the vertical shafts at absZ=78)
+      if (absX >= 22 && absX <= 42 && absZ <= 315) {
+        if (y <= 24 || (Math.abs(absZ - 78) <= 5 && Math.abs(absX - 32) <= 5)) {
+           // Protect natural terrain blocks so we don't accidentally let them mine the cave walls
+           if (currentBlock === BLOCK.STONE || currentBlock === BLOCK.DIRT || currentBlock === BLOCK.GRASS || currentBlock === BLOCK.DEEPSLATE || currentBlock === BLOCK.TUFF) {
+             return true;
+           }
+        }
+      }
+    }
 
     // Castle footprints (including fences/walls at +-30)
     const isWithinX = x >= -30 && x <= 30;
@@ -2019,7 +2059,7 @@ export class World {
     const isBlueVillageZ = z >= villageStart && z <= villageEnd;
     const isRedVillageZ = z >= -villageEnd && z <= -villageStart;
     const isVillageX = x >= -50 && x <= 50;
-    if (isVillageX && (isBlueVillageZ || isRedVillageZ) && y >= 4) {
+    if (isVillageX && (isBlueVillageZ || (isRedVillageZ && this.isSkyCastles)) && y >= 4) {
       return true;
     }
 
@@ -2284,9 +2324,86 @@ export class World {
         }
 
         if (this.isDungeonDelver) {
-          const isBridge = worldZ >= -10 && worldZ <= 10 && worldX >= -10 && worldX <= 10;
-          if (isBridge) {
-            chunk.setBlockFast(x, 60, z, 1); // BLOCK.STONE
+          // Iterate over vertical space. chunk y is 0-256. world y = y - 60
+          for (let y = 0; y < 100; y++) {
+            const worldY = y - 60;
+            
+            // Catacombs boundaries
+            if (Math.abs(worldX) > 200 || Math.abs(worldZ) > 200) {
+              if (worldY >= -5 && worldY <= 15) { chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN); continue; }
+            }
+
+            // Outer bedrock/floor limits
+            if (worldY < -5) { chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN); continue; }
+            if (worldY > 15) { chunk.setBlockFast(x, y, z, Math.abs(worldX) > 200 || Math.abs(worldZ) > 200 ? BLOCK.AIR : BLOCK.STONE); continue; }
+
+            // Spawn Room (safe area)
+            const distSq = worldX * worldX + worldZ * worldZ;
+            if (distSq < 100) {
+              if (worldY === -1) {
+                chunk.setBlockFast(x, y, z, (Math.abs(worldX) + Math.abs(worldZ)) % 2 === 0 ? BLOCK.BRICK : BLOCK.STONE);
+              } else if (worldY < -1) {
+                chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              } else if (worldY > 5) {
+                chunk.setBlockFast(x, y, z, BLOCK.CONCRETE_GRAY);
+              } else if (distSq > 64 && distSq < 100) {
+                if (worldZ < -3 && Math.abs(worldX) < 3) chunk.setBlockFast(x, y, z, BLOCK.AIR);
+                else chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              } else {
+                chunk.setBlockFast(x, y, z, BLOCK.AIR);
+              }
+              continue;
+            }
+
+            // Dungeon carving logic
+            let isCarved = false;
+            const roomNoise = noise2D(worldX * 0.05, worldZ * 0.05);
+            if (roomNoise > 0.4) isCarved = true;
+
+            const tunnelNoise1 = Math.abs(noise2D(worldX * 0.03, worldZ * 0.03));
+            const tunnelNoise2 = Math.abs(noise2D(worldX * 0.03 + 1000, worldZ * 0.03 + 1000));
+            if (tunnelNoise1 < 0.06 || tunnelNoise2 < 0.06) isCarved = true;
+            
+            const caveNoise = noise3D(worldX * 0.04, worldY * 0.04, worldZ * 0.04);
+            if (caveNoise > 0.3) isCarved = true;
+
+            if (isCarved) {
+              if (worldY >= 0 && worldY <= 4) {
+                if (worldY === 0 && caveNoise > 0.5) chunk.setBlockFast(x, y, z, BLOCK.LAVA);
+                else chunk.setBlockFast(x, y, z, BLOCK.AIR);
+              } else if (worldY === -1) {
+                const detailNoise = noise2D(worldX * 0.2, worldZ * 0.2);
+                if (detailNoise > 0.4) chunk.setBlockFast(x, y, z, BLOCK.DIRT);
+                else if (detailNoise < -0.4) chunk.setBlockFast(x, y, z, BLOCK.CONCRETE_GRAY);
+                else chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              } else if (worldY < -1) {
+                chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              } else if (worldY === 5) {
+                const glowNoise = noise2D(worldX * 0.1, worldZ * 0.1);
+                if (glowNoise > 0.8) chunk.setBlockFast(x, y, z, BLOCK.GLOWSTONE);
+                else chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN);
+              } else if (worldY > 5) {
+                chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              }
+              continue;
+            }
+
+            // Solid walls
+            const wallNoise = noise3D(worldX * 0.1, worldY * 0.1, worldZ * 0.1);
+            if (wallNoise > 0.5) chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN);
+            else if (wallNoise < -0.5) chunk.setBlockFast(x, y, z, BLOCK.BRICK);
+            else chunk.setBlockFast(x, y, z, BLOCK.STONE);
+          }
+          continue;
+        }
+
+        if (this.isBattleRoyale) {
+          const mapRadius = 300;
+          
+          for (let y = 0; y < CHUNK_HEIGHT; y++) {
+            const worldY = y + WORLD_Y_OFFSET;
+            const block = getBattleRoyaleBlock(worldX, worldY, worldZ);
+            chunk.setBlockFast(x, y, z, block);
           }
           continue;
         }
@@ -2318,7 +2435,7 @@ export class World {
         const maxProtectedZ = this.isSkyCastles ? 500 : 410;
         const villageStart = this.isSkyCastles ? 70 : 61;
         const protectionWidth = this.isSkyCastles ? 100 : 50;
-        const isVillageOrCastle = (worldX >= -protectionWidth && worldX <= protectionWidth) && ((worldZ >= villageStart && maxProtectedZ >= worldZ) || (worldZ <= -villageStart && worldZ >= -maxProtectedZ));
+        const isVillageOrCastle = (worldX >= -protectionWidth && worldX <= protectionWidth) && ((worldZ >= villageStart && maxProtectedZ >= worldZ) || (worldZ <= -villageStart && worldZ >= -maxProtectedZ && this.isSkyCastles));
         const isBridgeArea = this.isSkyCastles ? worldX >= -12 && worldX <= 12 && worldZ > -70 && worldZ < 70 : false;
         const isProtected = isVillageOrCastle || isBridgeArea || isAreaProtected;
         if (this.isHub) {
@@ -2365,18 +2482,18 @@ export class World {
                   // Path logic inside villages/castles
                   let isPath = false;
                   
-                  if (!this.isSkyCastles && (isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
+                  if (!this.isSkyCastles && isBlueVillage && worldX >= -50 && worldX <= 50) {
                     const villageOffset = this.isSkyCastles ? 169 : -70;
-                    const wellZ = isBlueVillage ? (85 + villageOffset) : -(85 + villageOffset);
+                    const wellZ = 85 + villageOffset;
                     if (worldX >= -3 && worldX <= 3) isPath = true;
                     else if (worldZ >= wellZ - 3 && worldZ <= wellZ + 3 && worldX >= -45 && worldX <= 45) isPath = true;
                     else if (worldX >= -30 && worldX <= -26 && Math.abs(worldZ - wellZ) <= 20) isPath = true;
                     else if (worldX >= 26 && worldX <= 30 && Math.abs(worldZ - wellZ) <= 20) isPath = true;
-                    else if (worldX >= -9 && worldX <= -3 && Math.abs(worldZ - (isBlueVillage ? (96 + villageOffset) : -(96 + villageOffset))) <= 2) isPath = true;
-                    else if (worldX >= 3 && worldX <= 6 && Math.abs(worldZ - (isBlueVillage ? (70 + villageOffset) : -(70 + villageOffset))) <= 2) isPath = true;
-                    else if (worldX >= -15 && worldX <= -11 && Math.abs(worldZ - (isBlueVillage ? (65 + villageOffset) : -(79 + villageOffset))) <= 2) isPath = true;
-                    else if (worldX >= 6 && worldX <= 20 && Math.abs(worldZ - (isBlueVillage ? (97 + villageOffset) : -(97 + villageOffset))) <= 2) isPath = true;
-                    else if (worldX >= 38 && worldX <= 42 && Math.abs(worldZ - (isBlueVillage ? (75 + villageOffset) : -(83 + villageOffset))) <= 2) isPath = true;
+                    else if (worldX >= -9 && worldX <= -3 && Math.abs(worldZ - (96 + villageOffset)) <= 2) isPath = true;
+                    else if (worldX >= 3 && worldX <= 6 && Math.abs(worldZ - (70 + villageOffset)) <= 2) isPath = true;
+                    else if (worldX >= -15 && worldX <= -11 && Math.abs(worldZ - (65 + villageOffset)) <= 2) isPath = true;
+                    else if (worldX >= 6 && worldX <= 20 && Math.abs(worldZ - (97 + villageOffset)) <= 2) isPath = true;
+                    else if (worldX >= 38 && worldX <= 42 && Math.abs(worldZ - (75 + villageOffset)) <= 2) isPath = true;
                     
                     if (isPath) {
                       const distSq = (worldX) * (worldX) + (worldZ - wellZ) * (worldZ - wellZ);
@@ -2595,7 +2712,7 @@ export class World {
             if (animalNoise > 0.99) {
               const typeNoise = noise2D(worldX * 0.2, worldZ * 0.2);
               let type = 'Cow';
-              if (typeNoise > 0.3) type = 'Pig';
+              if (typeNoise > 0.3) type = 'Cow'; 
               else if (typeNoise < -0.3) type = 'Sheep';
               this.queuedMobs.push({ type, pos: new THREE.Vector3(worldX + 0.5, terrainHeight + 1 + WORLD_Y_OFFSET, worldZ + 0.5) });
             }
@@ -2624,9 +2741,20 @@ export class World {
               }
             }
           }
+          
+          if (this.isSkyCastles) {
+            if (worldX === 5 && worldZ === 189) {
+              const chunkY = 65 - WORLD_Y_OFFSET;
+              chunk.setBlockFast(x, Math.floor(chunkY), z, BLOCK.CHEST);
+            }
+            if (worldX === 5 && worldZ === -189) {
+              const chunkY = 65 - WORLD_Y_OFFSET;
+              chunk.setBlockFast(x, Math.floor(chunkY), z, BLOCK.CHEST_REVERSED);
+            }
+          }
 
           // Villages
-          if (!this.isSkyCastles && (isBlueVillage || isRedVillage) && worldX >= -50 && worldX <= 50) {
+          if (!this.isSkyCastles && isBlueVillage && worldX >= -50 && worldX <= 50) {
             for (let y = 65; y < CHUNK_HEIGHT; y++) {
               const block = getVillageBlock(worldX, y - 60, worldZ, isBlueVillage, this.isSkyCastles);
               if (block !== BLOCK.AIR) {
@@ -2822,58 +2950,8 @@ export class World {
             }
         }
 
-        // Giant Mythical Pirate Ships replacing Shelters
+        // Side Mines (Underground Tunnels connecting bases)
         if (!this.isHub) {
-          const pShipStart = 200;
-          const pShipEnd = 550;
-          const poolCenterZ = 310;
-          const distToBlueShipSq = worldX * worldX + (worldZ - poolCenterZ) * (worldZ - poolCenterZ);
-          const distToRedShipSq = worldX * worldX + (worldZ + poolCenterZ) * (worldZ + poolCenterZ);
-          
-          if (worldZ >= pShipStart && worldZ <= pShipEnd && worldX >= -45 && worldX <= 45) {
-             for (let y = 130; y <= 255; y++) {
-                const shipBlock = getGiantMythicalShipBlock(worldX, y, worldZ, true);
-                if (shipBlock !== BLOCK.AIR) chunk.setBlockFast(x, y, z, shipBlock);
-             }
-             if (distToBlueShipSq <= 400) {
-                 const dist = Math.sqrt(distToBlueShipSq);
-                 const depth = Math.floor(20 - dist);
-                 if (depth > 0) {
-                     const poolSurfaceY = 71;
-                     for (let y = poolSurfaceY - depth; y <= poolSurfaceY; y++) {
-                         const isEdge = y === poolSurfaceY - depth || dist >= 19;
-                         chunk.setBlockFast(x, y, z, isEdge ? BLOCK.MOSSY_COBBLESTONE : BLOCK.WATER); 
-                     }
-                     for (let y = poolSurfaceY + 1; y <= Math.min(poolSurfaceY + 15, CHUNK_HEIGHT - 1); y++) {
-                         chunk.setBlockFast(x, y, z, BLOCK.AIR);
-                     }
-                 }
-             }
-          }
-          if (worldZ <= -pShipStart && worldZ >= -pShipEnd && worldX >= -45 && worldX <= 45) {
-             for (let y = 130; y <= 255; y++) {
-                const shipBlock = getGiantMythicalShipBlock(worldX, y, worldZ, false);
-                if (shipBlock !== BLOCK.AIR) chunk.setBlockFast(x, y, z, shipBlock);
-             }
-             if (distToRedShipSq <= 400) {
-                 const dist = Math.sqrt(distToRedShipSq);
-                 const depth = Math.floor(20 - dist);
-                 if (depth > 0) {
-                     const poolSurfaceY = 71;
-                     for (let y = poolSurfaceY - depth; y <= poolSurfaceY; y++) {
-                         const isEdge = y === poolSurfaceY - depth || dist >= 19;
-                         chunk.setBlockFast(x, y, z, isEdge ? BLOCK.MOSSY_COBBLESTONE : BLOCK.WATER); 
-                     }
-                     for (let y = poolSurfaceY + 1; y <= Math.min(poolSurfaceY + 15, CHUNK_HEIGHT - 1); y++) {
-                         chunk.setBlockFast(x, y, z, BLOCK.AIR);
-                     }
-                 }
-             }
-          }
-          
-          // Note: Old Pirate Ships removed in favor of Giant Mythical Pirate Ships
-          
-          // Side Mines (Underground Tunnels connecting bases)
           const isLeftMineArea = worldX >= -40 && worldX <= -24;
           const isRightMineArea = worldX >= 24 && worldX <= 40;
           const mineZLimit = this.isSkyCastles ? 310 : 140; 
@@ -2975,13 +3053,13 @@ export class World {
             }
           }
         }
-      }
-      for (const [key, type] of this.bakedBlocks.entries()) {
-        const [bx, by, bz] = key.split(',').map(Number);
-        if (Math.floor(bx / 16) === cx && Math.floor(bz / 16) === cz) {
-          const cy = by - WORLD_Y_OFFSET;
-          if (cy >= 0 && cy < CHUNK_HEIGHT) {
-            chunk.setBlockFast(bx & 15, cy, bz & 15, type);
+        for (const [key, type] of this.bakedBlocks.entries()) {
+          const [bx, by, bz] = key.split(',').map(Number);
+          if (Math.floor(bx / 16) === cx && Math.floor(bz / 16) === cz) {
+            const cy = by - WORLD_Y_OFFSET;
+            if (cy >= 0 && cy < CHUNK_HEIGHT) {
+              chunk.setBlockFast(bx & 15, cy, bz & 15, type);
+            }
           }
         }
       }
@@ -3187,10 +3265,12 @@ export class World {
     });
   }
 
-  reset(serverName: string) {
+  reset(serverName: string = 'hub') {
+    if (!serverName) serverName = 'hub';
     this.isHub = serverName.startsWith('hub');
     this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
+    this.isBattleRoyale = serverName.startsWith('battleroyale');
 
     this.chunks.forEach(chunk => {
       if (chunk.mesh) {

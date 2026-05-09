@@ -21,6 +21,7 @@ export class PlayerInputController {
   isCrouching = false;
   isSprinting = false;
   isBlocking = false;
+  lastAttackTime = 0;
   
   constructor(player: Player) {
     this.player = player;
@@ -64,6 +65,54 @@ export class PlayerInputController {
     this.player.velocity.set(0, this.player.velocity.y, 0); // Stop horizontal movement but keep falling
   };
 
+  update() {
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      if (window.mobileInputs) {
+        // Evaluate joystick
+        const jX = window.mobileInputs.joystickX;
+        const jY = window.mobileInputs.joystickY;
+        
+        this.moveForward = jY < -0.2;
+        this.moveBackward = jY > 0.2;
+        this.moveLeft = jX < -0.2;
+        this.moveRight = jX > 0.2;
+        this.isSprinting = jY < -0.8;
+        
+        // Evaluate buttons
+        this.moveUp = window.mobileInputs.isJumping;
+        
+        const wasCrouching = this.isCrouching;
+        this.isCrouching = window.mobileInputs.isCrouching;
+        this.moveDown = window.mobileInputs.isCrouching;
+
+        const wasLeftMouseDown = this.player.isLeftMouseDown;
+        if (window.mobileInputs.isAttacking && !wasLeftMouseDown) {
+          // Trigger mouse down manually for attack/mine
+          this.onMouseDown({ button: 0 } as MouseEvent);
+        } else if (!window.mobileInputs.isAttacking && wasLeftMouseDown) {
+          this.onMouseUp({ button: 0 } as MouseEvent);
+        }
+
+        const wasRightMouseDown = this.player.isBlocking || this.player.isSwinging; // Rough approx
+        if (window.mobileInputs.isInteracting && !wasRightMouseDown) {
+           this.onMouseDown({ button: 2 } as MouseEvent);
+           // Immediately lift to avoid continuous right click spam unless held, 
+           // but keeping it simple for now and firing mouse up
+           setTimeout(() => this.onMouseUp({ button: 2 } as MouseEvent), 50);
+           window.mobileInputs.isInteracting = false; // consume it so it fires once per tap
+        }
+
+        // Camera Look
+        if (Math.abs(window.mobileInputs.lookDeltaX) > 0 || Math.abs(window.mobileInputs.lookDeltaY) > 0) {
+           this.player.mouseDeltaX += window.mobileInputs.lookDeltaX;
+           this.player.mouseDeltaY += window.mobileInputs.lookDeltaY;
+           window.mobileInputs.lookDeltaX = 0;
+           window.mobileInputs.lookDeltaY = 0;
+        }
+      }
+    }
+  }
+
   onKeyDown = (event: KeyboardEvent) => {
     if (!this.player.controls.isLocked) return;
     const { keybinds } = settingsManager.getSettings();
@@ -74,7 +123,7 @@ export class PlayerInputController {
       case keybinds.backward: this.moveBackward = true; break;
       case keybinds.right: this.moveRight = true; break;
       case keybinds.sprint: this.isSprinting = true; break;
-      case keybinds.drop: if (!this.player.world.isHub) this.dropItem(event.ctrlKey); break;
+      case keybinds.drop: if (!this.player.world.isHub && !this.player.isSpectator && !this.player.isDead) this.dropItem(event.ctrlKey); break;
       case keybinds.zoom: this.player.isZooming = true; break;
       case keybinds.perspective: 
         this.player.perspective = (this.player.perspective + 1) % 3;
@@ -141,6 +190,9 @@ export class PlayerInputController {
 
   onMouseMove = (event: MouseEvent) => {
     if (this.player.controls.isLocked) {
+      // Cap movement to prevent extreme jumps when locking/unlocking
+      if (Math.abs(event.movementX) > 500 || Math.abs(event.movementY) > 500) return;
+      
       this.player.mouseDeltaX = event.movementX;
       this.player.mouseDeltaY = event.movementY;
     }
@@ -202,7 +254,9 @@ export class PlayerInputController {
   }
 
   onMouseDown = (event: MouseEvent) => {
-    if (!this.player.controls.isLocked) return;
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!this.player.controls.isLocked && !isMobile) return;
+    if (this.player.isSpectator || this.player.isDead) return;
 
     this.player.isSwinging = true;
     this.player.swingTimer = 0;
@@ -230,6 +284,10 @@ export class PlayerInputController {
         } else if (npc.id === 'hub_npc_dungeon') {
           if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'dungeondelver' } }));
+          }
+        } else if (npc.id === 'hub_npc_br') {
+          if (networkManager.serverName.startsWith('hub')) {
+            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'battleroyale' } }));
           }
         } else if (npc.id.startsWith('bren')) {
           window.dispatchEvent(new CustomEvent('openLaunchMenu'));
@@ -293,16 +351,28 @@ export class PlayerInputController {
       }
     } else if (event.button === 0) { // Left click
       this.player.isLeftMouseDown = true;
+      
+      const now = Date.now();
+      if (now - this.lastAttackTime < 250) return;
+      
+      const rayOrigin = this.player.camera.position.clone();
+      const direction = new THREE.Vector3();
+      this.player.camera.getWorldDirection(direction);
 
       const player = this.player.entityManager.raycastPlayer(rayOrigin, direction, 4, this.player.camera);
       if (player) {
+        if (this.player.team && player.team && this.player.team === player.team) {
+           return; // Friendly fire disabled
+        }
+        
+        this.lastAttackTime = now;
         const { damage, isCrit } = this.calculateDamage();
         
         const isCombative = event.button === 0 && !this.player.isMining;
         const kbForce = isCombative ? (this.isSprinting ? 12 : 8) : 0;
         const kbDir = direction.clone().setY(0).normalize().multiplyScalar(kbForce);
         
-        networkManager.attack(player.id, false, kbDir, this.isSprinting);
+        networkManager.attack(player.id, false, kbDir, this.isSprinting, damage, isCrit);
         
         audioManager.play('hit', 0.5, 0.9 + Math.random() * 0.2);
         
@@ -328,12 +398,14 @@ export class PlayerInputController {
 
       const mob = this.player.entityManager.raycastMob(rayOrigin, direction, 4, this.player.camera);
       if (mob) {
+        if (this.player.team && mob.team && this.player.team === mob.team) return;
+        this.lastAttackTime = now;
         const { damage, isCrit } = this.calculateDamage();
         
         const isCombative = true;
         const kbForce = this.isSprinting ? 12 : 8;
         const kbDir = direction.clone().setY(0).normalize().multiplyScalar(kbForce);
-        networkManager.attack(mob.id, true, kbDir, this.isSprinting);
+        networkManager.attack(mob.id, true, kbDir, this.isSprinting, damage, isCrit);
         // We now rely on the network to dictate our damage loop output (or we can predict it locally)
         // Predicting locally for immediate feedback, but the server has the real state:
         const lootType = mob.takeDamage(damage, kbDir); 
@@ -388,6 +460,10 @@ export class PlayerInputController {
       if (event.button === 0) { // Left click: start mining
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         if (blockType !== BLOCK.AIR && blockType !== BLOCK.WATER) {
+          if (!this.player.isFlying && this.player.world.isIndestructible(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z)) {
+            // Cannot mine indestructible blocks
+            return;
+          }
           if (this.player.isFlying) {
             // Instant break for creative mode (flying)
             this.player.performBlockBreak(hitResult.blockPos, blockType);
@@ -416,6 +492,12 @@ export class PlayerInputController {
       } else if (event.button === 2) { // Right click: place block
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         
+        if (blockType === ItemType.CHEST || blockType === ItemType.ENDER_CHEST || blockType === ItemType.CHEST_REVERSED) {
+          window.dispatchEvent(new CustomEvent('openChest'));
+          this.player.controls.unlock();
+          return;
+        }
+
         if (
           blockType === ItemType.LAUNCHER ||
           blockType === ItemType.LAUNCHER_WALL_X_POS ||
@@ -476,14 +558,26 @@ export class PlayerInputController {
           }
         }
 
-        const px = Math.floor(this.player.worldPosition.x);
-        const pyFeet = Math.floor(this.player.worldPosition.y - this.player.playerHeight + 0.1);
-        const pz = Math.floor(this.player.worldPosition.z);
-        const pyHead = Math.floor(this.player.worldPosition.y);
-        
-        if ((hitResult.prevPos.x === px && hitResult.prevPos.z === pz) && 
-            (hitResult.prevPos.y === pyFeet || hitResult.prevPos.y === pyHead)) {
-          return;
+        const playerMinX = this.player.worldPosition.x - 0.3; // playerRadius
+        const playerMaxX = this.player.worldPosition.x + 0.3;
+        const playerMinY = this.player.worldPosition.y - this.player.playerHeight;
+        const playerMaxY = this.player.worldPosition.y + 0.2;
+        const playerMinZ = this.player.worldPosition.z - 0.3;
+        const playerMaxZ = this.player.worldPosition.z + 0.3;
+
+        const blockMinX = hitResult.prevPos.x;
+        const blockMaxX = hitResult.prevPos.x + 1;
+        const blockMinY = hitResult.prevPos.y;
+        const blockMaxY = hitResult.prevPos.y + 1;
+        const blockMinZ = hitResult.prevPos.z;
+        const blockMaxZ = hitResult.prevPos.z + 1;
+
+        if (isSolidBlock(placeType)) {
+          if (playerMinX < blockMaxX && playerMaxX > blockMinX &&
+              playerMinY < blockMaxY && playerMaxY > blockMinY &&
+              playerMinZ < blockMaxZ && playerMaxZ > blockMinZ) {
+            return;
+          }
         }
 
         if (selectedStack.type === ItemType.MINION) {
@@ -508,16 +602,22 @@ export class PlayerInputController {
     const stack = this.player.inventory.slots[this.player.hotbarIndex];
     if (!stack || stack.count <= 0) return;
     const itemType = stack.type as unknown as number;
-    const isTool = (itemType >= 436 && itemType <= 455) || (itemType >= 460 && itemType <= 472) || itemType === 54;
+    const isSword = itemType >= 441 && itemType <= 445;
+    const isTool = ((itemType >= 436 && itemType <= 455) || (itemType >= 460 && itemType <= 472) || itemType === 54) && !isSword;
     
     if (isTool) {
-      if (this.player.inventory.damageItem(this.player.hotbarIndex, 1)) {
-        audioManager.play('pop', 0.5, 0.5);
+      const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
+      const isSkyCastles = serverName.startsWith('skycastles');
+      if (!isSkyCastles) {
+        if (this.player.inventory.damageItem(this.player.hotbarIndex, 1)) {
+          audioManager.play('pop', 0.5, 0.5);
+        }
       }
     }
   }
 
   onMouseUp = (event: MouseEvent) => {
+    if (this.player.isSpectator || this.player.isDead) return;
     if (event.button === 0) {
       this.player.isLeftMouseDown = false;
       this.player.isMining = false;

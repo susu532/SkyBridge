@@ -27,7 +27,7 @@ export const LevelUpUI: React.FC = () => {
                 ]
               }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="text-6xl font-black uppercase tracking-[0.3em] italic drop-shadow-[4px_4px_0_rgba(0,0,0,1)]"
+              className="text-4xl md:text-6xl font-black uppercase tracking-[0.2em] md:tracking-[0.3em] italic drop-shadow-[4px_4px_0_rgba(0,0,0,1)] text-center px-4"
             >
               Level Up!
             </motion.div>

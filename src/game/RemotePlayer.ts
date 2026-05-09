@@ -4,6 +4,7 @@ import { createItemModel } from './ItemModels';
 import { getBlockUVs, createTextureAtlas, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting } from './TextureAtlas';
 import { settingsManager } from './Settings';
 import { ItemType } from './Inventory';
+import { audioManager } from './AudioManager';
 
 export class RemotePlayer {
   id: string;
@@ -42,6 +43,8 @@ export class RemotePlayer {
   swingSpeed = 15;
   
   skills: any = {};
+  isDead: boolean = false;
+  isSpectator: boolean = false;
   
   walkCycle = 0;
   swingTimer = 0;
@@ -59,9 +62,11 @@ export class RemotePlayer {
   gliderRightWing: THREE.Mesh | null = null;
   
   health: number = 100;
+  team?: string;
   
   // Head and body rotation tracking
   name: string;
+  skinSeed: string = "";
   
   headYaw = 0;
   headPitch = 0;
@@ -88,6 +93,7 @@ export class RemotePlayer {
     this.targetRotation = new THREE.Euler();
     this.lastNetPos = new THREE.Vector3();
     this.name = name;
+    this.team = team;
     
     this.createModel(skinSeed, team);
     this.group.userData = { isPlayer: true, playerId: id };
@@ -113,21 +119,46 @@ export class RemotePlayer {
     return new THREE.Box3(min, max);
   }
 
+  updateSkin(newSkinSeed: string) {
+    this.skinSeed = newSkinSeed;
+    const skinTexture = generateSkin(newSkinSeed);
+    this.group.traverse((child: any) => {
+      if (child.isMesh && child.material && child.material.map && child.material.map.name !== 'cosmetic') {
+         child.material.map = skinTexture;
+         child.material.needsUpdate = true;
+      }
+    });
+  }
+
+  updateNametag(newName: string) {
+    this.name = newName;
+  }
+
   private createModel(skinSeed: string, team?: string) {
+    const isPerformance = settingsManager.getSettings().performanceMode;
     const skinTexture = generateSkin(skinSeed);
-    const skinMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture,
-      roughness: 0.8,
-      metalness: 0.1
-    });
-    const outerMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture, 
-      transparent: true, 
-      alphaTest: 0.1, 
-      side: THREE.DoubleSide,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture,
+        roughness: 0.8,
+        metalness: 0.1
+      });
+    const outerMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide
+      }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide,
+        roughness: 0.8,
+        metalness: 0.1
+      });
 
     // Body (The central pivot for the upper body)
     const bodyGeo = new THREE.BoxGeometry(0.4, 0.6, 0.2);
@@ -145,7 +176,9 @@ export class RemotePlayer {
     
     // Backpack
     const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.15);
-    const packMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
+    const packMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ color: 0x5c4033 }) :
+      new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
     const backpack = new THREE.Mesh(packGeo, packMat);
     backpack.position.set(0, 0, 0.18);
     backpack.castShadow = true;
@@ -230,7 +263,9 @@ export class RemotePlayer {
     // Cape (Child of Body)
     const capeGeo = new THREE.BoxGeometry(0.4, 1.0, 0.05);
     const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
-    const capeMat = new THREE.MeshStandardMaterial({ color: capeColor, roughness: 0.7 });
+    const capeMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ color: capeColor }) :
+      new THREE.MeshStandardMaterial({ color: capeColor, roughness: 0.7 });
     this.capeMesh = new THREE.Mesh(capeGeo, capeMat);
     this.capeMesh.position.set(0, 0.3, 0.1); // Relative to body center
     this.capeMesh.geometry.translate(0, -0.5, 0);
@@ -243,11 +278,16 @@ export class RemotePlayer {
 
     // Held Item (Child of Right Arm)
     const itemGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
-    const itemMat = new THREE.MeshStandardMaterial({ 
-      transparent: true, 
-      alphaTest: 0.5,
-      roughness: 0.8
-    });
+    const itemMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ 
+        transparent: true, 
+        alphaTest: 0.5
+      }) :
+      new THREE.MeshStandardMaterial({ 
+        transparent: true, 
+        alphaTest: 0.5,
+        roughness: 0.8
+      });
     this.heldItemMesh = new THREE.Mesh(itemGeo, itemMat);
     this.heldItemMesh.position.set(0, -0.45, -0.15);
     this.heldItemMesh.visible = false;
@@ -255,9 +295,88 @@ export class RemotePlayer {
     this.rightArmMesh.add(this.heldItemModel);
     this.rightArmMesh.add(this.heldItemMesh);
 
+    // Off-Hand Item (Child of Left Arm)
+    const offHandItemMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ 
+        transparent: true, 
+        alphaTest: 0.5
+      }) :
+      new THREE.MeshStandardMaterial({ 
+        transparent: true, 
+        alphaTest: 0.5,
+        roughness: 0.8
+      });
+    this.offHandItemMesh = new THREE.Mesh(itemGeo, offHandItemMat);
+    this.offHandItemMesh.position.set(0, -0.45, -0.15);
+    this.offHandItemMesh.visible = false;
+    this.offHandItemModel = new THREE.Group();
+    this.leftArmMesh.add(this.offHandItemModel);
+    this.leftArmMesh.add(this.offHandItemMesh);
+
     this.torchLight = new THREE.PointLight(0xffbd5c, 160.0, 35); 
     this.torchLight.visible = false;
     this.group.add(this.torchLight);
+  }
+
+  public updateTeam(team?: string) {
+    this.team = team;
+    if (this.capeMesh && this.capeMesh.material) {
+      const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
+      const mat = this.capeMesh.material as any;
+      if (mat.color !== undefined) mat.color.setHex(capeColor);
+      if (this.capeMesh.userData.originalMaterial) {
+        const origMat = this.capeMesh.userData.originalMaterial as any;
+        if (origMat.color !== undefined) origMat.color.setHex(capeColor);
+      }
+    }
+    
+    if (this.gliderLeftWing && this.gliderRightWing) {
+      let emissiveColor = 0x2a1b4d;
+      let accentColor = 0x8a2be2;
+      let accentEmissive = 0x9b59b6;
+      
+      if (team === 'red') {
+        emissiveColor = 0x4d1b1b;
+        accentColor = 0xe22b2b;
+        accentEmissive = 0xb65959;
+      } else if (team === 'blue') {
+        emissiveColor = 0x1b1b4d;
+        accentColor = 0x2b2be2;
+        accentEmissive = 0x5959b6;
+      }
+      
+      const setGliderColor = (wing: THREE.Mesh | null) => {
+        if (!wing) return;
+        wing.children.forEach(child => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            const mat = mesh.material as any;
+            if (mat && mat.color !== undefined && mat.emissive !== undefined) {
+              if (mesh.scale.x > 10) { // Accent
+                mat.color.setHex(accentColor);
+                mat.emissive.setHex(accentEmissive);
+              } else { // Base wing
+                mat.emissive.setHex(emissiveColor);
+              }
+            }
+            if (mesh.userData.originalMaterial) {
+              const origMat = mesh.userData.originalMaterial as any;
+              if (origMat && origMat.color !== undefined && origMat.emissive !== undefined) {
+                if (mesh.scale.x > 10) { // Accent
+                  origMat.color.setHex(accentColor);
+                  origMat.emissive.setHex(accentEmissive);
+                } else { // Base wing
+                  origMat.emissive.setHex(emissiveColor);
+                }
+              }
+            }
+          }
+        });
+      };
+      
+      setGliderColor(this.gliderLeftWing);
+      setGliderColor(this.gliderRightWing);
+    }
   }
 
   private createGlider(team?: string) {
@@ -374,10 +493,10 @@ export class RemotePlayer {
     if (this.torchLight) {
       this.torchLight.visible = isTorch;
       if (isTorch) {
-        if (offHandType === ItemType.TORCH) {
-          this.torchLight.position.set(-0.3, 1.2, 0); 
-        } else {
+        if (type === ItemType.TORCH) {
           this.torchLight.position.set(0.3, 1.2, 0);
+        } else {
+          this.torchLight.position.set(-0.3, 1.2, 0);
         }
       }
     }
@@ -423,9 +542,12 @@ export class RemotePlayer {
         if (isOffHand) this.currentOffHandModelType = type;
         else this.currentModelType = type;
 
+        const side = isOffHand ? -1 : 1;
+
         if (isFood) {
           model.position.set(0, -0.42, 0);
           model.scale.set(0.8, 0.8, 0.8);
+          model.rotation.set(0, 0, 0);
         } else if (isTorch) {
           model.position.set(0, -0.3, -0.1);
           model.scale.set(1.2, 1.2, 1.2);
@@ -433,16 +555,18 @@ export class RemotePlayer {
         } else if (isMaterial && !isTool) {
           model.position.set(0, -0.45, -0.05);
           model.scale.set(0.9, 0.9, 0.9);
+          model.rotation.set(Math.PI / 8, 0, Math.PI / 16 * side);
         } else {
           model.position.set(0, -0.4, -0.1);
           model.scale.set(1.1, 1.1, 1.1);
-          model.rotation.set(-Math.PI / 4, Math.PI / 8, Math.PI / 16);
+          model.rotation.set(-Math.PI / 4, Math.PI / 8 * side, Math.PI / 16 * side);
         }
       }
     } else {
       model.visible = false;
       mesh.visible = true;
       
+      const side = isOffHand ? -1 : 1;
       const uvs = getBlockUVs(type);
       if (uvs) {
         const isFlat = isFlatItem(type);
@@ -451,7 +575,7 @@ export class RemotePlayer {
         if (isFlat) {
           mesh.scale.set(1.4, 1.4, 0.05);
           mesh.position.set(0, -0.4, -0.1);
-          mesh.rotation.set(Math.PI / 8, Math.PI / 4, 0); 
+          mesh.rotation.set(Math.PI / 8, Math.PI / 4 * side, 0); 
           (mesh.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
         } else if (plant) {
           mesh.scale.set(1, 1, 0.05);
@@ -496,15 +620,68 @@ export class RemotePlayer {
 
   update(delta: number, localPlayerPos?: THREE.Vector3) {
     if (localPlayerPos) {
-      const distSq = this.currentPos.distanceToSquared(localPlayerPos);
-      if (distSq > 10000) { // > 100 blocks
+      const distSq = this.targetPosition.distanceToSquared(localPlayerPos);
+      const isPerformance = settingsManager.getSettings().performanceMode;
+      const hideDistSq = isPerformance ? 4096 : 10000; // 64 blocks for performance vs 100 blocks
+      
+      if (distSq > hideDistSq || this.isDead) { // Hide geometry at distance
         this.group.visible = false;
-        return; // Don't even interpolate if too far
+        this.currentPos.copy(this.targetPosition);
+        this.group.position.copy(this.currentPos);
+        return;
       }
       
       this.group.visible = true;
+
+      // Make spectator semi-transparent
+      if (this.isSpectator) {
+         this.group.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+               const mesh = child as THREE.Mesh;
+               if (!mesh.userData.originalMaterial) {
+                  mesh.userData.originalMaterial = mesh.material;
+                  const newMat = Array.isArray(mesh.material) ? mesh.material.map(m => m.clone()) : (mesh.material as THREE.Material).clone();
+                  if (Array.isArray(newMat)) {
+                     newMat.forEach(m => { m.transparent = true; m.opacity = 0.3; m.alphaTest = 0.01; });
+                  } else {
+                     newMat.transparent = true; newMat.opacity = 0.3; newMat.alphaTest = 0.01;
+                  }
+                  mesh.material = newMat;
+               }
+            }
+         });
+      } else {
+         this.group.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh && child.userData.originalMaterial) {
+               const mesh = child as THREE.Mesh;
+               // dispose cloned material
+               if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach(m => m.dispose());
+               } else {
+                  mesh.material.dispose();
+               }
+               mesh.material = mesh.userData.originalMaterial;
+               delete mesh.userData.originalMaterial;
+            }
+         });
+      }
+
+      if (this.torchLight) {
+        const isTorch = this.heldItemType === ItemType.TORCH;
+        this.torchLight.visible = isTorch && distSq < 900; // Only show other player torches within 30 blocks
+      }
       
-      // Stop animating limbs if > 60 blocks, just move them
+      // Toggle shadows based on distance to save rendering time (30 blocks)
+      const shouldCastShadow = distSq < 900;
+      if (this.bodyMesh.castShadow !== shouldCastShadow) {
+         this.bodyMesh.traverse((child) => {
+            child.castShadow = shouldCastShadow;
+         });
+         this.leftLegMesh.castShadow = shouldCastShadow;
+         this.rightLegMesh.castShadow = shouldCastShadow;
+      }
+
+      // Stop animating limbs if > 60 blocks (3600 sq) - just teleport them smoothly
       if (distSq > 3600) {
         this.currentPos.copy(this.targetPosition);
         this.group.position.copy(this.currentPos);
@@ -549,6 +726,11 @@ export class RemotePlayer {
     while (diffPitch < -Math.PI) diffPitch += Math.PI * 2;
     while (diffPitch > Math.PI) diffPitch -= Math.PI * 2;
     this.headPitch += diffPitch * lerpFactor;
+
+    // Limit head vertical rotation
+    const limitUp = Math.PI * 0.40; // ~72 degrees
+    const limitDown = Math.PI * 0.48; // ~86 degrees
+    this.headPitch = Math.max(-limitDown, Math.min(limitUp, this.headPitch));
 
     // 2. Body yaw logic: body follows head but can lag behind
     // If moving, body faces look direction
@@ -610,7 +792,15 @@ export class RemotePlayer {
     if (isMoving) {
       let cycleSpeed = this.isSprinting ? 15 : 10;
       if (this.isCrouching) cycleSpeed = 8; // Slower steps when crouching
+      const oldWalkCycle = this.walkCycle;
       this.walkCycle += delta * cycleSpeed;
+      
+      // Play positional footstep sound at the peak of the walk cycle
+      if (Math.sin(this.walkCycle) < 0 && Math.sin(oldWalkCycle) >= 0) {
+        // Just use 'grass'/'stone' interchangeably, or if we want exact surface we need world.
+        // For simplicity 'grass' or default step is fine for remote players
+        audioManager.playPositionalStep('stone', this.group.position);
+      }
     } else {
       this.walkCycle = 0;
     }
@@ -704,9 +894,79 @@ export class RemotePlayer {
         this.leftArmMesh.rotation.x = -swingAngle;
         this.rightArmMesh.rotation.x = swingAngle;
       }
-      if (this.isSwinging) {
-        this.rightArmMesh.rotation.x = Math.sin(this.swingTimer) * 2.0;
+      // Basic crouching support for performance mode
+      if (this.crouchTransition > 0.01) {
+        const t = this.crouchTransition;
+        this.bodyMesh.rotation.x = -0.5 * t;
+        
+        // Lower the body mesh specifically to simulate the crouch
+        const crouchDrop = 0.35 * t;
+        this.bodyMesh.position.y = 0.9 - crouchDrop;
+        this.bodyMesh.position.z = -0.15 * t;
+        
+        // Squash torso
+        const bodyScaleY = 1.0 - 0.2 * t;
+        this.bodyMesh.scale.y = bodyScaleY;
+        // Inverse scale children to keep them uniform
+        this.headMesh.scale.y = 1.0 / bodyScaleY;
+        this.leftArmMesh.scale.y = 1.0 / bodyScaleY;
+        this.rightArmMesh.scale.y = 1.0 / bodyScaleY;
+
+        this.headMesh.position.y = 0.5 + 0.05 * t;
+        this.leftArmMesh.position.y = 0.3 + 0.05 * t;
+        this.rightArmMesh.position.y = 0.3 + 0.05 * t;
+        
+        // Bend legs (simulated by rotating them forward and shifting up)
+        this.leftLegMesh.rotation.x = 0.3 * t;
+        this.rightLegMesh.rotation.x = 0.3 * t;
+
+        if (isMoving) {
+          // Tactical sneak walk arms
+          const sneakStride = this.walkCycle * 0.8;
+          const sneakSwing = Math.sin(sneakStride) * 0.4 * t;
+          
+          this.leftLegMesh.rotation.x += sneakSwing;
+          this.rightLegMesh.rotation.x -= sneakSwing;
+
+          const baseArmX = -0.4 * t;
+          const baseArmZ = 0.15 * t;
+          
+          this.leftArmMesh.rotation.x = baseArmX - sneakSwing * 0.3;
+          this.rightArmMesh.rotation.x = baseArmX + sneakSwing * 0.3;
+          this.leftArmMesh.rotation.z = baseArmZ;
+          this.rightArmMesh.rotation.z = -baseArmZ;
+        } else {
+          // Idle crouch arms
+          this.leftArmMesh.rotation.x = 0.2 * t;
+          this.rightArmMesh.rotation.x = 0.2 * t;
+          this.leftArmMesh.rotation.z = 0.15 * t;
+          this.rightArmMesh.rotation.z = -0.15 * t;
+        }
+      } else {
+        // Reset positions if not crouching
+        this.bodyMesh.position.y = 0.9;
+        this.bodyMesh.position.z = 0;
+        this.bodyMesh.scale.y = 1.0;
+        
+        this.headMesh.scale.y = 1.0;
+        this.leftArmMesh.scale.y = 1.0;
+        this.rightArmMesh.scale.y = 1.0;
+        
+        this.headMesh.position.y = 0.5;
+        this.leftArmMesh.position.y = 0.3;
+        this.rightArmMesh.position.y = 0.3;
       }
+
+      if (this.isSwinging) {
+        this.rightArmMesh.rotation.x = Math.sin(this.swingTimer) * 2.0; 
+      }
+
+      // Final clamp for head rotation
+      const limitUpHead = Math.PI * 0.35;
+      const limitDownHead = Math.PI * 0.20; // ~86 degrees
+      // Apply the head rotation offset after clamp
+      const headPitchOffset = this.crouchTransition > 0.01 ? (this.crouchTransition * 0.5) : 0;
+      this.headMesh.rotation.x = Math.max(-limitDownHead, Math.min(limitUpHead, this.headMesh.rotation.x)) + headPitchOffset;
       return;
     }
 
@@ -855,8 +1115,6 @@ export class RemotePlayer {
       
       // Lean body forward (head and arms follow because they are children)
       this.bodyMesh.rotation.x = THREE.MathUtils.lerp(this.bodyMesh.rotation.x, -0.5, t);
-      // Counter-rotate head to look forward
-      this.headMesh.rotation.x += 0.4 * t;
       
       // Bend legs (simulated by rotating them forward and shifting up)
       this.leftLegMesh.rotation.x = THREE.MathUtils.lerp(this.leftLegMesh.rotation.x, 0.3, t);
@@ -933,6 +1191,14 @@ export class RemotePlayer {
         this.rightArmMesh.rotation.x -= 0.2;
       }
     }
+
+    // Final clamp for head rotation to prevent extreme angles from animations
+    const limitUpHead = Math.PI * 0.35;
+    const limitDownHead = Math.PI * 0.20; // ~86 degrees
+    
+    // Apply the head rotation offset after clamp so crouch still looks right
+    const headPitchOffset = this.crouchTransition > 0.01 ? (this.crouchTransition * 0.5) : 0;
+    this.headMesh.rotation.x = Math.max(-limitDownHead, Math.min(limitUpHead, this.headMesh.rotation.x)) + headPitchOffset;
   }
 
   takeDamage(knockbackDir?: THREE.Vector3) {
@@ -952,17 +1218,33 @@ export class RemotePlayer {
     this.visualOffset.y += 0.2;
 
     this.group.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
-        obj.material.emissive.setHex(0xff0000);
-        obj.material.emissiveIntensity = 0.5;
-        
-        // Use a local timeout for this specific material to ensure it resets
-        setTimeout(() => {
-          if (obj.material instanceof THREE.MeshStandardMaterial) {
-            obj.material.emissive.setHex(0x000000);
-            obj.material.emissiveIntensity = 0;
-          }
-        }, 200);
+      if (obj instanceof THREE.Mesh && obj.material) {
+        const mat = obj.material as any;
+        if (mat.emissive !== undefined) {
+          mat.emissive.setHex(0xff0000);
+          mat.emissiveIntensity = 0.5;
+          
+          // Use a local timeout for this specific material to ensure it resets
+          setTimeout(() => {
+            if (obj.material) {
+              const m = obj.material as any;
+              if (m.emissive !== undefined) {
+                m.emissive.setHex(0x000000);
+                m.emissiveIntensity = 0;
+              }
+            }
+          }, 200);
+        } else if (mat.color !== undefined) {
+          mat.color.setHex(0xff0000);
+          setTimeout(() => {
+            if (obj.material) {
+              const m = obj.material as any;
+              if (m.color !== undefined) {
+                m.color.setHex(0xffffff);
+              }
+            }
+          }, 200);
+        }
       }
     });
   }

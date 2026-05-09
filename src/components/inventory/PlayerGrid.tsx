@@ -12,7 +12,7 @@ interface PlayerGridProps {
 
 export const PlayerGrid: React.FC<PlayerGridProps> = ({ inventory, handleSlotInteraction, handleDoubleClick, setHoveredItem, dragState }) => {
   return (
-    <div className="grid grid-cols-9 gap-1 mb-4">
+    <div className="grid grid-cols-9 gap-[1px] sm:gap-1 mb-4">
       {Array.from({ length: 27 }).map((_, i) => (
         <Slot 
           key={i} 

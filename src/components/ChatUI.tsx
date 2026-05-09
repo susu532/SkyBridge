@@ -7,6 +7,28 @@ interface ChatMessage {
   message: string;
 }
 
+const formatMessage = (msg: string) => {
+  if (!msg.includes('§')) return <span>{msg}</span>;
+  
+  const parts = msg.split(/(§[0-9a-fk-or])/);
+  let currentColor = 'inherit';
+  
+  const colorMap: Record<string, string> = {
+    '§0': '#000000', '§1': '#0000AA', '§2': '#00AA00', '§3': '#00AAAA',
+    '§4': '#AA0000', '§5': '#AA00AA', '§6': '#FFAA00', '§7': '#AAAAAA',
+    '§8': '#555555', '§9': '#5555FF', '§a': '#55FF55', '§b': '#55FFFF',
+    '§c': '#FF5555', '§d': '#FF55FF', '§e': '#FFFF55', '§f': '#FFFFFF'
+  };
+
+  return parts.map((part, index) => {
+    if (colorMap[part]) {
+      currentColor = colorMap[part];
+      return null;
+    }
+    return <span key={index} style={{ color: currentColor }}>{part}</span>;
+  });
+};
+
 export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTyping }: { isLocked: boolean, isTyping: boolean, setIsTyping: (v: boolean) => void }) {
   const messages = useGameStore(state => state.chatMessages);
   const [inputValue, setInputValue] = useState('');
@@ -51,18 +73,18 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
 
   return (
     <div 
-      className="absolute bottom-24 left-4 w-80 flex flex-col gap-2 pointer-events-none z-40"
+      className="absolute bottom-20 md:bottom-24 left-2 md:left-4 w-[75vw] sm:w-80 flex flex-col gap-2 pointer-events-none z-30 safe-ml"
       onClick={(e) => e.stopPropagation()}
     >
       <div 
         ref={chatContainerRef}
-        className="max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
+        className="max-h-48 md:max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
         style={{ scrollbarWidth: 'none' }}
       >
         {messages.map((msg, i) => (
-          <div key={i} className="text-[14px] text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/0 px-1 py-0.5 rounded w-fit max-w-full break-words font-sans">
+          <div key={i} className="text-[12px] md:text-[14px] text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/0 px-1 py-0.5 rounded w-fit max-w-full break-words font-sans selection:bg-white/30">
             <span className="font-bold text-[#FFFF55]">{msg.sender}: </span>
-            <span>{msg.message}</span>
+            {formatMessage(msg.message)}
           </div>
         ))}
       </div>
@@ -75,7 +97,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleInputKeyDown}
-            className="bg-transparent text-white outline-none w-full font-sans text-[14px]"
+            className="bg-transparent text-white outline-none w-full font-sans text-[12px] md:text-[14px]"
             placeholder=""
             maxLength={100}
             onBlur={() => {
@@ -86,7 +108,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
         </div>
       )}
       {!isTyping && !isLocked && (
-        <div className="text-xs text-white/50 drop-shadow-md">Press Enter to chat</div>
+        <div className="text-[10px] md:text-xs text-white/50 drop-shadow-md hidden md:block">Press Enter to chat</div>
       )}
     </div>
   );

@@ -19,7 +19,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
     <div className="flex flex-col items-center justify-center">
       <div className="text-[#373737] text-xs mb-1 self-start">Crafting</div>
       <div className="flex items-center gap-4">
-        <div className="grid grid-cols-2 gap-1">
+        <div className="grid grid-cols-2 gap-[1px] sm:gap-1">
           {craftingGrid.map((item, i) => (
             <Slot 
               key={i} 

@@ -39,13 +39,13 @@ export const SkyBridgeActionBar: React.FC = () => {
   }, []);
 
   return (
-    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-12 pointer-events-none select-none mc-font">
+    <div className="absolute bottom-[90px] md:bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 md:gap-12 pointer-events-none select-none mc-font w-full max-w-[100vw] justify-center px-2">
       {/* Health */}
       <div className="flex flex-col items-center">
-        <div className="text-[#FF5555] font-bold text-2xl mc-text-shadow mb-1">
+        <div className="text-[#FF5555] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow mb-0.5 md:mb-1 whitespace-nowrap">
           {Math.floor(stats.health)}/{stats.maxHealth}❤
         </div>
-        <div className="w-40 h-3 bg-black/60 border-2 border-black/80 rounded-sm overflow-hidden">
+        <div className="w-20 sm:w-24 md:w-40 h-2 md:h-3 bg-black/60 border border-black/80 md:border-2 rounded-sm overflow-hidden">
           <div 
             className="h-full bg-[#FF5555] transition-all duration-300"
             style={{ width: `${(stats.health / stats.maxHealth) * 100}%` }}
@@ -55,17 +55,17 @@ export const SkyBridgeActionBar: React.FC = () => {
 
       {/* Defense */}
       <div className="flex flex-col items-center">
-        <div className="text-[#55FF55] font-bold text-2xl mc-text-shadow">
-          {stats.defense}❈ Defense
+        <div className="text-[#55FF55] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow whitespace-nowrap pt-3 md:pt-0">
+          {stats.defense}❈ <span className="hidden md:inline">Defense</span>
         </div>
       </div>
 
       {/* Intelligence/Mana */}
       <div className="flex flex-col items-center">
-        <div className="text-[#55FFFF] font-bold text-2xl mc-text-shadow mb-1">
+        <div className="text-[#55FFFF] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow mb-0.5 md:mb-1 whitespace-nowrap">
           {Math.floor(stats.intelligence)}/{stats.maxIntelligence}✎
         </div>
-        <div className="w-40 h-3 bg-black/60 border-2 border-black/80 rounded-sm overflow-hidden">
+        <div className="w-20 sm:w-24 md:w-40 h-2 md:h-3 bg-black/60 border border-black/80 md:border-2 rounded-sm overflow-hidden">
           <div 
             className="h-full bg-[#55FFFF] transition-all duration-300"
             style={{ width: `${(stats.intelligence / stats.maxIntelligence) * 100}%` }}

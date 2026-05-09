@@ -11,6 +11,9 @@
     @apply bg-black text-white antialiased;
     font-family: var(--font-sans);
     user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
   }
 }
 
@@ -56,6 +59,15 @@
   .perspective-1000 {
     perspective: 1000px;
   }
+
+  .safe-pl { padding-left: max(1rem, env(safe-area-inset-left)); }
+  .safe-pr { padding-right: max(1rem, env(safe-area-inset-right)); }
+  .safe-pt { padding-top: max(1rem, env(safe-area-inset-top)); }
+  .safe-pb { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  
+  .safe-ml { margin-left: env(safe-area-inset-left); }
+  .safe-mr { margin-right: env(safe-area-inset-right); }
+  .safe-mb { margin-bottom: env(safe-area-inset-bottom); }
 }
 
 @keyframes slideUpFade {

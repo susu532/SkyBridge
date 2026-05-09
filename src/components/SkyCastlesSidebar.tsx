@@ -1,11 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 export const SkyCastlesSidebar: React.FC = () => {
   const currentMode = useGameStore(state => state.currentMode);
   const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
   const addSkycoins = useGameStore(state => state.addSkycoins);
-  const [recentRewards, setRecentRewards] = React.useState<{id: number, amount: number}[]>([]);
+  const serverId = useGameStore(state => state.serverId);
+  const [recentRewards, setRecentRewards] = useState<{id: number, amount: number}[]>([]);
+  const [syncState, setSyncState] = useState<any>(null);
+  const dateStr = new Date().toLocaleDateString('en-GB', { year: '2-digit', month: '2-digit', day: '2-digit' });
 
   useEffect(() => {
     const handleSkycoinsReward = (e: any) => {
@@ -18,25 +21,66 @@ export const SkyCastlesSidebar: React.FC = () => {
         setRecentRewards(prev => prev.filter(r => r.id !== id));
       }, 2000);
     };
+
+    const handleSync = (e: any) => {
+      setSyncState((prev: any) => {
+        const next = e.detail;
+        if (!prev) return next;
+        if (
+          prev.redHp === next.redHp &&
+          prev.blueHp === next.blueHp &&
+          prev.gameState === next.gameState &&
+          prev.timeToRestart === next.timeToRestart
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    };
     
     window.addEventListener('skycoinsRewarded', handleSkycoinsReward);
-    return () => window.removeEventListener('skycoinsRewarded', handleSkycoinsReward);
+    window.addEventListener('skyCastlesSync', handleSync);
+    return () => {
+      window.removeEventListener('skycoinsRewarded', handleSkycoinsReward);
+      window.removeEventListener('skyCastlesSync', handleSync);
+    };
   }, [addSkycoins]);
 
   return (
-    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-none mc-font z-10">
+    <div className="absolute right-2 md:right-4 top-16 md:top-20 flex flex-col gap-2 pointer-events-none mc-font z-10 transform scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">
           +{reward.amount} Skycoins!
         </div>
       ))}
-      <div className="bg-black/60 backdrop-blur-md p-4 border-l-4 border-[#FFAA00] text-white text-base shadow-2xl min-w-[200px]">
+      <div className="bg-black/60 backdrop-blur-md p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
         <div className="text-[#FFAA00] font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">SkyCastles</div>
         <div className="text-white/60 text-xs text-center mb-3 border-b border-white/10 pb-2 mc-text-shadow">
-          04/11/26 <span className="text-[#55FF55]">m123</span>
+          {dateStr} <span className="text-[#55FF55]">{serverId || 'm123'}</span>
         </div>
         
         <div className="space-y-2">
+          {syncState && (
+            <div className="flex flex-col pt-1 pb-2 gap-1.5">
+              <div className="text-white text-xs font-bold mc-text-shadow flex justify-between items-center">
+                <span>Red Morvane:</span>
+                <span className={syncState.redHp > 0 ? "text-[#FF5555]" : "text-gray-500"}>
+                  {syncState.redHp > 0 ? `${Math.ceil(syncState.redHp)}/${syncState.redMax}` : 'DEAD'}
+                </span>
+              </div>
+              <div className="text-white text-xs font-bold mc-text-shadow flex justify-between items-center">
+                <span>Blue Morvane:</span>
+                <span className={syncState.blueHp > 0 ? "text-[#5555FF]" : "text-gray-500"}>
+                  {syncState.blueHp > 0 ? `${Math.ceil(syncState.blueHp)}/${syncState.blueMax}` : 'DEAD'}
+                </span>
+              </div>
+              {syncState.gameState === 'endgame' && (
+                <div className="text-[#FFAA00] text-xs font-bold text-center mt-2 animate-pulse">
+                  Restart in {syncState.timeToRestart}s
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-col border-t border-white/10 pt-2 mt-2">
             <span className="text-[#FFFF55] text-sm mc-text-shadow font-bold">● Skycoins: {skycoins}</span>
           </div>
@@ -47,7 +91,7 @@ export const SkyCastlesSidebar: React.FC = () => {
         </div>
 
         <div className="mt-6 text-center text-xs text-[#FFAA00] font-bold tracking-tighter opacity-50 mc-text-shadow">
-          WWW.SKYCASTLES.NET
+          SKYCASTLES
         </div>
       </div>
     </div>

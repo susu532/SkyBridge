@@ -1,7 +1,7 @@
 // Worker for offloading Chunk Meshing and Terrain Generation
 // This establishes the architecture for passing Float32Arrays directly to Three.js
 
-import { BLOCK, getBlockUVs, isTransparent, isCutout, isSolidBlock, isSlab, isWater, ATLAS_TILES, isPlant, isLeaves, isAnyTorch } from './TextureAtlas';
+import { BLOCK, getBlockUVs, isTransparent, isCutout, isSolidBlock, isSlab, isWater, ATLAS_TILES, isPlant, isLeaves, isAnyTorch, isChest } from './TextureAtlas';
 
 export interface ChunkMesherRequest {
   taskId: number;
@@ -243,6 +243,22 @@ class LayerData {
         p[3][1] = y + 0.5;
         p[6][1] = y + 0.5;
         p[7][1] = y + 0.5;
+      } else if (isChest(blockType)) {
+        const m = 0.0625;
+        const hOffset = 0.4; // Make the chest 0.6 blocks tall (less tall)
+        const bevel = 0.1; // Inward curve for top angles
+        
+        // Bottom points (y)
+        p[0][0]+=m; p[0][2]-=m;
+        p[1][0]-=m; p[1][2]-=m;
+        p[4][0]-=m; p[4][2]+=m;
+        p[5][0]+=m; p[5][2]+=m;
+        
+        // Top points (y + 1)
+        p[2][0]-=(m + bevel); p[2][1]-=hOffset; p[2][2]-=(m + bevel);
+        p[3][0]+=(m + bevel); p[3][1]-=hOffset; p[3][2]-=(m + bevel);
+        p[6][0]+=(m + bevel); p[6][1]-=hOffset; p[6][2]+=(m + bevel);
+        p[7][0]-=(m + bevel); p[7][1]-=hOffset; p[7][2]+=(m + bevel);
       } else if (blockType === BLOCK.LAUNCHER) { // Floor pad
          p[0][0] = x + 0.1; p[0][2] = z + 0.9;
          p[1][0] = x + 0.9; p[1][2] = z + 0.9;
@@ -631,7 +647,8 @@ class LayerData {
 
           const typeIsSlab = isSlab(type);
           const typeIsWater = isWater(type);
-          const isFullBlock = !typeIsSlab && !typeIsWater && !isCutout(type);
+          const typeIsChest = isChest(type);
+          const isFullBlock = !typeIsSlab && !typeIsWater && !isCutout(type) && !typeIsChest;
           
           // Right (dir 0)
           let nType;
@@ -642,7 +659,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[0 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -666,7 +683,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[15 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -684,7 +701,7 @@ class LayerData {
           
           // Top (dir 2)
           nType = y < (CHUNK_HEIGHT - 1) ? data.blocks[x | (z << 4) | ((y + 1) << 8)] : BLOCK.AIR;
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || typeIsSlab || isSlab(nType)) {
+          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || typeIsSlab || isSlab(nType)) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -702,7 +719,7 @@ class LayerData {
           
           // Bottom (dir 3)
           nType = y > 0 ? data.blocks[x | (z << 4) | ((y - 1) << 8)] : BLOCK.AIR;
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || isSlab(nType)) {
+          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || isSlab(nType)) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -726,7 +743,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[x | (0 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -750,7 +767,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[x | (15 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType))) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {

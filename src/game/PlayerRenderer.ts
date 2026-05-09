@@ -4,6 +4,7 @@ import { generateSkin, applySkinUVs } from './SkinManager';
 import { createTextureAtlas, createBreakingTexture, getBlockUVs, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting } from './TextureAtlas';
 import { ItemType } from './Inventory';
 import { createItemModel } from './ItemModels';
+import { settingsManager } from './Settings';
 
 export class PlayerRenderer {
   player: Player;
@@ -84,9 +85,16 @@ export class PlayerRenderer {
   }
 
   public updateTeam(team?: string) {
-    if (this.capeMesh) {
+    if (this.capeMesh && this.capeMesh.material) {
       const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
-      (this.capeMesh.material as THREE.MeshStandardMaterial).color.setHex(capeColor);
+      const mat = this.capeMesh.material as any;
+      if (mat.color) {
+        mat.color.setHex(capeColor);
+      }
+      if (this.capeMesh.userData.originalMaterial) {
+        const origMat = this.capeMesh.userData.originalMaterial as any;
+        if (origMat.color) origMat.color.setHex(capeColor);
+      }
     }
     
     // Update glider materials if they exist
@@ -106,47 +114,59 @@ export class PlayerRenderer {
         accentEmissive = 0x5959b6;
       }
       
-      this.gliderLeftWing.children.forEach(child => {
-        if (child instanceof THREE.Mesh) {
+      const updateWingMat = (child: THREE.Object3D) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          const mat = child.material as any;
           if (child.scale.x === 12) { // It's an accent
-             (child.material as THREE.MeshStandardMaterial).color.setHex(accentColor);
-             (child.material as THREE.MeshStandardMaterial).emissive.setHex(accentEmissive);
+             if (mat.color) mat.color.setHex(accentColor);
+             if (mat.emissive) mat.emissive.setHex(accentEmissive);
           } else {
-             (child.material as THREE.MeshStandardMaterial).color.setHex(baseColor);
-             (child.material as THREE.MeshStandardMaterial).emissive.setHex(emissiveColor);
+             if (mat.color) mat.color.setHex(baseColor);
+             if (mat.emissive) mat.emissive.setHex(emissiveColor);
+          }
+          if (child.userData.originalMaterial) {
+            const origMat = child.userData.originalMaterial as any;
+            if (child.scale.x === 12) { // It's an accent
+               if (origMat.color) origMat.color.setHex(accentColor);
+               if (origMat.emissive) origMat.emissive.setHex(accentEmissive);
+            } else {
+               if (origMat.color) origMat.color.setHex(baseColor);
+               if (origMat.emissive) origMat.emissive.setHex(emissiveColor);
+            }
           }
         }
-      });
-      
-      this.gliderRightWing.children.forEach(child => {
-        if (child instanceof THREE.Mesh) {
-          if (child.scale.x === 12) { // It's an accent
-             (child.material as THREE.MeshStandardMaterial).color.setHex(accentColor);
-             (child.material as THREE.MeshStandardMaterial).emissive.setHex(accentEmissive);
-          } else {
-             (child.material as THREE.MeshStandardMaterial).color.setHex(baseColor);
-             (child.material as THREE.MeshStandardMaterial).emissive.setHex(emissiveColor);
-          }
-        }
-      });
+      };
+
+      this.gliderLeftWing.children.forEach(updateWingMat);
+      this.gliderRightWing.children.forEach(updateWingMat);
     }
   }
 
   public updateSkin(skinSeed: string) {
     const skinTexture = generateSkin(skinSeed);
-    const skinMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture,
-      roughness: 0.8,
-      metalness: 0.1
-    });
-    const outerMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture, 
-      transparent: true, 
-      alphaTest: 0.1, 
-      side: THREE.DoubleSide,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    const isPerformance = settingsManager.getSettings().performanceMode;
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture,
+        roughness: 0.8,
+        metalness: 0.1
+      });
+    const outerMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide 
+      }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide,
+        roughness: 0.8,
+        metalness: 0.1
+      });
 
     if (this.headMesh) {
       this.headMesh.material = skinMaterial;
@@ -182,19 +202,29 @@ export class PlayerRenderer {
 
   private createPlayerModel() {
     const skinTexture = generateSkin('player_seed_1');
-    const skinMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture,
-      roughness: 0.8,
-      metalness: 0.1
-    });
-    const outerMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture, 
-      transparent: true, 
-      alphaTest: 0.1, 
-      side: THREE.DoubleSide,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    const isPerformance = settingsManager.getSettings().performanceMode;
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture,
+        roughness: 0.8,
+        metalness: 0.1
+      });
+    const outerMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide 
+      }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture, 
+        transparent: true, 
+        alphaTest: 0.1, 
+        side: THREE.DoubleSide,
+        roughness: 0.8,
+        metalness: 0.1
+      });
 
     // Body
     const bodyGeo = new THREE.BoxGeometry(0.4, 0.6, 0.2); 
@@ -468,19 +498,60 @@ export class PlayerRenderer {
     } else {
       this.gliderGroup.visible = false;
     }
+
+    if (this.player.isSpectator) {
+      this.modelGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.userData.originalMaterial) {
+            mesh.userData.originalMaterial = mesh.material;
+            const newMat = Array.isArray(mesh.material) ? mesh.material.map(m => m.clone()) : (mesh.material as THREE.Material).clone();
+            if (Array.isArray(newMat)) {
+              newMat.forEach(m => { m.transparent = true; m.opacity = 0.3; m.alphaTest = 0.01; });
+            } else {
+              newMat.transparent = true; newMat.opacity = 0.3; newMat.alphaTest = 0.01;
+            }
+            mesh.material = newMat;
+          }
+        }
+      });
+      // Optionally hide first person arms if spectator
+      this.fpArmGroup.visible = false;
+      this.fpOffHandArmGroup.visible = false;
+    } else {
+      this.modelGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh && child.userData.originalMaterial) {
+          const mesh = child as THREE.Mesh;
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+          mesh.material = mesh.userData.originalMaterial;
+          delete mesh.userData.originalMaterial;
+        }
+      });
+      this.fpArmGroup.visible = this.isHandVisible && this.player.perspective === 0;
+      this.fpOffHandArmGroup.visible = this.isHandVisible && this.player.perspective === 0;
+    }
   }
 
   private createFirstPersonArm() {
     const skinTexture = generateSkin('player_seed_1');
-    const skinMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    const isPerformance = settingsManager.getSettings().performanceMode;
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture,
+        roughness: 0.8,
+        metalness: 0.1
+      });
     
- const armGeo = new THREE.BoxGeometry(0.24, 0.24, 0.7); // Robust arm
+    const armGeo = new THREE.BoxGeometry(0.24, 0.24, 0.7); // Robust arm
     applySkinUVs(armGeo, 'armR', false, 'bottom');
     this.fpArmMesh = new THREE.Mesh(armGeo, skinMaterial);
+    this.fpArmMesh.castShadow = !isPerformance;
+    this.fpArmMesh.receiveShadow = !isPerformance; // Disabled in performance mode
     
     // Position arm in the lower right corner, angled in
     this.fpArmMesh.position.set(0.6, -0.6, -0.5);
@@ -488,8 +559,12 @@ export class PlayerRenderer {
     
     const blockGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
     const texture = createTextureAtlas();
-    const blockMat = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+    const blockMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
+      new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
     this.fpBlockMesh = new THREE.Mesh(blockGeo, blockMat);
+    this.fpBlockMesh.castShadow = !isPerformance;
+    this.fpBlockMesh.receiveShadow = !isPerformance; // Disabled in performance mode
     this.fpBlockMesh.position.set(0.3, -0.15, -0.8);
     this.fpBlockMesh.rotation.set(0, -Math.PI / 4, 0);
     
@@ -501,23 +576,32 @@ export class PlayerRenderer {
 
   private createFirstPersonOffHandArm() {
     const skinTexture = generateSkin('player_seed_1');
-    const skinMaterial = new THREE.MeshStandardMaterial({ 
-      map: skinTexture,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    const isPerformance = settingsManager.getSettings().performanceMode;
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshStandardMaterial({ 
+        map: skinTexture,
+        roughness: 0.8,
+        metalness: 0.1
+      });
     
     // Position arm in the lower left corner
     const armGeo = new THREE.BoxGeometry(0.24, 0.24, 0.7);
     applySkinUVs(armGeo, 'armL', false, 'bottom');
     this.fpOffHandArmMesh = new THREE.Mesh(armGeo, skinMaterial);
+    this.fpOffHandArmMesh.castShadow = !isPerformance;
+    this.fpOffHandArmMesh.receiveShadow = !isPerformance; // Disabled in performance mode
     this.fpOffHandArmMesh.position.set(-0.6, -0.6, -0.5);
     this.fpOffHandArmMesh.rotation.set(0.4, 0.2, -0.1);
     
     const blockGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
     const texture = createTextureAtlas();
-    const blockMat = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+    const blockMat = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
+      new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
     this.fpOffHandBlockMesh = new THREE.Mesh(blockGeo, blockMat);
+    this.fpOffHandBlockMesh.castShadow = !isPerformance;
+    this.fpOffHandBlockMesh.receiveShadow = !isPerformance; // Disabled in performance mode
     this.fpOffHandBlockMesh.position.set(-0.3, -0.15, -0.8);
     this.fpOffHandBlockMesh.rotation.set(0, Math.PI / 4, 0);
     this.fpOffHandBlockMesh.visible = false;
@@ -532,6 +616,7 @@ export class PlayerRenderer {
     this.updateItemHand(type, false);
     this.updateItemHand(offHandType, true);
 
+    const isPerformance = settingsManager.getSettings().performanceMode;
     const isTorch = type === ItemType.TORCH || offHandType === ItemType.TORCH;
     if (this.torchLight) {
       this.torchLight.visible = isTorch;
@@ -565,7 +650,7 @@ export class PlayerRenderer {
       mesh.visible = false;
       model.visible = false;
       fpModelGrp.visible = false;
-      blockMesh.visible = !isOffHand; 
+      blockMesh.visible = false; 
       return;
     }
 
@@ -596,6 +681,24 @@ export class PlayerRenderer {
       if (currentFpModelType !== type) {
         fpModelGrp.clear();
         const fpHeldModel = createItemModel(type as ItemType);
+        const isPerformance = settingsManager.getSettings().performanceMode;
+        // Enable receiveShadow for all first-person sub-models
+        fpHeldModel.traverse(child => {
+          if (child instanceof THREE.Mesh) {
+             child.castShadow = !isPerformance;
+             child.receiveShadow = !isPerformance;
+             if (isPerformance) {
+                const oldMat = child.material as THREE.MeshStandardMaterial;
+                child.material = new THREE.MeshBasicMaterial({
+                  color: oldMat.color,
+                  map: oldMat.map,
+                  transparent: oldMat.transparent,
+                  alphaTest: oldMat.alphaTest,
+                  side: oldMat.side
+                });
+             }
+          }
+        });
         fpModelGrp.add(fpHeldModel);
         if (isOffHand) this.currentFpOffHandModelType = type;
         else this.currentFpModelType = type;

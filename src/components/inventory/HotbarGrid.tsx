@@ -12,7 +12,7 @@ interface HotbarGridProps {
 
 export const HotbarGrid: React.FC<HotbarGridProps> = ({ inventory, handleSlotInteraction, handleDoubleClick, setHoveredItem, dragState }) => {
   return (
-    <div className="grid grid-cols-9 gap-1">
+    <div className="grid grid-cols-9 gap-[1px] sm:gap-1">
       {Array.from({ length: 9 }).map((_, i) => (
         <Slot 
           key={i} 

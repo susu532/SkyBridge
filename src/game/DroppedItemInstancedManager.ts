@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ItemType } from './Inventory';
 import { ATLAS_TILES, getBlockUVs, isSolidBlock, isPlant, isFlatItem } from './TextureAtlas';
 import { World } from './World';
+import { settingsManager } from './Settings';
 
 export interface DroppedItemData {
   id: string;
@@ -76,17 +77,25 @@ export class DroppedItemInstancedManager {
       const isGlass = type === ItemType.GLASS;
       const isWaterTypes = type >= ItemType.WATER && type <= ItemType.WATER_7;
 
-      const material = new THREE.MeshLambertMaterial({ 
-        map: this.textureAtlas,
-        transparent: isGlass || isWaterTypes || isAlphaFlat,
-        opacity: isWaterTypes ? 0.6 : 1.0,
-        alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0
-      });
+      const isPerformance = settingsManager.getSettings().performanceMode;
+      const material = isPerformance ?
+        new THREE.MeshBasicMaterial({ 
+          map: this.textureAtlas,
+          transparent: isGlass || isWaterTypes || isAlphaFlat,
+          opacity: isWaterTypes ? 0.6 : 1.0,
+          alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0
+        }) :
+        new THREE.MeshLambertMaterial({ 
+          map: this.textureAtlas,
+          transparent: isGlass || isWaterTypes || isAlphaFlat,
+          opacity: isWaterTypes ? 0.6 : 1.0,
+          alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0
+        });
 
       const mesh = new THREE.InstancedMesh(geometry, material, this.MAX_INSTANCES);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.castShadow = !isPerformance;
+      mesh.receiveShadow = !isPerformance;
       mesh.frustumCulled = false; // Disable frustum culling since instances move
       this.scene.add(mesh);
       this.instancedMeshes.set(type, mesh);

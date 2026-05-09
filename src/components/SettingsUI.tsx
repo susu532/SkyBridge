@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { settingsManager, GameSettings, DEFAULT_SETTINGS } from '../game/Settings';
-import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard } from 'lucide-react';
+import { networkManager } from '../game/NetworkManager';
+import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard, User } from 'lucide-react';
 
 interface SettingsUIProps {
   isOpen: boolean;
@@ -37,6 +38,9 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
 
   const handleChange = (key: keyof GameSettings, value: any) => {
     settingsManager.updateSettings({ [key]: value });
+    if (key === 'username') {
+      networkManager.updateProfile({ name: value });
+    }
   };
 
   if (!isOpen) return null;
@@ -81,6 +85,29 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
           {/* Content */}
           <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-8">
             
+            {/* Profile */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
+                <User className="w-5 h-5 text-[#555555]" />
+                <h3 className="text-lg font-bold text-[#555555] uppercase">Profile</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#555555] uppercase">Username</label>
+                  <input 
+                    type="text" 
+                    value={settings.username || ''}
+                    onChange={(e) => handleChange('username', e.target.value)}
+                    maxLength={16}
+                    className="w-full h-10 px-3 bg-[#8B8B8B] border-2 border-black/20 text-[#555555] font-bold focus:outline-none focus:border-[#555555] uppercase placeholder-black/30"
+                    placeholder="Enter Username"
+                  />
+                  
+                </div>
+              </div>
+            </section>
+
             {/* Graphics */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">

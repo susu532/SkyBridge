@@ -99,7 +99,7 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
           {/* Footer */}
           <div className="bg-[#8B8B8B] p-2 text-center border-t-2 border-[#555555]">
             <span className="text-[10px] font-bold text-white/40 uppercase tracking-tighter">
-              SkyBridge v1.0.4
+              starplex.io v1.0.4
             </span>
           </div>
         </motion.div>

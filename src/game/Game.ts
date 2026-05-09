@@ -12,6 +12,7 @@ import { skyBridgeManager } from './SkyBridgeManager';
 import { audioManager } from './AudioManager';
 import { isTransparent, BLOCK, isAnyTorch } from './TextureAtlas';
 import { EnvironmentManager } from './EnvironmentManager';
+import { Inventory, ItemType } from './Inventory';
 
 export class Game {
   scene: THREE.Scene;
@@ -33,6 +34,9 @@ export class Game {
   lastPerformanceMode: boolean = false;
   lastPremiumShaders: boolean = true;
   private settingsUnsubscribe: (() => void) | null = null;
+  
+  private _cachedTags: any[] = [];
+  private _lastTagsUpdate: number = 0;
 
   private _tempCameraDir = new THREE.Vector3();
   private _tempRaycastDir = new THREE.Vector3();
@@ -44,8 +48,26 @@ export class Game {
   private _particleEuler = new THREE.Euler();
   private _particleQuat = new THREE.Quaternion();
   private _particleColorTemp = new THREE.Color();
+  private _wasNight: boolean = false;
+  private _autoEquippedTorchFromHotbarSlot: number = -1;
+
+  get currentMode() {
+    return useGameStore.getState().currentMode;
+  }
 
   getEntityTags() {
+    const now = performance.now();
+    const isPerformanceMode = settingsManager.getSettings().performanceMode;
+    
+    if (isPerformanceMode) {
+      const throttleTime = 33; // ~30fps update rate for name tags in performance mode
+      if (now - this._lastTagsUpdate < throttleTime) {
+        return this._cachedTags;
+      }
+    }
+    
+    this._lastTagsUpdate = now;
+
     const tags: any[] = [];
     const widthHalf = window.innerWidth / 2;
     const heightHalf = window.innerHeight / 2;
@@ -86,6 +108,7 @@ export class Game {
       projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset);
     });
 
+    this._cachedTags = tags;
     return tags;
   }
   
@@ -107,8 +130,9 @@ export class Game {
       precision: initialSettings.performanceMode ? "mediump" : "highp"
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.setPixelRatio(initialSettings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
+    const effectivePremiumShaders = initialSettings.premiumShaders && !initialSettings.performanceMode;
+    this.renderer.shadowMap.enabled = effectivePremiumShaders;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for ultra-realistic soft penumbras
 
     this.controls = new PointerLockControls(this.camera, document.body);
@@ -116,7 +140,7 @@ export class Game {
     this.controls.enabled = false;
     
     this.world = new World(this.scene);
-    this.entityManager = new EntityManager(this.scene, this.world);
+    this.entityManager = new EntityManager(this.scene, this.world, this.camera);
     this.entityManager.setTextureAtlas(this.world.opaqueMaterial.map!);
     this.player = new Player(this.camera, this.controls, this.world, this.entityManager);
     
@@ -180,6 +204,20 @@ export class Game {
       // Clear out all previous entities before processing the newly arrived ones
       this.entityManager.clearEntities();
       
+      const modeWithoutNum = serverName.split('_')[0];
+      if (modeWithoutNum === 'skycastles') {
+        this.player.setupSkyCastlesInventory();
+        useGameStore.getState().setSkycoins(500);
+      } else if (modeWithoutNum === 'dungeondelver') {
+        this.player.setupDungeonDelverInventory();
+      } else if (modeWithoutNum === 'skybridge') {
+        // If skybridge has a setup, do it, but for now just leave it or clear it.
+        // Skybridge usually gives you starting items? We can just clear it.
+        this.player.inventory.clear();
+      } else {
+        this.player.inventory.clear();
+      }
+      
       if (!this.world.isHub) {
         // Load local skills if they exist, otherwise use server skills
         let savedSkills = null;
@@ -201,18 +239,37 @@ export class Game {
 
       // Add existing players
       for (const id in data.players) {
-        if (id !== networkManager.id) {
+        if (id === networkManager.id) {
+            const myData = data.players[id];
+            this.player.team = myData.team || null;
+            this.player.renderer.updateTeam(this.player.team);
+            
+            this.player.isSpectator = myData.isSpectator || false;
+            this.player.isDead = myData.isDead || false;
+            if (this.player.isSpectator) {
+               this.player.isFlying = true;
+            } else if (!this.world.isHub) {
+               this.player.isFlying = false;
+            }
+        } else {
           this.entityManager.addRemotePlayer(id, data.players[id].skinSeed, data.players[id].name, data.players[id].team);
           this.entityManager.updateRemotePlayer(id, data.players[id]);
+          const rp = this.entityManager.remotePlayers.get(id);
+          if (rp) {
+             rp.isDead = data.players[id].isDead;
+             rp.isSpectator = data.players[id].isSpectator;
+          }
         }
       }
       // Add existing mobs
       if (data.mobs) {
         for (const id in data.mobs) {
           const mobData = data.mobs[id];
-          if (mobData.type === 'Pig') continue; // Filter out pigs from server
+          if (mobData.type === 'Sheep' && false) continue; // Sample placeholder or just remove if cleanup
           const pos = new THREE.Vector3(mobData.position.x, mobData.position.y, mobData.position.z);
-          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas);
+          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas, mobData.team);
+          if (mobData.health !== undefined) mob.health = mobData.health;
+          if (mobData.maxHealth !== undefined) mob.maxHealth = mobData.maxHealth;
           if (mobData.scale) {
              mob.group.scale.set(mobData.scale, mobData.scale, mobData.scale);
           }
@@ -253,28 +310,23 @@ export class Game {
       const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
       cameraEuler.setFromQuaternion(this.camera.quaternion);
       
-      // Persist skin and name
+      // Persist skin
       let mySkinSeed = null;
-      let myName = null;
       try {
         mySkinSeed = localStorage.getItem('skyBridge_skin_seed');
         if (!mySkinSeed) {
           mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
           localStorage.setItem('skyBridge_skin_seed', mySkinSeed);
         }
-        
-        myName = localStorage.getItem('skyBridge_player_name');
-        if (!myName) {
-          myName = 'Player ' + Math.floor(Math.random() * 1000);
-          localStorage.setItem('skyBridge_player_name', myName);
-        }
       } catch (e) {
         console.warn('Failed to access localStorage for player info', e);
         if (!mySkinSeed) mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
-        if (!myName) myName = 'Player ' + Math.floor(Math.random() * 1000);
       }
   
       const joinPos = new THREE.Vector3(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
+      
+      const myName = settingsManager.getSettings().username || ('Player_' + Math.floor(Math.random() * 1000));
+      
       networkManager.join(joinPos, cameraEuler, mySkinSeed, myName, skyBridgeManager.skills, this.player.inventory.slots[this.player.hotbarIndex]?.type || 0);
       
       // Update local player skin
@@ -284,6 +336,12 @@ export class Game {
     networkManager.onPlayerJoined = (player) => {
       if (player.id !== networkManager.id) {
         this.entityManager.addRemotePlayer(player.id, player.skinSeed, player.name, player.team);
+        const rp = this.entityManager.remotePlayers.get(player.id);
+        if (rp) {
+           rp.isDead = player.isDead;
+           rp.isSpectator = player.isSpectator;
+           rp.health = player.health;
+        }
       }
     };
 
@@ -378,6 +436,35 @@ export class Game {
       this.environmentManager.dayTime = data.dayTime;
     };
 
+    networkManager.onEntitiesReset = (data) => {
+      window.dispatchEvent(new CustomEvent('forceCloseMenus'));
+      this.entityManager.clearEntities();
+      this.world.reset(this.currentMode);
+      useGameStore.getState().clearChatMessages();
+      const modeWithoutNum = this.currentMode.split('_')[0];
+      if (modeWithoutNum === 'skycastles') {
+        this.player.setupSkyCastlesInventory();
+        useGameStore.getState().setSkycoins(500);
+        skyBridgeManager.reset();
+      } else if (modeWithoutNum === 'dungeondelver') {
+        this.player.setupDungeonDelverInventory();
+      } else {
+        this.player.inventory.clear();
+      }
+      if (data.mobs) {
+        for (const id in data.mobs) {
+          const mobData = data.mobs[id];
+          // mobData.type check removed
+          const pos = new THREE.Vector3(mobData.position.x, mobData.position.y, mobData.position.z);
+          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas, mobData.team);
+          if (mobData.health !== undefined) mob.health = mobData.health;
+          if (mobData.maxHealth !== undefined) mob.maxHealth = mobData.maxHealth;
+          if (mobData.scale) mob.group.scale.set(mobData.scale, mobData.scale, mobData.scale);
+          this.entityManager.addMob(mob);
+        }
+      }
+    };
+
     // Sync skills when they change
     skyBridgeManager.onSkillChange = (skill, progress) => {
       if (!this.world.isHub) {
@@ -395,7 +482,7 @@ export class Game {
   }
 
   applySettings(settings: GameSettings) {
-    this.world.renderDistance = settings.performanceMode ? Math.min(settings.renderDistance, 4) : settings.renderDistance;
+    this.world.renderDistance = settings.performanceMode ? Math.min(settings.renderDistance, 3) : settings.renderDistance;
     this.player.sensitivity = settings.sensitivity;
     this.player.baseFOV = settings.fov;
 
@@ -430,7 +517,7 @@ export class Game {
       }
 
       // Reduce pixel ratio for better performance
-      this.renderer.setPixelRatio(settings.performanceMode ? Math.min(0.75, window.devicePixelRatio) : window.devicePixelRatio);
+      this.renderer.setPixelRatio(settings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
     }
   }
 
@@ -591,11 +678,56 @@ export class Game {
     this.world.updateMaterials(delta);
     this.world.update(this.player.position, this.camera);
     this.environmentManager.update(delta);
+
+    // Auto-equip torch logic for SkyCastles
+    const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
+    if (serverName.startsWith('skycastles')) {
+      const isNightOrRain = Math.sin(this.environmentManager.dayTime * Math.PI * 2) <= 0 || this.environmentManager.weatherType === 'rain';
+      if (isNightOrRain !== this._wasNight) {
+         this._wasNight = isNightOrRain;
+         if (isNightOrRain) {
+            // Find a torch in hotbar
+            const inv = this.player.inventory;
+            if (!inv.slots[Inventory.OFF_HAND_SLOT]) { // Only if off-hand is empty
+               for (let i = 0; i < 9; i++) {
+                 if (inv.slots[i] && inv.slots[i]!.type === ItemType.TORCH) {
+                   inv.slots[Inventory.OFF_HAND_SLOT] = inv.slots[i];
+                   inv.slots[i] = null;
+                   this._autoEquippedTorchFromHotbarSlot = i;
+                   useGameStore.getState().incrementInventoryVersion();
+                   // If player was holding this slot, update visually
+                   window.dispatchEvent(new CustomEvent('updateHotbar'));
+                   break;
+                 }
+               }
+            }
+         } else {
+            // It just turned day, return torch if we auto-equipped it
+            const inv = this.player.inventory;
+            const offhand = inv.slots[Inventory.OFF_HAND_SLOT];
+            if (this._autoEquippedTorchFromHotbarSlot !== -1 && offhand && offhand.type === ItemType.TORCH) {
+               if (!inv.slots[this._autoEquippedTorchFromHotbarSlot]) {
+                   inv.slots[this._autoEquippedTorchFromHotbarSlot] = offhand;
+                   inv.slots[Inventory.OFF_HAND_SLOT] = null;
+                   useGameStore.getState().incrementInventoryVersion();
+                   window.dispatchEvent(new CustomEvent('updateHotbar'));
+               } else {
+                   // Fallback to add back properly
+                   inv.slots[Inventory.OFF_HAND_SLOT] = null;
+                   inv.addItem(ItemType.TORCH, offhand.count);
+                   useGameStore.getState().incrementInventoryVersion();
+                   window.dispatchEvent(new CustomEvent('updateHotbar'));
+               }
+            }
+            this._autoEquippedTorchFromHotbarSlot = -1;
+         }
+      }
+    }
     
     // Process queued mobs from world generation
     if (this.world.queuedMobs.length > 0) {
       const mob = this.world.queuedMobs.shift()!;
-      networkManager.spawnMob(mob.type, { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z });
+      networkManager.spawnMob(mob.type, { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z }, undefined, mob.team);
     }
     
     // Process one mesh addition per frame to prevent GPU upload stutter

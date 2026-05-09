@@ -48,6 +48,7 @@ export function createItemModel(type: ItemType): THREE.Group {
   const isCampfire = type === ItemType.CAMPFIRE;
   const isMushroom = type === ItemType.MUSHROOM_RED || type === ItemType.MUSHROOM_BROWN;
   const isTorch = type === ItemType.TORCH;
+  const isChest = type === ItemType.CHEST || type === ItemType.ENDER_CHEST;
   
   if (isPickaxe) {
     // Handle (0.8 high, centered at origin)
@@ -126,7 +127,7 @@ export function createItemModel(type: ItemType): THREE.Group {
     group.add(guardDetail);
     
     // Blade (Main part)
-    const bladeGeo = new THREE.BoxGeometry(0.18, 0.9, 0.04);
+    const bladeGeo = new THREE.BoxGeometry(0.18, 0.9, 0.035); // Slightly thinner blade
     const blade = new THREE.Mesh(bladeGeo, material);
     blade.position.y = 0.55;
     group.add(blade);
@@ -134,7 +135,7 @@ export function createItemModel(type: ItemType): THREE.Group {
     // Blade central ridge (shading)
     const ridgeMaterial = material.clone();
     ridgeMaterial.color.multiplyScalar(0.9);
-    const ridgeGeo = new THREE.BoxGeometry(0.04, 0.85, 0.06);
+    const ridgeGeo = new THREE.BoxGeometry(0.04, 0.85, 0.07); // Slightly thicker ridge
     const ridge = new THREE.Mesh(ridgeGeo, ridgeMaterial);
     ridge.position.y = 0.55;
     group.add(ridge);
@@ -776,6 +777,87 @@ export function createItemModel(type: ItemType): THREE.Group {
     torchGroup.add(core);
     
     group.add(torchGroup);
+  } else if (isChest) {
+    // Detailed Chest Model
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: primaryColor, roughness: 0.8 });
+    const metalMaterial = new THREE.MeshStandardMaterial({ color: '#3d3d3d', metalness: 0.8, roughness: 0.2 });
+    const goldMaterial = new THREE.MeshStandardMaterial({ color: '#d4af37', metalness: 0.9, roughness: 0.1 });
+
+    // Main Box (Bottom part)
+    const bodyGeo = new THREE.BoxGeometry(0.7, 0.25, 0.6);
+    const body = new THREE.Mesh(bodyGeo, woodMaterial);
+    body.position.y = 0.125;
+    group.add(body);
+
+    // Lid (Upper part)
+    const lidGroup = new THREE.Group();
+    lidGroup.position.set(0, 0.25, -0.3); // Pivot at the back edge
+    
+    // Curved Lid - instead of a single box, use multiple segments for a curved look
+    // Center segment (tallest)
+    const lidCenterGeo = new THREE.BoxGeometry(0.72, 0.18, 0.3);
+    const lidCenter = new THREE.Mesh(lidCenterGeo, woodMaterial);
+    lidCenter.position.set(0, 0.09, 0.3);
+    lidGroup.add(lidCenter);
+
+    // Front/Back slope segments
+    const lidSlopeGeo = new THREE.BoxGeometry(0.72, 0.1, 0.15);
+    const lidFront = new THREE.Mesh(lidSlopeGeo, woodMaterial);
+    lidFront.position.set(0, 0.05, 0.525);
+    lidGroup.add(lidFront);
+
+    const lidBack = new THREE.Mesh(lidSlopeGeo, woodMaterial);
+    lidBack.position.set(0, 0.05, 0.075);
+    lidGroup.add(lidBack);
+    
+    // Lid bands (metal reinforcement) - adjusted for curved lid
+    const mainBandColorMat = metalMaterial;
+    
+    // Band center
+    const bandCenterGeo = new THREE.BoxGeometry(0.06, 0.2, 0.32);
+    const lBandCenter = new THREE.Mesh(bandCenterGeo, mainBandColorMat);
+    lBandCenter.position.set(-0.25, 0.09, 0.3);
+    lidGroup.add(lBandCenter);
+    const rBandCenter = new THREE.Mesh(bandCenterGeo, mainBandColorMat);
+    rBandCenter.position.set(0.25, 0.09, 0.3);
+    lidGroup.add(rBandCenter);
+
+    // Band slopes
+    const bandSlopeGeo = new THREE.BoxGeometry(0.06, 0.12, 0.15);
+    const lBandFront = new THREE.Mesh(bandSlopeGeo, mainBandColorMat);
+    lBandFront.position.set(-0.25, 0.05, 0.525);
+    lidGroup.add(lBandFront);
+    const rBandFront = new THREE.Mesh(bandSlopeGeo, mainBandColorMat);
+    rBandFront.position.set(0.25, 0.05, 0.525);
+    lidGroup.add(rBandFront);
+    const lBandBack = new THREE.Mesh(bandSlopeGeo, mainBandColorMat);
+    lBandBack.position.set(-0.25, 0.05, 0.075);
+    lidGroup.add(lBandBack);
+    const rBandBack = new THREE.Mesh(bandSlopeGeo, mainBandColorMat);
+    rBandBack.position.set(0.25, 0.05, 0.075);
+    lidGroup.add(rBandBack);
+
+    group.add(lidGroup);
+
+    // Side bands for base
+    const sideBandGeo = new THREE.BoxGeometry(0.06, 0.27, 0.62);
+    const lSideBand = new THREE.Mesh(sideBandGeo, metalMaterial);
+    lSideBand.position.set(-0.25, 0.125, 0);
+    group.add(lSideBand);
+    const rSideBand = new THREE.Mesh(sideBandGeo, metalMaterial);
+    rSideBand.position.set(0.25, 0.125, 0);
+    group.add(rSideBand);
+
+    // Latch
+    const latchGeo = new THREE.BoxGeometry(0.12, 0.14, 0.05);
+    const latch = new THREE.Mesh(latchGeo, metalMaterial);
+    latch.position.set(0, 0.20, 0.31);
+    group.add(latch);
+
+    const lockGeo = new THREE.BoxGeometry(0.06, 0.08, 0.06);
+    const lock = new THREE.Mesh(lockGeo, goldMaterial);
+    lock.position.set(0, 0.21, 0.33);
+    group.add(lock);
   }
 
   // Common properties

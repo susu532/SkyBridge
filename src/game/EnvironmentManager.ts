@@ -31,10 +31,11 @@ export class EnvironmentManager {
     ambientLight.name = 'ambient';
     this.game.scene.add(ambientLight);
     
+    const isPerformance = settingsManager.getSettings().performanceMode;
     const dirLight = new THREE.DirectionalLight(0xffffee, 1.5);
     dirLight.name = 'sun';
     dirLight.position.set(50, 100, 50);
-    dirLight.castShadow = true;
+    dirLight.castShadow = !isPerformance;
     
     // High-Precision Shadow Settings for Ultra-Realistic Soft Shadows
     const shadowSize = 120; // Reduced frustum for higher pixel density
@@ -46,8 +47,8 @@ export class EnvironmentManager {
     dirLight.shadow.camera.far = 300;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = -0.00001; // Extremely tiny bias
-    dirLight.shadow.normalBias = 0.001; // Barely any normal bias
+    dirLight.shadow.bias = -0.0004; // Increased bias to prevent HD artifacts in FP
+    dirLight.shadow.normalBias = 0.05; // Stronger normal bias for voxel edges
     dirLight.shadow.autoUpdate = true;
     dirLight.shadow.radius = 1; // Sharper, higher quality soft shadow
     
@@ -167,6 +168,11 @@ export class EnvironmentManager {
     if (settings.performanceMode) {
         if (this.rainPoints) this.rainPoints.visible = false;
         if (this.snowPoints) this.snowPoints.visible = false;
+        
+        // Stop rain sound if performance mode is enabled
+        if (audioManager.isAmbientPlaying('rain')) {
+            audioManager.stopAmbient('rain');
+        }
         return;
     }
 
@@ -178,8 +184,6 @@ export class EnvironmentManager {
     if (timeInCycle < rainDuration) {
         targetIntensity = 1.0;
     }
-    
-    
     
     if (this.globalWeatherIntensity < targetIntensity) {
         this.globalWeatherIntensity = Math.min(targetIntensity, this.globalWeatherIntensity + delta / 10);
@@ -209,15 +213,17 @@ export class EnvironmentManager {
         else if (!isDesertBiome) showRain = true;
     }
     
-   
+    if (showRain) this.weatherType = 'rain';
+    else if (showSnow) this.weatherType = 'snow';
+    else this.weatherType = 'clear';
 
     // Handle rain sound
     if (showRain) {
         if (!audioManager.isAmbientPlaying('rain')) {
             audioManager.startAmbient('rain');
         }
-        // Max volume 0.3 for rain
-        audioManager.setAmbientVolume('rain', this.globalWeatherIntensity * 0.3);
+        // Increased volume from 0.3 to 0.7 for rain
+        audioManager.setAmbientVolume('rain', this.globalWeatherIntensity * 0.7);
     } else {
         if (audioManager.isAmbientPlaying('rain')) {
             audioManager.stopAmbient('rain');
@@ -246,7 +252,12 @@ export class EnvironmentManager {
                 if (dz > 50) posArray[i*3+2] -= 100;
                 else if (dz < -50) posArray[i*3+2] += 100;
 
-                if (posArray[i*3+1] < this.game.player.position.y - 20) {
+                const px = Math.floor(posArray[i*3]);
+                const py = Math.floor(posArray[i*3+1]);
+                const pz = Math.floor(posArray[i*3+2]);
+                
+                // Hide or reset rain if it hits a block
+                if (posArray[i*3+1] < this.game.player.position.y - 20 || (py >= 0 && this.game.world.getBlock(px, py, pz) !== 0)) {
                     posArray[i*3+1] = this.game.player.position.y + 40 + Math.random() * 40;
                 }
             }
@@ -282,8 +293,13 @@ export class EnvironmentManager {
                 let dz = posArray[i*3+2] - this.game.player.position.z;
                 if (dz > 50) posArray[i*3+2] -= 100;
                 else if (dz < -50) posArray[i*3+2] += 100;
+                
+                const px = Math.floor(posArray[i*3]);
+                const py = Math.floor(posArray[i*3+1]);
+                const pz = Math.floor(posArray[i*3+2]);
 
-                if (posArray[i*3+1] < this.game.player.position.y - 20) {
+                // Hide or reset snow if it hits a block
+                if (posArray[i*3+1] < this.game.player.position.y - 20 || (py >= 0 && this.game.world.getBlock(px, py, pz) !== 0)) {
                     posArray[i*3+1] = this.game.player.position.y + 40 + Math.random() * 40;
                 }
             }
@@ -293,6 +309,8 @@ export class EnvironmentManager {
   }
 
   updateSky(delta: number) {
+    const settings = settingsManager.getSettings();
+    const isPerformance = settings.performanceMode;
     this.dayTime = (this.dayTime + delta * this.dayCycleSpeed) % 1;
     
     const sunAngle = this.dayTime * Math.PI * 2;
@@ -304,23 +322,27 @@ export class EnvironmentManager {
     if (this.sunMesh) {
       this.sunMesh.position.set(sunX * 250, sunY * 250, 0);
       this.sunMesh.lookAt(0, 0, 0);
-      this.sunMesh.visible = true;
+      this.sunMesh.visible = !isPerformance && !this.game.world.isDungeonDelver;
     }
     if (this.moonMesh) {
       this.moonMesh.position.set(-sunX * 250, -sunY * 250, 0);
       this.moonMesh.lookAt(0, 0, 0);
-      this.moonMesh.visible = true;
+      this.moonMesh.visible = !isPerformance && !this.game.world.isDungeonDelver;
     }
 
     // Update Clouds
     if (this.clouds) {
-      this.clouds.children.forEach(cloud => {
-        cloud.position.x += delta * 2;
-        if (cloud.position.x > 500) cloud.position.x = -500;
-      });
-      this.clouds.position.x = this.game.player.position.x;
-      this.clouds.position.z = this.game.player.position.z;
-      this.clouds.visible = true;
+      if (!isPerformance) {
+        this.clouds.children.forEach(cloud => {
+          cloud.position.x += delta * 2;
+          if (cloud.position.x > 500) cloud.position.x = -500;
+        });
+        this.clouds.position.x = this.game.player.position.x;
+        this.clouds.position.z = this.game.player.position.z;
+        this.clouds.visible = true;
+      } else {
+        this.clouds.visible = false;
+      }
     }
     
     // Sky and Fog
@@ -332,7 +354,12 @@ export class EnvironmentManager {
     const rainSky = new THREE.Color(0x5a6a7a);
     
     let skyColor;
-    if (this.game.player.isUnderLava) {
+    if (this.game.world.isDungeonDelver) {
+      skyColor = new THREE.Color(0x050505);
+      if (this.clouds) this.clouds.visible = false;
+      if (this.sunMesh) this.sunMesh.visible = false;
+      if (this.moonMesh) this.moonMesh.visible = false;
+    } else if (this.game.player.isUnderLava) {
       skyColor = lavaSky;
     } else if (this.game.player.isUnderwater) {
       skyColor = waterSky;
@@ -360,6 +387,8 @@ export class EnvironmentManager {
         this.game.scene.fog.density = 0.45;
       } else if (this.game.player.isUnderwater) {
         this.game.scene.fog.density = 0.15;
+      } else if (this.game.world.isDungeonDelver) {
+        this.game.scene.fog.density = 0.08;
       } else {
         const fogFactor = Math.max(0, -sunY * 2 + 0.5);
         // Volumetric fog effect: enhance fog density in the morning/evening for god ray simulation
@@ -413,14 +442,20 @@ export class EnvironmentManager {
         targetIntensity = THREE.MathUtils.lerp(targetIntensity, targetIntensity * 0.4, this.globalWeatherIntensity);
       }
       
-      dirLight.intensity = targetIntensity;
+      dirLight.intensity = this.game.world.isDungeonDelver ? 0 : targetIntensity;
       
       // Update Hemisphere Light for GI Ray Tracing Feel
       const hemiLight = this.game.scene.getObjectByName('hemi') as THREE.HemisphereLight;
       if (hemiLight) {
-          hemiLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.5);
-          hemiLight.groundColor.copy(new THREE.Color(0x556633)).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
-          hemiLight.intensity = isDay ? 0.8 : 0.3;
+          if (this.game.world.isDungeonDelver) {
+            hemiLight.color.copy(skyColor).lerp(new THREE.Color(0x333333), 0.5);
+            hemiLight.groundColor.copy(new THREE.Color(0x111111));
+            hemiLight.intensity = 0.6;
+          } else {
+            hemiLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.5);
+            hemiLight.groundColor.copy(new THREE.Color(0x556633)).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
+            hemiLight.intensity = isDay ? 0.8 : 0.3;
+          }
       }
     }
     const ambientLight = this.game.scene.getObjectByName('ambient') as THREE.AmbientLight;

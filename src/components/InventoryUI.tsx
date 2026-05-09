@@ -9,6 +9,7 @@ import { Slot, ItemIcon } from './inventory/Slot';
 import { CraftingGrid } from './inventory/CraftingGrid';
 import { PlayerGrid } from './inventory/PlayerGrid';
 import { HotbarGrid } from './inventory/HotbarGrid';
+import { PlayerPreview } from './inventory/PlayerPreview';
 import { ItemCategory, getItemCategory } from '../game/Categories';
 
 import { useGameStore } from '../store/gameStore';
@@ -27,9 +28,6 @@ interface InventoryUIProps {
 }
 
 export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, onClose, onDropItem }) => {
-  const [activeTab, setActiveTab] = useState<'inventory' | 'building_blocks'>('inventory');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<ItemCategory>(ItemCategory.ALL);
   const [craftingGrid, setCraftingGrid] = useState<(ItemStack | null)[]>(new Array(4).fill(null));
   const [craftingResult, setCraftingResult] = useState<ItemStack | null>(null);
   const [heldItem, setHeldItem] = useState<ItemStack | null>(null);
@@ -452,46 +450,6 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
     }
   });
 
-  const creativeItems = useMemo(() => {
-    const allTypes = Object.values(ItemType)
-      .filter((v): v is ItemType => 
-        typeof v === 'number' && 
-        v > 0 && 
-        v !== ItemType.MINION && 
-        v !== ItemType.ASPECT_OF_THE_END && 
-        !ITEM_NAMES[v]?.startsWith('WATER_') &&
-        !!ITEM_NAMES[v]
-      );
-
-    return allTypes
-      .filter(type => {
-        const name = ITEM_NAMES[type]?.toLowerCase() || '';
-        const category = getItemCategory(type);
-        
-        const matchesSearch = name.includes(searchQuery.toLowerCase());
-        const matchesCategory = selectedCategory === ItemCategory.ALL || category === selectedCategory;
-        
-        return matchesSearch && matchesCategory;
-      })
-      .map(type => {
-        return { 
-          type, 
-          count: getMaxStack(type),
-          metadata: getDefaultMetadata(type)
-        };
-      });
-  }, [searchQuery, selectedCategory]);
-
-  const handleCreativeClick = useStableCallback((item: ItemStack | null, button: number) => {
-    if (!item) return;
-    audioManager.play('click', 0.5, 1.0 + Math.random() * 0.2);
-    if (button === 0) {
-      setHeldItem({ ...item, count: getMaxStack(item.type) });
-    } else if (button === 2) {
-      setHeldItem({ ...item, count: 1 });
-    }
-  });
-
   const emptyDoubleClick = React.useCallback(() => {}, []);
 
   if (!isOpen) return null;
@@ -511,21 +469,12 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="mc-panel p-4 shadow-2xl relative mc-font"
+        className="mc-panel p-2 md:p-4 shadow-2xl relative mc-font max-w-[98vw] max-h-[98vh] overflow-y-auto overflow-x-hidden custom-scrollbar"
       >
-        <div className="flex items-center gap-4 mb-4 border-b-2 border-[#373737]/30 pb-2">
-          <button 
-            className={`font-bold text-lg px-3 py-1 rounded-sm ${activeTab === 'inventory' ? 'bg-[#373737] text-white' : 'text-[#373737] hover:bg-black/10'}`}
-            onClick={() => setActiveTab('inventory')}
-          >
+        <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 border-b-2 border-[#373737]/30 pb-2">
+          <span className="font-bold text-sm md:text-lg px-2 md:px-3 py-1 text-[#373737]">
             Survival Inventory
-          </button>
-          <button 
-            className={`font-bold text-lg px-3 py-1 rounded-sm ${activeTab === 'building_blocks' ? 'bg-[#373737] text-white' : 'text-[#373737] hover:bg-black/10'}`}
-            onClick={() => setActiveTab('building_blocks')}
-          >
-            Building Blocks
-          </button>
+          </span>
           
           <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-yellow-400/20 border border-yellow-400/40 rounded-sm text-yellow-600 font-bold">
             <span className="text-sm uppercase tracking-wider opacity-60">Balance:</span>
@@ -535,15 +484,11 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
           <button onClick={onClose} className="ml-auto text-[#373737] hover:text-red-600 font-bold px-2 text-xl">✕</button>
         </div>
 
-        {activeTab === 'inventory' ? (
-          <>
-            <div className="flex gap-8 mb-8">
-              <div className="flex flex-col gap-4">
-                <div className="w-32 h-48 mc-slot flex items-center justify-center text-[#373737] font-bold">
-                  Player
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] uppercase opacity-60 font-bold">Off-hand</span>
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mb-4 sm:mb-8">
+          <div className="flex sm:flex-col gap-4">
+            <PlayerPreview />
+            <div className="flex flex-col items-center gap-1 justify-center">
+                  <span className="text-[8px] sm:text-[10px] uppercase opacity-60 font-bold">Off-hand</span>
                   <Slot 
                     item={inventory.slots[Inventory.OFF_HAND_SLOT]}
                     onClick={(item, button, isShift) => handleSlotInteraction('inv', Inventory.OFF_HAND_SLOT, true, button, isShift, false)}
@@ -568,78 +513,13 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
               </div>
             </div>
 
-            <PlayerGrid 
-              inventory={inventory}
-              handleSlotInteraction={handleSlotInteraction}
-              handleDoubleClick={handleDoubleClick}
-              setHoveredItem={setHoveredItem}
-              dragState={dragState}
-            />
-          </>
-        ) : (
-          <div className="flex gap-4 h-[400px] mb-4">
-            {/* Sidebar */}
-            <div className="w-40 mc-panel p-2 bg-black/10 overflow-y-auto custom-scrollbar">
-              <div className="text-xs font-bold text-[#373737] uppercase mb-2 px-1">Categories</div>
-              {Object.values(ItemCategory).map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors mb-1 ${
-                    selectedCategory === cat 
-                      ? 'bg-[#373737] text-white shadow-[2px_2px_0_rgba(0,0,0,0.5)]' 
-                      : 'text-[#373737] hover:bg-black/5'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col gap-3 min-w-0">
-              {/* Search Bar */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search items..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-10 px-4 bg-black/10 border-2 border-[#373737]/20 rounded focus:outline-none focus:border-[#373737] text-[#373737] placeholder-[#373737]/50"
-                />
-                {searchQuery && (
-                  <button 
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#373737] hover:text-black font-bold"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Grid */}
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                {creativeItems.length > 0 ? (
-                  <div className="grid grid-cols-8 gap-1.5 pb-2">
-                    {creativeItems.map((item) => (
-                      <Slot
-                        key={`creative-${item.type}`}
-                        item={item as ItemStack}
-                        onClick={handleCreativeClick}
-                        onDoubleClick={emptyDoubleClick}
-                        onHover={setHoveredItem}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-[#373737]/50 italic">
-                    <p>No items found</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <PlayerGrid 
+          inventory={inventory}
+          handleSlotInteraction={handleSlotInteraction}
+          handleDoubleClick={handleDoubleClick}
+          setHoveredItem={setHoveredItem}
+          dragState={dragState}
+        />
 
         <HotbarGrid 
           inventory={inventory}

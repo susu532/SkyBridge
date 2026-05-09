@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Game } from './game/Game';
 import { BLOCK } from './game/TextureAtlas';
 import { InventoryUI } from './components/InventoryUI';
+import { ChestUI } from './components/ChestUI';
 import { ShopUI } from './components/ShopUI';
 import { ChatUI } from './components/ChatUI';
 import { ITEM_COLORS, ITEM_NAMES } from './game/Constants';
@@ -21,11 +22,11 @@ import { SettingsUI } from './components/SettingsUI';
 import { PauseMenuUI } from './components/PauseMenuUI';
 import { SkyBridgeSidebar } from './components/SkyBridgeSidebar';
 import { SkyCastlesSidebar } from './components/SkyCastlesSidebar';
+import { BattleRoyaleSidebar } from './components/BattleRoyaleSidebar';
 import { SkyBridgeActionBar } from './components/SkyBridgeActionBar';
 import { SkyBridgeXPPopup } from './components/SkyBridgeXPPopup';
 import { DamageOverlay } from './components/DamageOverlay';
 import { DamageNumbers } from './components/DamageNumbers';
-import { DeathScreen } from './components/DeathScreen';
 import { HotbarUI } from './components/HotbarUI';
 import { useGameStore } from './store/gameStore';
 import { GameMessages } from './components/GameMessages';
@@ -33,6 +34,7 @@ import { LevelUpUI } from './components/LevelUpUI';
 import { DebugInfo } from './components/DebugInfo';
 import { EntityTags } from './components/EntityTags';
 import { LaunchMenuUI } from './components/LaunchMenuUI';
+import { MobileControlsUI } from './components/MobileControlsUI';
 import { settingsManager } from './game/Settings';
 import { Settings as SettingsIcon, Maximize } from 'lucide-react';
 import { useUI } from './store/UIStore';
@@ -41,6 +43,7 @@ import * as THREE from 'three';
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [game, setGame] = useState<Game | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const {
     isInventoryOpen, setInventoryOpen,
     isShopOpen, setShopOpen,
@@ -48,6 +51,7 @@ export default function App() {
     isPauseMenuOpen, setPauseMenuOpen,
     isServerJoinOpen, setServerJoinOpen,
     isLaunchMenuOpen, setLaunchMenuOpen,
+    isChestOpen, setChestOpen,
     isTyping, setTyping,
     isLocked, setLocked,
     isHUDVisible, setHUDVisible,
@@ -66,11 +70,16 @@ export default function App() {
     isPauseMenuOpen,
     isServerJoinOpen,
     isLaunchMenuOpen,
+    isChestOpen,
     isTyping,
     isLocked,
     isUnderwater,
     isUnderLava
   });
+
+  useEffect(() => {
+    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
 
   useEffect(() => {
     stateRef.current = {
@@ -80,13 +89,14 @@ export default function App() {
       isPauseMenuOpen,
       isServerJoinOpen,
       isLaunchMenuOpen,
+      isChestOpen,
       isTyping,
       isLocked,
       isUnderwater,
       isUnderLava,
       isHUDVisible
     };
-  }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
+  }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isChestOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
 
   const [showDebug, setShowDebug] = useState(false);
   const [targetInfo, setTargetInfo] = useState<{ type: 'block' | 'npc' | null, name: string | null, id?: string }>({ type: null, name: null });
@@ -114,6 +124,7 @@ export default function App() {
               !stateRef.current.isInventoryOpen && 
               !stateRef.current.isShopOpen && 
               !stateRef.current.isSettingsOpen && 
+              !stateRef.current.isChestOpen && 
               !stateRef.current.isTyping) {
             setPauseMenuOpen(true);
           }
@@ -123,7 +134,7 @@ export default function App() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { isTyping: typing, isLocked: locked, isInventoryOpen: inv, isShopOpen: shop, isSettingsOpen: settings, isPauseMenuOpen: pause } = stateRef.current;
+      const { isTyping: typing, isLocked: locked, isInventoryOpen: inv, isShopOpen: shop, isSettingsOpen: settings, isPauseMenuOpen: pause, isChestOpen: chest } = stateRef.current;
 
       if (typing && e.code !== 'Enter' && e.code !== 'Escape') return;
 
@@ -136,6 +147,11 @@ export default function App() {
 
       if (e.code === keybinds.inventory) {
         if (typing || newGame.world.isHub) return;
+        if (chest) {
+          setChestOpen(false);
+          handleStart(null);
+          return;
+        }
         setInventoryOpen(!stateRef.current.isInventoryOpen);
         if (!stateRef.current.isInventoryOpen) {
           suppressPauseMenu.current = true;
@@ -162,11 +178,12 @@ export default function App() {
       }
 
       if (e.code === 'Escape') {
-        if (inv || shop || settings || pause || typing) {
+        if (inv || shop || settings || pause || typing || chest) {
           setInventoryOpen(false);
           setShopOpen(false);
           setSettingsOpen(false);
           setPauseMenuOpen(false);
+          setChestOpen(false);
           setTyping(false);
           handleStart(null);
         } else {
@@ -196,6 +213,25 @@ export default function App() {
       suppressPauseMenu.current = true;
       setLaunchMenuOpen(true);
       newGame.controls.unlock();
+    };
+
+    const handleOpenChest = () => {
+      suppressPauseMenu.current = true;
+      setChestOpen(true);
+      newGame.controls.unlock();
+    };
+
+    const handleForceCloseMenus = () => {
+      setInventoryOpen(false);
+      setShopOpen(false);
+      setSettingsOpen(false);
+      setPauseMenuOpen(false);
+      setChestOpen(false);
+      setTyping(false);
+      suppressPauseMenu.current = true;
+      if (!isMobile) {
+        newGame.controls.lock();
+      }
     };
 
     let fastUIAF: number;
@@ -244,6 +280,10 @@ export default function App() {
       newGame.player.respawn();
     };
 
+    const handlePlayerDied = () => {
+      newGame.player.respawn();
+    };
+
     const handleRequestGameRestart = () => {
       setPauseMenuOpen(false);
       setServerJoinOpen(false);
@@ -261,6 +301,8 @@ export default function App() {
     document.addEventListener('wheel', handleWheel, { passive: false });
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('openShop', handleOpenShop as EventListener);
+    window.addEventListener('openChest', handleOpenChest as EventListener);
+    window.addEventListener('forceCloseMenus', handleForceCloseMenus as EventListener);
     const handlePopState = () => {
       const p = new URLSearchParams(window.location.search);
       const server = p.get('server') || 'hub';
@@ -275,13 +317,14 @@ export default function App() {
     window.addEventListener('openServerJoin', handleOpenServerJoin as EventListener);
     window.addEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
     window.addEventListener('requestRespawn', handleRequestRespawn as EventListener);
+    window.addEventListener('playerDied', handlePlayerDied as EventListener);
     window.addEventListener('requestGameRestart', handleRequestGameRestart as EventListener);
 
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
     if (serverName.startsWith('hub')) {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', '§bWelcome to the SkyBridge Hub! §eExplore the area or use /server skybridge or /server skycastles or /server voidtrail to join the game.');
+        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server voidtrail to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {
@@ -298,9 +341,12 @@ export default function App() {
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('openShop', handleOpenShop as EventListener);
+      window.removeEventListener('openChest', handleOpenChest as EventListener);
+      window.removeEventListener('forceCloseMenus', handleForceCloseMenus as EventListener);
       window.removeEventListener('openServerJoin', handleOpenServerJoin as EventListener);
       window.removeEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
       window.removeEventListener('requestRespawn', handleRequestRespawn as EventListener);
+      window.removeEventListener('playerDied', handlePlayerDied as EventListener);
       window.removeEventListener('requestGameRestart', handleRequestGameRestart as EventListener);
     };
   }, [gameKey]);
@@ -309,12 +355,37 @@ export default function App() {
     return settingsManager.subscribe((s) => setShowDebug(s.showDebug));
   }, []);
 
-  const handleStart = (e: any) => {
+  const handleStart = async (e: any) => {
     if (e) e.stopPropagation();
     
     // Cooldown to prevent "Pointer lock cannot be acquired immediately after user has exited"
     const now = Date.now();
-    if (now - lastUnlockTime.current < 1000) return;
+    const timeSinceUnlock = now - lastUnlockTime.current;
+    if (timeSinceUnlock < 1300) {
+      setTimeout(() => {
+        if (!stateRef.current.isLocked && !stateRef.current.isPauseMenuOpen) {
+          setPauseMenuOpen(true);
+        }
+      }, 50);
+      return;
+    }
+
+    if (isMobile) {
+      try {
+        if (!document.fullscreenElement) {
+          if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+          } else if ((document.documentElement as any).webkitRequestFullscreen) {
+            await ((document.documentElement as any).webkitRequestFullscreen)();
+          }
+        }
+        if (screen.orientation && (screen.orientation as any).lock) {
+          await (screen.orientation as any).lock('landscape');
+        }
+      } catch (err) {
+        console.warn("Fullscreen/Orientation lock failed:", err);
+      }
+    }
 
     // Only attempt to lock if we're not already locked and not in inventory/shop/settings/pause
     if (game && !game.controls.isLocked && !isInventoryOpen && !isShopOpen && !isSettingsOpen && !isPauseMenuOpen && !isServerJoinOpen) {
@@ -365,7 +436,7 @@ export default function App() {
       <DebugInfo game={game} showDebug={showDebug} />
 
       {/* Settings/Pause Button */}
-      {isHUDVisible && (
+      {isHUDVisible && !isMobile && (
         <div className="absolute top-4 right-4 flex gap-2">
           <button
             onClick={(e) => {
@@ -420,14 +491,22 @@ export default function App() {
       {/* Mob Tags */}
       {isHUDVisible && <EntityTags game={game} />}
 
+      {/* Mobile Controls */}
+      {isHUDVisible && isMobile && <MobileControlsUI />}
+
       {/* SkyBridge Sidebar */}
-      {isHUDVisible && currentMode !== 'hub' && currentMode !== 'skycastles' && <SkyBridgeSidebar />}
+      {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar />}
       {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar />}
+      {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar />}
 
       {/* SkyBridge UI */}
-      {isHUDVisible && currentMode !== 'hub' && (
+      {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && (
         <>
           <SkyBridgeActionBar />
+        </>
+      )}
+      {isHUDVisible && currentMode === 'skybridge' && (
+        <>
           <SkyBridgeXPPopup />
         </>
       )}
@@ -439,8 +518,7 @@ export default function App() {
           <LevelUpUI />
         </>
       )}
-      <DeathScreen />
-
+      {/* Removes DeathScreen entirely to prevent any hidden delays or flashes */}
       {/* Toolbar */}
       {isHUDVisible && currentMode !== 'hub' && <HotbarUI game={game} />}
 
@@ -452,6 +530,25 @@ export default function App() {
             onClose={() => {
               setInventoryOpen(false);
             }} 
+            onDropItem={(type, count) => {
+              const direction = new THREE.Vector3();
+              game.camera.getWorldDirection(direction);
+              const dropPos = game.player.playerHeadPos.clone().add(direction.multiplyScalar(1.5));
+              
+              for (let i = 0; i < count; i++) {
+                networkManager.dropItem(type, {
+                  x: dropPos.x + (Math.random() - 0.5) * 0.2,
+                  y: dropPos.y + (Math.random() - 0.5) * 0.2,
+                  z: dropPos.z + (Math.random() - 0.5) * 0.2
+                });
+              }
+            }}
+          />
+          <ChestUI
+            playerInventory={game.player.inventory}
+            chestInventory={game.player.chestInventory}
+            isOpen={isChestOpen}
+            onClose={() => setChestOpen(false)}
             onDropItem={(type, count) => {
               const direction = new THREE.Vector3();
               game.camera.getWorldDirection(direction);
@@ -537,6 +634,25 @@ export default function App() {
           />
         </div>
       )}
+
+      {/* Force Landscape Overlay for Mobile */}
+      {isMobile && (
+        <div className="hidden portrait:flex fixed inset-0 z-[99999] bg-zinc-950 text-white flex-col items-center justify-center text-center p-8 select-none touch-none">
+          <div className="w-16 h-28 border-4 border-zinc-500 rounded-xl flex items-center justify-center mb-8 relative">
+             <div className="w-8 h-1 bg-zinc-500 rounded-full mt-auto mb-2"></div>
+             <div className="absolute inset-0 flex items-center justify-center rotate-90 opacity-50">
+               <div className="w-28 h-16 border-4 border-white rounded-xl flex items-center justify-center absolute">
+                 <div className="w-1 h-8 bg-white rounded-full ml-auto mr-2"></div>
+               </div>
+             </div>
+          </div>
+          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Rotate Device</h2>
+          <p className="text-zinc-400 text-lg max-w-[280px] mx-auto leading-relaxed">
+            Please rotate your device to landscape mode to play.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }

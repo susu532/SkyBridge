@@ -37,7 +37,7 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
             const isPlayer = tag.type === 'Player';
             innerDiv.className = `px-3 py-1 rounded border flex items-center gap-2 whitespace-nowrap mc-font text-[16px] shadow-lg ${isPlayer ? 'bg-black/40 border-white/10' : 'bg-black/70 border-white/20'}`;
             
-            if (!tag.isPassive && !isPlayer) {
+            if (!tag.isPassive && !isPlayer && tag.type !== 'Morvane') {
               const lvSpan = document.createElement('span');
               lvSpan.className = "text-[#FFFF55] font-bold text-[18px]";
               lvSpan.innerText = `Lv${tag.level}`;

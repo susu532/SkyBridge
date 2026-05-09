@@ -35,7 +35,7 @@ export class NPC {
     this.rotation = rotation;
     this.scale = scale;
     this.autoRotate = autoRotate;
-    this.isHubNPC = id === 'hub_npc_q' || id === 'hub_npc_r' || id === 'hub_npc_v' || id === 'hub_npc_dungeon'; // Automatically detect hub NPCs
+    this.isHubNPC = id.startsWith('hub_npc'); // Automatically detect hub NPCs
     this.shopItems = shopItems;
     this.modelPath = modelPath;
     this.group = new THREE.Group();
@@ -58,8 +58,9 @@ export class NPC {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    // Much higher resolution for very large, crisp tags
-    canvas.width = 1024;
+    // Higher resolution for hub NPCs, even wider for longer names
+    const isWide = this.id === 'hub_npc_dungeon' || this.id === 'hub_npc_br';
+    canvas.width = isWide ? 1536 : 1024;
     canvas.height = 256;
 
     // Background with rounded corners
@@ -99,7 +100,8 @@ export class NPC {
 
     // Massive PlaneGeometry instead of a sprite
     // This makes it "non-rotational" (it stays fixed in world space)
-    const geometry = new THREE.PlaneGeometry(5, 1.25);
+    const geoWidth = isWide ? 3.75 : 2.5;
+    const geometry = new THREE.PlaneGeometry(geoWidth, 0.625);
     const material = new THREE.MeshBasicMaterial({ 
       map: texture, 
       transparent: true,
@@ -114,8 +116,8 @@ export class NPC {
       nameTag.rotation.y = Math.PI;
     }
     
-    // Elevate it significantly above the NPC (approx 4 blocks high)
-    nameTag.position.y = 3.8;
+    // Elevate it slightly above the NPC
+    nameTag.position.y = 2.3;
     
     // Add it to the NPC group (it will inherit the NPC's rotation)
     this.group.add(nameTag);
@@ -124,6 +126,7 @@ export class NPC {
 
   private loadModel(path: string) {
     gltfLoader.load(path, (gltf) => {
+      const isPerformance = settingsManager.getSettings().performanceMode;
       const model = gltf.scene;
       // Scale if needed, typical NPCs are ~2 blocks tall
       model.scale.set(1, 1, 1);
@@ -139,8 +142,18 @@ export class NPC {
       
       model.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
+          child.castShadow = !isPerformance;
+          child.receiveShadow = !isPerformance;
+          if (isPerformance && child.material) {
+             const oldMat = child.material;
+             child.material = new THREE.MeshBasicMaterial({
+                map: oldMat.map,
+                color: oldMat.color,
+                transparent: oldMat.transparent,
+                opacity: oldMat.opacity,
+                alphaTest: oldMat.alphaTest
+             });
+          }
         }
       });
     }, undefined, (error) => {
@@ -169,10 +182,15 @@ export class NPC {
   }
 
   private createModel() {
+    const isPerformance = settingsManager.getSettings().performanceMode;
     const hash = this.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const skinTexture = generateSkin(this.id);
-    const skinMaterial = new THREE.MeshLambertMaterial({ map: skinTexture });
-    const outerMaterial = new THREE.MeshLambertMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
+    const skinMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture }) :
+      new THREE.MeshLambertMaterial({ map: skinTexture });
+    const outerMaterial = isPerformance ?
+      new THREE.MeshBasicMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide }) :
+      new THREE.MeshLambertMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
 
     // Head
     const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
@@ -191,8 +209,11 @@ export class NPC {
 
     // Optional Hat (based on hash)
     if (hash % 3 === 0) {
+      const isPerformance = settingsManager.getSettings().performanceMode;
       const hatGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 8);
-      const hatMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+      const hatMat = isPerformance ?
+        new THREE.MeshBasicMaterial({ color: 0x222222 }) :
+        new THREE.MeshLambertMaterial({ color: 0x222222 });
       const hat = new THREE.Mesh(hatGeo, hatMat);
       hat.position.y = 0.25;
       hat.castShadow = true;
@@ -216,8 +237,11 @@ export class NPC {
     
     // Optional Backpack (based on hash)
     if (hash % 2 === 0) {
+      const isPerformance = settingsManager.getSettings().performanceMode;
       const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.15);
-      const packMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+      const packMat = isPerformance ?
+        new THREE.MeshBasicMaterial({ color: 0x8b4513 }) :
+        new THREE.MeshLambertMaterial({ color: 0x8b4513 });
       const backpack = new THREE.Mesh(packGeo, packMat);
       backpack.position.set(0, 0, 0.18);
       backpack.castShadow = true;
