@@ -94,11 +94,9 @@ export const SkyCastlesSidebar: React.FC = () => {
           </div>
 
           <div className="pt-2 text-xs text-white/80 mc-text-shadow italic border-t border-white/10 mt-2">
-            Kill enemies to earn Skycoins!
+            Defeat enemies to earn Skycoins!
           </div>
-          <div className="pt-2 text-xs text-white/80 mc-text-shadow italic border-t border-white/10 mt-2">
-            Kill enemy Morvane to win!
-          </div>
+        
         </div>
 
         <div className="mt-6 text-center text-xs text-[#FFAA00] font-bold tracking-tighter opacity-50 mc-text-shadow">

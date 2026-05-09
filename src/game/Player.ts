@@ -74,6 +74,7 @@ export class Player {
   shakeIntensity = 0;
   shakeDecay = 5;
   canJump = false;
+  hasReceivedInitialRespawn = false;
   health = 100;
   maxHealth = 100;
 
@@ -324,6 +325,8 @@ export class Player {
           this.modelGroup.rotation.y = this.cameraYaw;
         }
       }
+      this.hasReceivedInitialRespawn = true;
+      useGameStore.getState().setIsMapLoading(false);
       skyBridgeManager.stats.health = skyBridgeManager.effectiveStats.maxHealth;
       this.health = skyBridgeManager.stats.health;
 

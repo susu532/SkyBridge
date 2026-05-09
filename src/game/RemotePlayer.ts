@@ -21,6 +21,8 @@ export class RemotePlayer {
   heldItemModel: THREE.Group | null = null;
   offHandItemMesh: THREE.Mesh | null = null;
   offHandItemModel: THREE.Group | null = null;
+  
+  armorMeshes: THREE.Mesh[] = [];
   heldItemType: number = 0;
   offHandItemType: number = 0;
   currentModelType: number | null = null;
@@ -316,6 +318,9 @@ export class RemotePlayer {
     this.torchLight = new THREE.PointLight(0xffbd5c, 160.0, 35); 
     this.torchLight.visible = false;
     this.group.add(this.torchLight);
+    
+    this.createArmor();
+    this.updateTeam(team);
   }
 
   public updateTeam(team?: string) {
@@ -328,6 +333,18 @@ export class RemotePlayer {
         const origMat = this.capeMesh.userData.originalMaterial as any;
         if (origMat.color !== undefined) origMat.color.setHex(capeColor);
       }
+    }
+    
+    if (team === 'red' || team === 'blue') {
+      const teamColor = team === 'blue' ? 0x3366cc : 0xcc3333;
+      this.armorMeshes.forEach(mesh => {
+        mesh.visible = true;
+        (mesh.material as any).color.setHex(teamColor);
+      });
+    } else {
+      this.armorMeshes.forEach(mesh => {
+        mesh.visible = false;
+      });
     }
     
     if (this.gliderLeftWing && this.gliderRightWing) {
@@ -483,6 +500,47 @@ export class RemotePlayer {
     this.gliderGroup.add(this.gliderRightWing!);
 
     this.gliderGroup.visible = false;
+  }
+
+  private createArmor() {
+    const armorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide });
+
+    const createArmorMesh = (w: number, h: number, d: number) => {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const mesh = new THREE.Mesh(geo, armorMat);
+      mesh.visible = false;
+      this.armorMeshes.push(mesh);
+      return mesh;
+    };
+
+    if (this.bodyMesh) {
+      const bodyArmor = createArmorMesh(0.44, 0.64, 0.24);
+      this.bodyMesh.add(bodyArmor);
+    }
+    if (this.headMesh) {
+      const headArmor = createArmorMesh(0.44, 0.44, 0.44);
+      this.headMesh.add(headArmor);
+    }
+    if (this.leftArmMesh) {
+      const leftArmArmor = createArmorMesh(0.24, 0.64, 0.24);
+      leftArmArmor.position.y = -0.3;
+      this.leftArmMesh.add(leftArmArmor);
+    }
+    if (this.rightArmMesh) {
+      const rightArmArmor = createArmorMesh(0.24, 0.64, 0.24);
+      rightArmArmor.position.y = -0.3;
+      this.rightArmMesh.add(rightArmArmor);
+    }
+    if (this.leftLegMesh) {
+      const leftLegArmor = createArmorMesh(0.24, 0.64, 0.24);
+      leftLegArmor.position.y = -0.3;
+      this.leftLegMesh.add(leftLegArmor);
+    }
+    if (this.rightLegMesh) {
+      const rightLegArmor = createArmorMesh(0.24, 0.64, 0.24);
+      rightLegArmor.position.y = -0.3;
+      this.rightLegMesh.add(rightLegArmor);
+    }
   }
 
   setHeldItem(type: number, offHandType: number = 0) {

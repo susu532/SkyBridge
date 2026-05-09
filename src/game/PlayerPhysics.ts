@@ -72,6 +72,11 @@ export class PlayerPhysics {
   applyGravityAndCollision(delta: number) {
     const p = this.player;
 
+    if (!p.hasReceivedInitialRespawn) {
+      p.velocity.set(0, 0, 0);
+      return;
+    }
+
     // Check if the chunk below the player is loaded
     const cx = Math.floor(p.worldPosition.x / 16);
     const cz = Math.floor(p.worldPosition.z / 16);

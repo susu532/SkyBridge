@@ -193,6 +193,9 @@ export class Game {
       const urlParams = new URLSearchParams(window.location.search);
       const serverName = urlParams.get('server') || 'hub';
 
+      this.player.hasReceivedInitialRespawn = false;
+      useGameStore.getState().setIsMapLoading(true);
+
       // Clear the world chunks to prevent terrain bleeding between domains
       this.world.reset(serverName);
 

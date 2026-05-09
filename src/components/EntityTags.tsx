@@ -43,11 +43,11 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
               lvSpan.innerText = `Lv${tag.level}`;
               innerDiv.appendChild(lvSpan);
             }
-            if (isPlayer) {
-              const lvSpan = document.createElement('span');
-              lvSpan.className = "text-[#55FFFF] font-bold";
-              lvSpan.innerText = `Lv${tag.level}`;
-              innerDiv.appendChild(lvSpan);
+            if (isPlayer && tag.team) {
+              const teamSpan = document.createElement('span');
+              teamSpan.className = tag.team === 'red' ? "text-[#FF5555] font-bold" : "text-[#5555FF] font-bold";
+              teamSpan.innerText = `[${tag.team.toUpperCase()}]`;
+              innerDiv.appendChild(teamSpan);
             }
             
             const nameSpan = document.createElement('span');

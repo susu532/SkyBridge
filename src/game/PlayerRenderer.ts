@@ -12,6 +12,8 @@ export class PlayerRenderer {
   fpArmGroup: THREE.Group;
   fpOffHandArmGroup: THREE.Group;
   
+  armorMeshes: THREE.Mesh[] = [];
+
   headMesh: THREE.Mesh | null = null;
   bodyMesh: THREE.Mesh | null = null;
   leftLegMesh: THREE.Mesh | null = null;
@@ -95,6 +97,18 @@ export class PlayerRenderer {
         const origMat = this.capeMesh.userData.originalMaterial as any;
         if (origMat.color) origMat.color.setHex(capeColor);
       }
+    }
+    
+    if (team === 'red' || team === 'blue') {
+      const teamColor = team === 'blue' ? 0x3366cc : 0xcc3333;
+      this.armorMeshes.forEach(mesh => {
+        mesh.visible = true;
+        (mesh.material as any).color.setHex(teamColor);
+      });
+    } else {
+      this.armorMeshes.forEach(mesh => {
+        mesh.visible = false;
+      });
     }
     
     // Update glider materials if they exist
@@ -336,6 +350,9 @@ export class PlayerRenderer {
 
     // Glider
     this.createGlider();
+    
+    // Armor
+    this.createArmor();
 
     // Held Item (3rd Person)
     const itemGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
@@ -453,6 +470,56 @@ export class PlayerRenderer {
     this.gliderGroup.add(this.gliderRightWing!);
 
     this.gliderGroup.visible = false;
+  }
+
+  private createArmor() {
+    // Hidden by default, updated on team change
+    const armorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide });
+
+    const createArmorMesh = (w: number, h: number, d: number) => {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const mesh = new THREE.Mesh(geo, armorMat);
+      mesh.visible = false;
+      this.armorMeshes.push(mesh);
+      return mesh;
+    };
+
+    if (this.bodyMesh) {
+      // T-shirt body part (slightly shorter than full torso)
+      const bodyArmor = createArmorMesh(0.44, 0.54, 0.24);
+      bodyArmor.position.y = -0.27;
+      this.bodyMesh.add(bodyArmor);
+    }
+    if (this.headMesh) {
+      // Helmet covering the top half of the head
+      const headArmor = createArmorMesh(0.44, 0.24, 0.44);
+      headArmor.position.y = 0.11;
+      this.headMesh.add(headArmor);
+    }
+    if (this.leftArmMesh) {
+      // T-shirt sleeve
+      const leftArmArmor = createArmorMesh(0.24, 0.28, 0.24);
+      leftArmArmor.position.y = -0.14;
+      this.leftArmMesh.add(leftArmArmor);
+    }
+    if (this.rightArmMesh) {
+      // T-shirt sleeve
+      const rightArmArmor = createArmorMesh(0.24, 0.28, 0.24);
+      rightArmArmor.position.y = -0.14;
+      this.rightArmMesh.add(rightArmArmor);
+    }
+    if (this.leftLegMesh) {
+      // Trousers
+      const leftLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      leftLegArmor.position.y = -0.22;
+      this.leftLegMesh.add(leftLegArmor);
+    }
+    if (this.rightLegMesh) {
+      // Trousers
+      const rightLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      rightLegArmor.position.y = -0.22;
+      this.rightLegMesh.add(rightLegArmor);
+    }
   }
 
   public update(delta: number, isGliding: boolean) {

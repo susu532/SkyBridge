@@ -126,13 +126,15 @@ export class NetworkManager {
           `?server=${data.serverId.replace("/", "")}`,
         );
       } else {
-        this.connect(mode + "_1");
-        window.history.pushState({}, "", `?server=${mode}_1`);
+        const connectMode = mode.includes('_') ? mode : `${mode}_1`;
+        this.connect(connectMode);
+        window.history.pushState({}, "", `?server=${connectMode}`);
       }
     } catch (e) {
       console.error("Matchmaking failed:", e);
-      this.connect(mode + "_1");
-      window.history.pushState({}, "", `?server=${mode}_1`);
+      const connectMode = mode.includes('_') ? mode : `${mode}_1`;
+      this.connect(connectMode);
+      window.history.pushState({}, "", `?server=${connectMode}`);
     }
   }
 
@@ -164,6 +166,7 @@ export class NetworkManager {
       this.initData = data;
       this.players = data.players;
       this.blockChanges = data.blockChanges;
+      useGameStore.getState().setGameStartTime(data.gameStartTime || 0);
       if (this._onInit) this._onInit(data);
     });
 
@@ -181,6 +184,9 @@ export class NetworkManager {
 
     this.socket.on("entitiesReset", (data) => {
       this.blockChanges = {};
+      if (data.gameStartTime) {
+        useGameStore.getState().setGameStartTime(data.gameStartTime);
+      }
       if (this.onEntitiesReset) this.onEntitiesReset(data);
     });
 

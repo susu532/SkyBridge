@@ -35,6 +35,9 @@ import { DebugInfo } from './components/DebugInfo';
 import { EntityTags } from './components/EntityTags';
 import { LaunchMenuUI } from './components/LaunchMenuUI';
 import { MobileControlsUI } from './components/MobileControlsUI';
+import { MapLoadingScreen } from './components/MapLoadingScreen';
+import { TopObjectiveHUD } from './components/TopObjectiveHUD';
+import { HubTitleUI } from './components/HubTitleUI';
 import { settingsManager } from './game/Settings';
 import { Settings as SettingsIcon, Maximize } from 'lucide-react';
 import { useUI } from './store/UIStore';
@@ -182,18 +185,35 @@ export default function App() {
       }
 
       if (e.code === 'Escape') {
+        const { 
+          isInventoryOpen: inv, 
+          isShopOpen: shop, 
+          isSettingsOpen: settings, 
+          isPauseMenuOpen: pause, 
+          isTyping: typing, 
+          isChestOpen: chest,
+          isServerJoinOpen: serverJoin,
+          isLaunchMenuOpen: launchMenu
+        } = stateRef.current;
+
         if (isInputFocused) {
           (e.target as HTMLElement).blur();
           return;
         }
-        if (inv || shop || settings || pause || typing || chest) {
+
+        if (inv || shop || settings || pause || typing || chest || serverJoin || launchMenu) {
           setInventoryOpen(false);
           setShopOpen(false);
           setSettingsOpen(false);
           setPauseMenuOpen(false);
           setChestOpen(false);
           setTyping(false);
-          handleStart(null);
+          setServerJoinOpen(false);
+          setLaunchMenuOpen(false);
+          
+          if (!isMobile) {
+            newGame.controls.lock();
+          }
         } else {
           newGame.controls.unlock();
           setPauseMenuOpen(true);
@@ -304,6 +324,14 @@ export default function App() {
       e.preventDefault();
     };
 
+    const handlePointerLockError = () => {
+      console.warn('Pointer lock failed, restoring pause menu.');
+      if (!newGame.world.isHub) {
+        setPauseMenuOpen(true);
+      }
+    };
+
+    document.addEventListener('pointerlockerror', handlePointerLockError);
     document.addEventListener('pointerlockchange', handleLockChange);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('wheel', handleWheel, { passive: false });
@@ -344,6 +372,7 @@ export default function App() {
       newGame.stop();
       cancelAnimationFrame(fastUIAF);
       document.removeEventListener('pointerlockchange', handleLockChange);
+      document.removeEventListener('pointerlockerror', handlePointerLockError);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('wheel', handleWheel, { passive: false } as any);
       document.removeEventListener('contextmenu', handleContextMenu);
@@ -365,18 +394,6 @@ export default function App() {
 
   const handleStart = async (e: any) => {
     if (e) e.stopPropagation();
-    
-    // Cooldown to prevent "Pointer lock cannot be acquired immediately after user has exited"
-    const now = Date.now();
-    const timeSinceUnlock = now - lastUnlockTime.current;
-    if (timeSinceUnlock < 1300) {
-      setTimeout(() => {
-        if (!stateRef.current.isLocked && !stateRef.current.isPauseMenuOpen) {
-          setPauseMenuOpen(true);
-        }
-      }, 50);
-      return;
-    }
 
     if (isMobile) {
       try {
@@ -439,6 +456,12 @@ export default function App() {
       {isUnderLava && (
         <div className="absolute inset-0 pointer-events-none bg-red-900/40" />
       )}
+
+      {/* Top HUD */}
+      {isHUDVisible && currentMode === 'skycastles' && <TopObjectiveHUD />}
+
+      {/* Hub Title */}
+      {currentMode === 'hub' && <HubTitleUI />}
 
       {/* Debug Menu */}
       <DebugInfo game={game} showDebug={showDebug} />
@@ -520,7 +543,7 @@ export default function App() {
       )}
       {isHUDVisible && (
         <>
-          <DamageOverlay />
+          <DamageOverlay game={game || undefined} />
           <DamageNumbers />
           <GameMessages />
           <LevelUpUI />
@@ -642,6 +665,9 @@ export default function App() {
           />
         </div>
       )}
+
+      {/* Map Loading Screen */}
+      <MapLoadingScreen />
 
       {/* Force Landscape Overlay for Mobile */}
       {isMobile && (

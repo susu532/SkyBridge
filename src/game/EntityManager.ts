@@ -445,6 +445,9 @@ export class EntityManager {
       player.isSprinting = data.isSprinting;
       player.isSwinging = data.isSwinging;
       player.isGliding = data.isGliding;
+      if (data.team !== player.team) {
+        player.updateTeam(data.team);
+      }
       player.swingSpeed = data.swingSpeed || 15;
       player.isGrounded =
         data.isGrounded !== undefined ? data.isGrounded : true;
