@@ -139,7 +139,7 @@
 
   // ===== 10. DOMAIN LOCK =====
   var _allowedHosts = [
-    'sky-bridge-teal-two.vercel.app',
+    'starplex-io.vercel.app',
     'skybridge-server.onrender.com'
   ];
 

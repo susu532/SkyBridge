@@ -12,7 +12,7 @@ export const isHeadless = (): boolean => {
 };
 
 const ALLOWED_DOMAINS = [
-  'sky-bridge-teal-two.vercel.app',
+  'starplex-io.vercel.app',
   'skybridge-server.onrender.com'
 ];
 
