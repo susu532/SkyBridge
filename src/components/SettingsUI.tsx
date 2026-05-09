@@ -22,6 +22,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
     if (!rebindingKey) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      e.stopImmediatePropagation();
       e.preventDefault();
       if (e.code === 'Escape') {
         setRebindingKey(null);

@@ -51,7 +51,12 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
             }
             
             const nameSpan = document.createElement('span');
-            nameSpan.className = "text-white font-medium";
+            let nameColor = "text-white";
+            if (isPlayer && tag.team) {
+              if (tag.team === 'red') nameColor = "text-[#FF5555]";
+              else if (tag.team === 'blue') nameColor = "text-[#5555FF]";
+            }
+            nameSpan.className = `${nameColor} font-medium`;
             nameSpan.innerText = isPlayer ? tag.name : tag.type;
             innerDiv.appendChild(nameSpan);
             

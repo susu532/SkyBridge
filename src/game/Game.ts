@@ -73,7 +73,7 @@ export class Game {
     const heightHalf = window.innerHeight / 2;
     this.camera.getWorldDirection(this._tempCameraDir);
 
-    const projectEntity = (id: string, pos: THREE.Vector3, type: string, health: number, maxHealth: number, level: number, name?: string, isPassive: boolean = false, heightOffset?: number) => {
+    const projectEntity = (id: string, pos: THREE.Vector3, type: string, health: number, maxHealth: number, level: number, name?: string, isPassive: boolean = false, heightOffset?: number, team?: string) => {
       // Distance check
       const distSq = pos.distanceToSquared(this.camera.position);
       if (isNaN(distSq) || distSq > 2500) return; // 50 blocks for players
@@ -95,7 +95,7 @@ export class Game {
       const distance = Math.sqrt(distSq);
       if (distance > 40) return;
 
-      tags.push({ id, x, y, level, type, health, maxHealth, distance, name, isPassive });
+      tags.push({ id, x, y, level, type, health, maxHealth, distance, name, isPassive, team });
     };
 
     this.entityManager.mobs.forEach((mob) => {
@@ -105,7 +105,7 @@ export class Game {
     this.entityManager.remotePlayers.forEach((player) => {
       const combatLevel = player.skills?.Combat?.level || 1;
       const heightOffset = player.isCrouching ? 1.8 : 2.2;
-      projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset);
+      projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset, player.team);
     });
 
     this._cachedTags = tags;

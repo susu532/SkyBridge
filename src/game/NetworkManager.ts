@@ -111,7 +111,7 @@ export class NetworkManager {
 
     // Immediately update URL to provide instant visual feedback of server transition
     if (modeOverride) {
-      window.history.pushState({}, "", `/?server=${mode}`);
+      window.history.pushState({}, "", `?server=${mode}`);
     }
 
     try {
@@ -123,16 +123,16 @@ export class NetworkManager {
         window.history.pushState(
           {},
           "",
-          `/?server=${data.serverId.replace("/", "")}`,
+          `?server=${data.serverId.replace("/", "")}`,
         );
       } else {
         this.connect(mode + "_1");
-        window.history.pushState({}, "", `/?server=${mode}_1`);
+        window.history.pushState({}, "", `?server=${mode}_1`);
       }
     } catch (e) {
       console.error("Matchmaking failed:", e);
       this.connect(mode + "_1");
-      window.history.pushState({}, "", `/?server=${mode}_1`);
+      window.history.pushState({}, "", `?server=${mode}_1`);
     }
   }
 
@@ -206,6 +206,7 @@ export class NetworkManager {
     );
 
     this.socket.on("skyCastlesSync", (data) => {
+      (window as any).latestSkyCastlesSync = data;
       window.dispatchEvent(new CustomEvent("skyCastlesSync", { detail: data }));
     });
 
@@ -375,7 +376,7 @@ export class NetworkManager {
 
     this.socket.on("chatMessage", (data) => {
       if (this.onChatMessage) this.onChatMessage(data);
-      useGameStore.getState().addChatMessage(data.sender, data.message);
+      useGameStore.getState().addChatMessage(data.sender, data.message, data.team);
     });
 
     this.socket.on("switchServer", (mode) => {

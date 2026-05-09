@@ -136,6 +136,11 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const { isTyping: typing, isLocked: locked, isInventoryOpen: inv, isShopOpen: shop, isSettingsOpen: settings, isPauseMenuOpen: pause, isChestOpen: chest } = stateRef.current;
 
+      const isInputFocused = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+
+      // Ignore standard keybinds when typing in an input
+      if (isInputFocused && e.code !== 'Escape' && e.code !== 'Enter') return;
+
       if (typing && e.code !== 'Enter' && e.code !== 'Escape') return;
 
       if (e.code === 'F3') {
@@ -164,9 +169,8 @@ export default function App() {
       }
 
       if (e.code === 'Enter') {
-        if (locked) {
-          suppressPauseMenu.current = true;
-          newGame.controls.unlock();
+        if (locked && !isInputFocused) {
+          // Do not unlock controls here to keep chat completely seamless
           setTyping(true);
         }
       }
@@ -178,6 +182,10 @@ export default function App() {
       }
 
       if (e.code === 'Escape') {
+        if (isInputFocused) {
+          (e.target as HTMLElement).blur();
+          return;
+        }
         if (inv || shop || settings || pause || typing || chest) {
           setInventoryOpen(false);
           setShopOpen(false);

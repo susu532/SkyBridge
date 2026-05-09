@@ -81,12 +81,18 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
         className="max-h-48 md:max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
         style={{ scrollbarWidth: 'none' }}
       >
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) => {
+          let senderColor = "text-[#FFFF55]"; // default yellow
+          if (msg.team === 'red') senderColor = "text-[#FF5555]";
+          else if (msg.team === 'blue') senderColor = "text-[#5555FF]";
+
+          return (
           <div key={i} className="text-[12px] md:text-[14px] text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/0 px-1 py-0.5 rounded w-fit max-w-full break-words font-sans selection:bg-white/30">
-            <span className="font-bold text-[#FFFF55]">{msg.sender}: </span>
+            <span className={`font-bold ${senderColor}`}>{msg.sender}: </span>
             {formatMessage(msg.message)}
           </div>
-        ))}
+          );
+        })}
       </div>
       
       {isTyping && (

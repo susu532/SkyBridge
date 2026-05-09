@@ -7,7 +7,7 @@ export const SkyCastlesSidebar: React.FC = () => {
   const addSkycoins = useGameStore(state => state.addSkycoins);
   const serverId = useGameStore(state => state.serverId);
   const [recentRewards, setRecentRewards] = useState<{id: number, amount: number}[]>([]);
-  const [syncState, setSyncState] = useState<any>(null);
+  const [syncState, setSyncState] = useState<any>((window as any).latestSkyCastlesSync || null);
   const dateStr = new Date().toLocaleDateString('en-GB', { year: '2-digit', month: '2-digit', day: '2-digit' });
 
   useEffect(() => {
@@ -30,7 +30,9 @@ export const SkyCastlesSidebar: React.FC = () => {
           prev.redHp === next.redHp &&
           prev.blueHp === next.blueHp &&
           prev.gameState === next.gameState &&
-          prev.timeToRestart === next.timeToRestart
+          prev.timeToRestart === next.timeToRestart &&
+          prev.redPlayers === next.redPlayers &&
+          prev.bluePlayers === next.bluePlayers
         ) {
           return prev;
         }
@@ -68,11 +70,17 @@ export const SkyCastlesSidebar: React.FC = () => {
                   {syncState.redHp > 0 ? `${Math.ceil(syncState.redHp)}/${syncState.redMax}` : 'DEAD'}
                 </span>
               </div>
-              <div className="text-white text-xs font-bold mc-text-shadow flex justify-between items-center">
+              <div className="text-white/60 text-[10px] mc-text-shadow text-left -mt-1">
+                Players: {syncState.redPlayers ?? 0}/25
+              </div>
+              <div className="text-white text-xs font-bold mc-text-shadow flex justify-between items-center mt-1">
                 <span>Blue Morvane:</span>
                 <span className={syncState.blueHp > 0 ? "text-[#5555FF]" : "text-gray-500"}>
                   {syncState.blueHp > 0 ? `${Math.ceil(syncState.blueHp)}/${syncState.blueMax}` : 'DEAD'}
                 </span>
+              </div>
+              <div className="text-white/60 text-[10px] mc-text-shadow text-left -mt-1">
+                Players: {syncState.bluePlayers ?? 0}/25
               </div>
               {syncState.gameState === 'endgame' && (
                 <div className="text-[#FFAA00] text-xs font-bold text-center mt-2 animate-pulse">
@@ -87,6 +95,9 @@ export const SkyCastlesSidebar: React.FC = () => {
 
           <div className="pt-2 text-xs text-white/80 mc-text-shadow italic border-t border-white/10 mt-2">
             Kill enemies to earn Skycoins!
+          </div>
+          <div className="pt-2 text-xs text-white/80 mc-text-shadow italic border-t border-white/10 mt-2">
+            Kill enemy Morvane to win!
           </div>
         </div>
 

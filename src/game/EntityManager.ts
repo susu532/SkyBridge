@@ -401,6 +401,9 @@ export class EntityManager {
             player.skinSeed = skinSeed;
             player.updateSkin(skinSeed);
          }
+         if (player.team !== team && typeof (player as any).updateTeam === 'function') {
+            (player as any).updateTeam(team);
+         }
       }
     }
   }

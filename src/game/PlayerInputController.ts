@@ -113,8 +113,13 @@ export class PlayerInputController {
     }
   }
 
+  isInputFocused() {
+    return document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement;
+  }
+
   onKeyDown = (event: KeyboardEvent) => {
     if (!this.player.controls.isLocked) return;
+    if (this.isInputFocused()) return;
     const { keybinds } = settingsManager.getSettings();
     
     switch (event.code) {
@@ -171,6 +176,10 @@ export class PlayerInputController {
 
   onKeyUp = (event: KeyboardEvent) => {
     if (!this.player.controls.isLocked) return;
+    if (this.isInputFocused()) {
+      this.resetInput();
+      return;
+    }
     const { keybinds } = settingsManager.getSettings();
     
     switch (event.code) {
@@ -190,6 +199,7 @@ export class PlayerInputController {
 
   onMouseMove = (event: MouseEvent) => {
     if (this.player.controls.isLocked) {
+      if (this.isInputFocused()) return;
       // Cap movement to prevent extreme jumps when locking/unlocking
       if (Math.abs(event.movementX) > 500 || Math.abs(event.movementY) > 500) return;
       
@@ -256,6 +266,7 @@ export class PlayerInputController {
   onMouseDown = (event: MouseEvent) => {
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!this.player.controls.isLocked && !isMobile) return;
+    if (this.isInputFocused()) return;
     if (this.player.isSpectator || this.player.isDead) return;
 
     this.player.isSwinging = true;

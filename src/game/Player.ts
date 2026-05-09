@@ -327,7 +327,7 @@ export class Player {
       skyBridgeManager.stats.health = skyBridgeManager.effectiveStats.maxHealth;
       this.health = skyBridgeManager.stats.health;
 
-      if (useGameStore.getState().currentMode.startsWith('battleroyale') && e.detail.position.y > 200) {
+      if (useGameStore.getState().currentMode.startsWith('battleroyale') && e.detail.position.y >= 50) {
         this.isGliding = true;
       }
 
