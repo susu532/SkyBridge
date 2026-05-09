@@ -212,7 +212,7 @@ export default function App() {
           setLaunchMenuOpen(false);
           
           if (!isMobile) {
-            newGame.controls.lock();
+            trySafeLock(true);
           }
         } else {
           newGame.controls.unlock();
@@ -258,7 +258,30 @@ export default function App() {
       setTyping(false);
       suppressPauseMenu.current = true;
       if (!isMobile) {
+        trySafeLock();
+      }
+    };
+
+    const trySafeLock = (isEscapeKey = false) => {
+      if (document.pointerLockElement === document.body) return;
+      if (isMobile) return;
+      
+      const now = Date.now();
+      const hasCooldown = now - lastUnlockTime.current < 1250;
+      
+      const hasActivation = ('userActivation' in navigator) 
+        ? (navigator as any).userActivation.isActive 
+        : true;
+        
+      if (hasCooldown || !hasActivation || isEscapeKey) {
+        return;
+      }
+      
+      try {
         newGame.controls.lock();
+        audioManager.resume();
+      } catch (err) {
+        console.warn('Pointer lock sync request failed:', err);
       }
     };
 
@@ -412,8 +435,18 @@ export default function App() {
       }
     }
 
-    // Only attempt to lock if we're not already locked and not in inventory/shop/settings/pause
     if (game && !game.controls.isLocked && !isInventoryOpen && !isShopOpen && !isSettingsOpen && !isPauseMenuOpen && !isServerJoinOpen) {
+      const now = Date.now();
+      const hasCooldown = now - lastUnlockTime.current < 1250;
+      
+      const hasActivation = ('userActivation' in navigator) 
+        ? (navigator as any).userActivation.isActive 
+        : true;
+
+      if (hasCooldown || !hasActivation) {
+        return;
+      }
+
       try {
         game.controls.lock();
         audioManager.resume();
