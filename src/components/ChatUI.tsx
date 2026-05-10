@@ -73,7 +73,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
 
   return (
     <div 
-      className="absolute bottom-14 md:bottom-24 left-1 md:left-4 w-[60vw] sm:w-80 flex flex-col gap-1 pointer-events-none z-30 safe-ml transform scale-[0.7] sm:scale-100 origin-bottom-left landscape:bottom-8 md:landscape:bottom-24 landscape:scale-[0.55] sm:landscape:scale-[0.85] md:landscape:scale-100"
+      className="absolute bottom-14 md:bottom-24 landscape:bottom-8 xl:landscape:bottom-24 left-1 md:left-4 w-[60vw] sm:w-80 flex flex-col gap-1 pointer-events-none z-30 safe-ml transform scale-[0.7] sm:scale-100 origin-bottom-left landscape:scale-[0.65] md:landscape:scale-[0.8] xl:landscape:scale-100"
       onClick={(e) => e.stopPropagation()}
     >
       <div 

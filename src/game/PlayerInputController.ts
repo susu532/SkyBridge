@@ -78,15 +78,69 @@ export class PlayerInputController {
         this.moveBackward = jY > 0.2;
         this.moveLeft = jX < -0.2;
         this.moveRight = jX > 0.2;
-        this.isSprinting = jY < -0.8;
+        this.isSprinting = jY < -0.6;
         
-        // Evaluate buttons
+        const wasMovingUp = this.moveUp;
         this.moveUp = window.mobileInputs.isJumping;
+        if (this.moveUp && !wasMovingUp) {
+          if (!this.player.isFlying && !this.player.isSwimming && this.player.canJump) {
+            this.player.velocity.y += this.player.jumpForce;
+            if (this.isSprinting && (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight)) {
+              this.player.velocity.x += this.player.direction.x * this.player.sprintSpeed * 0.15;
+              this.player.velocity.z += this.player.direction.z * this.player.sprintSpeed * 0.15;
+            }
+            const blockBelow = this.player.world.getBlock(Math.floor(this.player.worldPosition.x), Math.floor(this.player.worldPosition.y - 0.5), Math.floor(this.player.worldPosition.z));
+            let surface = 'stone';
+            if (blockBelow === BLOCK.GRASS) surface = 'grass';
+            else if (blockBelow === BLOCK.DIRT) surface = 'dirt';
+            else if (blockBelow === BLOCK.SAND) surface = 'sand';
+            else if (blockBelow === BLOCK.WOOD || blockBelow === BLOCK.PLANKS) surface = 'wood';
+            audioManager.playStep(surface);
+          }
+        }
+        
         this.player.isZooming = window.mobileInputs.isZooming;
         
         if (window.mobileInputs.triggerDrop) {
           if (!this.player.world.isHub && !this.player.isSpectator && !this.player.isDead) this.dropItem(false);
           window.mobileInputs.triggerDrop = false;
+        }
+
+        if (window.mobileInputs.triggerTap) {
+          window.mobileInputs.triggerTap = false;
+          
+          let hitPlayer = false;
+          const nearest = this.player.world.entityManager.getEntities()
+            .filter((e: any) => e !== this.player)
+            .sort((a: any, b: any) => this.player.worldPosition.distanceTo(a.position) - this.player.worldPosition.distanceTo(b.position))[0];
+          
+          if (nearest && this.player.worldPosition.distanceTo(nearest.position) < 5) {
+            const dirToNearest = nearest.position.clone().sub(this.player.worldPosition).normalize();
+            const angle = this.player.camera.getWorldDirection(new THREE.Vector3()).angleTo(dirToNearest);
+            if (angle < Math.PI / 4) {
+              hitPlayer = true;
+              this.onMouseDown({ button: 0 } as MouseEvent); // Synthesize Left Click to attack
+            }
+          }
+          
+          if (!hitPlayer) {
+            this.onMouseDown({ button: 2 } as MouseEvent); // Synthesize Right Click to interact/place
+          }
+        }
+        
+        // Attack sync from mobile
+        if (window.mobileInputs.isAttacking) {
+          this.player.isLeftMouseDown = true;
+          this.onMouseDown({ button: 0 } as MouseEvent); // this will also mine if held since isLeftMouseDown = true
+        } else if (!this.player.isLeftMouseDown) {
+          // don't interfere if they are using a physical mouse on PC
+        }
+
+        if (!window.mobileInputs.isAttacking && this.player.isLeftMouseDown && !this.isRightMouseDown) {
+            // ensure it releases
+            const isMouseLeft = false; // logic would need to know if real mouse left is down
+            // For mobile exclusively:
+            this.player.isLeftMouseDown = false;
         }
         
         if (window.mobileInputs.triggerPerspective) {

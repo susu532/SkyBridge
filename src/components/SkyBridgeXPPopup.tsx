@@ -7,7 +7,7 @@ export const SkyBridgeXPPopup: React.FC = () => {
   const popups = useGameStore(state => state.xpPopups);
 
   return (
-    <div className="absolute bottom-40 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none">
+    <div className="absolute bottom-40 landscape:bottom-28 xl:landscape:bottom-40 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none">
       <AnimatePresence>
         {popups.map((popup) => (
           <motion.div
