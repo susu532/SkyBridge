@@ -59,7 +59,7 @@ export class NPC {
     if (!context) return;
 
     // Higher resolution for hub NPCs, even wider for longer names
-    const isWide = this.id === 'hub_npc_dungeon' || this.id === 'hub_npc_br';
+    const isWide = this.id === 'hub_npc_dungeon' || this.id === 'hub_npc_br' || this.id === 'hub_npc_void';
     canvas.width = isWide ? 1536 : 1024;
     canvas.height = 256;
 

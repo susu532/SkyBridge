@@ -12,6 +12,9 @@ declare global {
       isCrouching: boolean;
       isAttacking: boolean;
       isInteracting: boolean;
+      isZooming: boolean;
+      triggerDrop: boolean;
+      triggerPerspective: boolean;
       lookDeltaX: number;
       lookDeltaY: number;
     };
@@ -25,11 +28,14 @@ window.mobileInputs = window.mobileInputs || {
   isCrouching: false,
   isAttacking: false,
   isInteracting: false,
+  isZooming: false,
+  triggerDrop: false,
+  triggerPerspective: false,
   lookDeltaX: 0,
   lookDeltaY: 0,
 };
 
-import { Menu, Backpack, MessageSquare } from 'lucide-react';
+import { Menu, Backpack, MessageSquare, Camera, ScanEye, ArrowDownToLine } from 'lucide-react';
 
 export const MobileControlsUI: React.FC = () => {
   const { isInventoryOpen, setInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, setPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isTyping, setTyping, setLocked } = useUI();
@@ -177,7 +183,13 @@ export const MobileControlsUI: React.FC = () => {
   return (
     <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none safe-pb">
       {/* Top HUD Buttons */}
-      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex gap-2 md:gap-4 pointer-events-auto safe-pr safe-pt transform scale-90 sm:scale-100 origin-top-right">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex gap-1.5 md:gap-4 pointer-events-auto safe-pr safe-pt transform scale-[0.85] sm:scale-100 origin-top-right landscape:scale-[0.8] sm:landscape:scale-100">
+        <button 
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
+          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.triggerPerspective = true; }}
+        >
+          <Camera size={18} className="md:w-6 md:h-6" />
+        </button>
         <button 
           className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
           onClick={() => { setTyping(true); setLocked(false); }}
@@ -216,45 +228,63 @@ export const MobileControlsUI: React.FC = () => {
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
-      <div className="absolute bottom-12 right-2 md:bottom-20 md:right-12 pointer-events-none w-40 h-40 md:w-56 md:h-56 safe-mr safe-mb transform scale-90 sm:scale-100 origin-bottom-right">
+      <div className="absolute bottom-2 right-2 md:bottom-12 md:right-12 pointer-events-none w-36 h-36 md:w-56 md:h-56 landscape:w-32 landscape:h-32 md:landscape:w-56 md:landscape:h-56 landscape:bottom-2 landscape:right-2 md:landscape:bottom-12 md:landscape:right-12 safe-mr safe-mb transform origin-bottom-right">
+        {/* Zoom Button (Top Left) */}
+        <button 
+          className="absolute top-0 left-0 mobile-button w-10 h-10 md:w-16 md:h-16 landscape:w-8 landscape:h-8 md:landscape:w-16 md:landscape:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto shadow-md"
+          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isZooming = true; }}
+          onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isZooming = false; }}
+          onPointerLeave={() => window.mobileInputs.isZooming = false}
+        >
+          <ScanEye size={20} className="md:w-8 md:h-8 text-white drop-shadow-md" />
+        </button>
+        
+        {/* Drop Button (Top Right) */}
+        <button 
+          className="absolute top-0 right-0 mobile-button w-10 h-10 md:w-16 md:h-16 landscape:w-8 landscape:h-8 md:landscape:w-16 md:landscape:h-16 rounded-full bg-red-500/20 border-[3px] border-red-500/40 flex items-center justify-center active:bg-red-500/40 opacity-80 pointer-events-auto shadow-md text-red-100"
+          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.triggerDrop = true; }}
+        >
+          <ArrowDownToLine size={20} className="md:w-8 md:h-8 drop-shadow-md text-red-200" />
+        </button>
+
         {/* Jump Button (Top) */}
         <button 
-          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
+          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-12 h-12 md:w-20 md:h-20 landscape:w-10 landscape:h-10 md:landscape:w-20 md:landscape:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isJumping = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isJumping = false; }}
           onPointerLeave={() => window.mobileInputs.isJumping = false}
         >
-          <ArrowUp size={28} className="md:w-10 md:h-10 text-white drop-shadow-md" />
+          <ArrowUp size={24} className="md:w-10 md:h-10 text-white drop-shadow-md" />
         </button>
         
         {/* Interact Button (Left) */}
         <button 
-          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
+          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-12 h-12 md:w-20 md:h-20 landscape:w-10 landscape:h-10 md:landscape:w-20 md:landscape:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isInteracting = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isInteracting = false; }}
           onPointerLeave={() => window.mobileInputs.isInteracting = false}
         >
-          <Hand size={28} className="md:w-10 md:h-10 text-white drop-shadow-md" />
+          <Hand size={24} className="md:w-10 md:h-10 text-white drop-shadow-md" />
         </button>
         
         {/* Attack/Mine Button (Right) */}
         <button 
-          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-16 h-16 md:w-24 md:h-24 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
+          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-14 h-14 md:w-24 md:h-24 landscape:w-12 landscape:h-12 md:landscape:w-24 md:landscape:h-24 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = false; }}
           onPointerLeave={() => window.mobileInputs.isAttacking = false}
         >
-          <Zap size={32} className="md:w-12 md:h-12 text-white drop-shadow-md" />
+          <Zap size={28} className="md:w-12 md:h-12 text-white drop-shadow-md" />
         </button>
 
         {/* Crouch Button (Bottom) */}
         <button 
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-12 h-12 md:w-16 md:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto  shadow-md"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-10 h-10 md:w-16 md:h-16 landscape:w-8 landscape:h-8 md:landscape:w-16 md:landscape:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto  shadow-md"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isCrouching = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isCrouching = false; }}
           onPointerLeave={() => window.mobileInputs.isCrouching = false}
         >
-          <Anchor size={24} className="md:w-8 md:h-8 text-white drop-shadow-md" />
+          <Anchor size={20} className="md:w-8 md:h-8 text-white drop-shadow-md" />
         </button>
       </div>
     </div>

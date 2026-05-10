@@ -543,8 +543,8 @@ export default function App() {
           {targetInfo.type && (
             <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
               {targetInfo.name}
-              {targetInfo.type === 'npc' && (targetInfo.id === 'hub_npc_q' || targetInfo.id === 'hub_npc_r' || targetInfo.id === 'hub_npc_v' || targetInfo.id === 'hub_npc_dungeon') && currentMode === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
-              {targetInfo.type === 'npc' && targetInfo.id !== 'hub_npc_q' && targetInfo.id !== 'hub_npc_r' && targetInfo.id !== 'hub_npc_v' && targetInfo.id !== 'hub_npc_dungeon' && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
+              {targetInfo.type === 'npc' && targetInfo.id?.startsWith('hub_npc_') && currentMode === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
+              {targetInfo.type === 'npc' && !targetInfo.id?.startsWith('hub_npc_') && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
             </div>
           )}
         </div>

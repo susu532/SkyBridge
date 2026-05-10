@@ -82,6 +82,17 @@ export class PlayerInputController {
         
         // Evaluate buttons
         this.moveUp = window.mobileInputs.isJumping;
+        this.player.isZooming = window.mobileInputs.isZooming;
+        
+        if (window.mobileInputs.triggerDrop) {
+          if (!this.player.world.isHub && !this.player.isSpectator && !this.player.isDead) this.dropItem(false);
+          window.mobileInputs.triggerDrop = false;
+        }
+        
+        if (window.mobileInputs.triggerPerspective) {
+          this.player.perspective = (this.player.perspective + 1) % 3;
+          window.mobileInputs.triggerPerspective = false;
+        }
         
         const wasCrouching = this.isCrouching;
         this.isCrouching = window.mobileInputs.isCrouching;
@@ -298,6 +309,10 @@ export class PlayerInputController {
         } else if (npc.id === 'hub_npc_br') {
           if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'battleroyale' } }));
+          }
+        } else if (npc.id === 'hub_npc_void') {
+          if (networkManager.serverName.startsWith('hub')) {
+            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
           }
         } else if (npc.id.startsWith('bren')) {
           window.dispatchEvent(new CustomEvent('openLaunchMenu'));

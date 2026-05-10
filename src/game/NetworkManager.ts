@@ -106,6 +106,7 @@ export class NetworkManager {
   }
 
   async initMatchmaking(modeOverride?: string) {
+    useGameStore.getState().setIsMapLoading(true);
     const urlParams = new URLSearchParams(window.location.search);
     const mode = modeOverride || urlParams.get("server") || "hub";
 
@@ -139,6 +140,7 @@ export class NetworkManager {
   }
 
   public connect(serverName: string) {
+    useGameStore.getState().setIsMapLoading(true);
     if (this.socket) {
       this.socket.disconnect();
       this.socket.removeAllListeners();

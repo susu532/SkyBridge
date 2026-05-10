@@ -129,7 +129,8 @@ export class Game {
       powerPreference: "high-performance",
       precision: initialSettings.performanceMode ? "mediump" : "highp"
     });
-    this.renderer.setPixelRatio(initialSettings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    this.renderer.setPixelRatio(initialSettings.performanceMode ? (isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(0.6, window.devicePixelRatio)) : window.devicePixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     const effectivePremiumShaders = initialSettings.premiumShaders && !initialSettings.performanceMode;
     this.renderer.shadowMap.enabled = effectivePremiumShaders;
@@ -524,7 +525,8 @@ export class Game {
       }
 
       // Reduce pixel ratio for better performance
-      this.renderer.setPixelRatio(settings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      this.renderer.setPixelRatio(settings.performanceMode ? (isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(0.6, window.devicePixelRatio)) : window.devicePixelRatio);
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
   }

@@ -1450,7 +1450,7 @@ export class World {
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
     this.isHub = serverName.startsWith('hub');
-    this.isSkyCastles = serverName.startsWith('skycastles');
+    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
     this.isBattleRoyale = serverName.startsWith('battleroyale');
     this.lightingManager = new LightingManager(this);
@@ -3096,6 +3096,90 @@ export class World {
             if (b.y >= 0 && b.y < CHUNK_HEIGHT) chunk.setBlockFast(b.x, b.y, b.z, b.type);
           }
         }
+
+        // --- Injection for new structures (chests & small ships) ---
+        for (let ix = 0; ix < CHUNK_SIZE; ix++) {
+          for (let iz = 0; iz < CHUNK_SIZE; iz++) {
+            const worldX = cx * CHUNK_SIZE + ix;
+            const worldZ = cz * CHUNK_SIZE + iz;
+            
+            // Mid void chests
+            if (worldX === 0 && (worldZ === 10 || worldZ === -9)) {
+              if (15 - WORLD_Y_OFFSET >= 0 && 15 - WORLD_Y_OFFSET < CHUNK_HEIGHT) chunk.setBlockFast(ix, 15 - WORLD_Y_OFFSET, iz, BLOCK.PLANKS);
+              if (16 - WORLD_Y_OFFSET >= 0 && 16 - WORLD_Y_OFFSET < CHUNK_HEIGHT) {
+                   chunk.setBlockFast(ix, 16 - WORLD_Y_OFFSET, iz, worldZ === 10 ? BLOCK.CHEST : BLOCK.CHEST_REVERSED);
+              }
+            }
+            
+            // Small ships
+            const centerZ = worldZ >= 0 ? 310 : -310;
+            const isShip = Math.abs(worldZ - centerZ) <= 8 && Math.abs(worldX) <= 3;
+            if (isShip) {
+              const shipGroundY = 8;
+              const yLocal = shipGroundY - WORLD_Y_OFFSET;
+              const dz = (worldZ - centerZ) * (worldZ >= 0 ? -1 : 1); 
+              const ax = Math.abs(worldX);
+              
+              if (yLocal >= 0 && yLocal + 10 < CHUNK_HEIGHT) {
+                // Base and air clearing
+                for (let hy = 0; hy <= 10; hy++) {
+                  chunk.setBlockFast(ix, yLocal + hy, iz, BLOCK.AIR);
+                }
+                
+                // Floor
+                if (yLocal >= 0 && yLocal < CHUNK_HEIGHT) {
+                  if (ax === 0 && dz >= -5 && dz <= 5) chunk.setBlockFast(ix, yLocal, iz, BLOCK.DARK_OAK_PLANKS);
+                  else if (ax === 1 && dz >= -4 && dz <= 4) chunk.setBlockFast(ix, yLocal, iz, BLOCK.DARK_OAK_PLANKS);
+                  else if (ax === 2 && dz >= -2 && dz <= 2) chunk.setBlockFast(ix, yLocal, iz, BLOCK.DARK_OAK_PLANKS);
+                }
+                
+                // Walls
+                if (yLocal + 1 >= 0 && yLocal + 1 < CHUNK_HEIGHT) {
+                  if (ax === 0 && dz >= 6 && dz <= 8) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.SPRUCE_LOG); // Bowsprit
+                  else if (ax === 2 && dz >= -2 && dz <= 2) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.WOOD);
+                  else if (ax === 1 && (dz === 3 || dz === 4 || dz === 5)) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.WOOD);
+                  else if (ax === 2 && dz === 3) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.WOOD);
+                  else if (ax === 1 && (dz === -3 || dz === -4)) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.WOOD);
+                  else if (ax === 0 && dz === -5) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.WOOD);
+                  
+                  // Stern deck
+                  if (ax <= 1 && dz <= -3 && dz >= -5) chunk.setBlockFast(ix, yLocal + 1, iz, BLOCK.DARK_OAK_PLANKS);
+                  
+                  // Chest - moved to dz = -1
+                  if (worldX === 0 && dz === -1) {
+                     chunk.setBlockFast(ix, yLocal + 1, iz, worldZ >= 0 ? BLOCK.CHEST_REVERSED : BLOCK.CHEST);
+                  }
+                }
+                
+                // Stern raised part
+                if (yLocal + 2 >= 0 && yLocal + 2 < CHUNK_HEIGHT) {
+                  if (ax <= 1 && dz <= -3 && dz >= -5) {
+                     if (ax === 1 || dz === -5) chunk.setBlockFast(ix, yLocal + 2, iz, BLOCK.PLANKS);
+                  }
+                }
+
+                // Mast
+                if (worldX === 0 && dz === 0) {
+                    for(let hy=1; hy<=8; hy++) {
+                        if (yLocal + hy >= 0 && yLocal + hy < CHUNK_HEIGHT) chunk.setBlockFast(ix, yLocal + hy, iz, BLOCK.SPRUCE_LOG);
+                    }
+                    if (yLocal + 9 >= 0 && yLocal + 9 < CHUNK_HEIGHT) chunk.setBlockFast(ix, yLocal + 9, iz, BLOCK.PLANKS); // Crow's nest
+                }
+                
+                // Sail
+                if (dz === 1 && ax <= 2) {
+                    for(let hy=3; hy<=7; hy++) {
+                        if (yLocal + hy >= 0 && yLocal + hy < CHUNK_HEIGHT) {
+                            const sailWidth = (hy === 3 || hy === 7) ? 1 : 2;
+                            if (ax <= sailWidth) chunk.setBlockFast(ix, yLocal + hy, iz, BLOCK.WOOL_WHITE);
+                        }
+                    }
+                }
+              }
+            }
+          }
+        }
+        // --- End Injection ---
       }
     }
 
@@ -3302,7 +3386,7 @@ export class World {
   reset(serverName: string = 'hub') {
     if (!serverName) serverName = 'hub';
     this.isHub = serverName.startsWith('hub');
-    this.isSkyCastles = serverName.startsWith('skycastles');
+    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
     this.isBattleRoyale = serverName.startsWith('battleroyale');
 

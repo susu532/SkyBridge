@@ -12,9 +12,15 @@ export function MapLoadingScreen() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.5, ease: 'easeOut' } }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60  mc-font"
+          className="fixed inset-0 z-[100] flex items-center justify-center mc-font"
+          style={{
+            backgroundColor: '#1E1E24',
+            backgroundImage: 'repeating-linear-gradient(45deg, #2A2A35 25%, transparent 25%, transparent 75%, #2A2A35 75%, #2A2A35), repeating-linear-gradient(45deg, #2A2A35 25%, #1E1E24 25%, #1E1E24 75%, #2A2A35 75%, #2A2A35)',
+            backgroundPosition: '0 0, 20px 20px',
+            backgroundSize: '40px 40px'
+          }}
         >
-          <div className="flex flex-col items-center gap-6 p-8 rounded-2xl bg-black/40 border border-white/10 shadow-2xl">
+          <div className="flex flex-col items-center gap-6 p-8 rounded-2xl bg-black/60 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-sm">
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
