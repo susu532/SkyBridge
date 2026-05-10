@@ -16,7 +16,10 @@ export const isLava = (blockType: number) => {
 };
 
 // Generate a simple texture atlas
+let cachedTexture: THREE.Texture | null = null;
 export function createTextureAtlas(): THREE.Texture {
+  if (cachedTexture) return cachedTexture;
+
   const canvas = document.createElement('canvas');
   const size = 16;
   const tiles = ATLAS_TILES; // 8x8 atlas
@@ -1451,6 +1454,7 @@ export function createTextureAtlas(): THREE.Texture {
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
+  cachedTexture = texture;
   return texture;
 }
 
@@ -1971,7 +1975,9 @@ BLOCK_UVS[BLOCK.HAY_BLOCK] = [[5,27], [5,27], [5,27], [5,27], [5,27], [5,27]];
 BLOCK_UVS[BLOCK.DRIED_KELP_BLOCK] = [[6,27], [6,27], [6,27], [6,27], [6,27], [6,27]];
 BLOCK_UVS[BLOCK.SPONGEY_HONEY] = [[7,27], [7,27], [7,27], [7,27], [7,27], [7,27]];
 
+let cachedBreakingTexture: THREE.Texture | null = null;
 export function createBreakingTexture(): THREE.Texture {
+  if (cachedBreakingTexture) return cachedBreakingTexture;
   const canvas = document.createElement('canvas');
   const size = 16;
   canvas.width = size;
@@ -2000,6 +2006,7 @@ export function createBreakingTexture(): THREE.Texture {
   texture.minFilter = THREE.NearestFilter;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
+  cachedBreakingTexture = texture;
   return texture;
 }
 
