@@ -49,13 +49,13 @@ export const SkyCastlesSidebar: React.FC = () => {
   }, [addSkycoins]);
 
   return (
-    <div className="absolute right-2 md:right-4 top-16 md:top-20 flex flex-col gap-2 pointer-events-none mc-font z-10 transform scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
+    <div className="absolute right-2 md:right-4 top-14 md:top-20 flex flex-col gap-2 pointer-events-none mc-font z-10 transform scale-[0.6] sm:scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">
           +{reward.amount} Skycoins!
         </div>
       ))}
-      <div className="bg-black/60 backdrop-blur-md p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
+      <div className="bg-black/60  p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
         <div className="text-[#FFAA00] font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">SkyCastles</div>
         <div className="text-white/60 text-xs text-center mb-3 border-b border-white/10 pb-2 mc-text-shadow">
           {dateStr} <span className="text-[#55FF55]">{serverId || 'm123'}</span>

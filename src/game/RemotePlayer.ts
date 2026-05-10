@@ -41,6 +41,7 @@ export class RemotePlayer {
   isSwinging = false;
   isBlocking = false;
   isGliding = false;
+  isInvulnerable = false;
   isGrounded = true;
   swingSpeed = 15;
   
@@ -328,7 +329,10 @@ export class RemotePlayer {
     if (this.capeMesh && this.capeMesh.material) {
       const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
       const mat = this.capeMesh.material as any;
-      if (mat.color !== undefined) mat.color.setHex(capeColor);
+      if (mat.color !== undefined) {
+        mat.color.setHex(capeColor);
+        this.capeMesh.userData.originalColor = capeColor;
+      }
       if (this.capeMesh.userData.originalMaterial) {
         const origMat = this.capeMesh.userData.originalMaterial as any;
         if (origMat.color !== undefined) origMat.color.setHex(capeColor);
@@ -340,6 +344,7 @@ export class RemotePlayer {
       this.armorMeshes.forEach(mesh => {
         mesh.visible = true;
         (mesh.material as any).color.setHex(teamColor);
+        mesh.userData.originalColor = teamColor;
       });
     } else {
       this.armorMeshes.forEach(mesh => {
@@ -372,8 +377,11 @@ export class RemotePlayer {
               if (mesh.scale.x > 10) { // Accent
                 mat.color.setHex(accentColor);
                 mat.emissive.setHex(accentEmissive);
+                mesh.userData.originalColor = accentColor;
+                mesh.userData.originalEmissive = accentEmissive;
               } else { // Base wing
                 mat.emissive.setHex(emissiveColor);
+                mesh.userData.originalEmissive = emissiveColor;
               }
             }
             if (mesh.userData.originalMaterial) {
@@ -523,16 +531,7 @@ export class RemotePlayer {
       headArmor.position.y = 0.11;
       this.headMesh.add(headArmor);
     }
-    if (this.leftArmMesh) {
-      const leftArmArmor = createArmorMesh(0.24, 0.28, 0.24);
-      leftArmArmor.position.y = -0.14;
-      this.leftArmMesh.add(leftArmArmor);
-    }
-    if (this.rightArmMesh) {
-      const rightArmArmor = createArmorMesh(0.24, 0.28, 0.24);
-      rightArmArmor.position.y = -0.14;
-      this.rightArmMesh.add(rightArmArmor);
-    }
+    // Shoulders (arm armor) intentionally hidden
     if (this.leftLegMesh) {
       const leftLegArmor = createArmorMesh(0.24, 0.44, 0.24);
       leftLegArmor.position.y = -0.22;
@@ -1281,6 +1280,12 @@ export class RemotePlayer {
       if (obj instanceof THREE.Mesh && obj.material) {
         const mat = obj.material as any;
         if (mat.emissive !== undefined) {
+          if (obj.userData.originalEmissive === undefined) {
+            obj.userData.originalEmissive = mat.emissive.getHex();
+          }
+          if (obj.userData.originalEmissiveIntensity === undefined) {
+            obj.userData.originalEmissiveIntensity = mat.emissiveIntensity;
+          }
           mat.emissive.setHex(0xff0000);
           mat.emissiveIntensity = 0.5;
           
@@ -1289,18 +1294,21 @@ export class RemotePlayer {
             if (obj.material) {
               const m = obj.material as any;
               if (m.emissive !== undefined) {
-                m.emissive.setHex(0x000000);
-                m.emissiveIntensity = 0;
+                m.emissive.setHex(obj.userData.originalEmissive ?? 0x000000);
+                m.emissiveIntensity = obj.userData.originalEmissiveIntensity ?? 0;
               }
             }
           }, 200);
         } else if (mat.color !== undefined) {
+          if (obj.userData.originalColor === undefined) {
+            obj.userData.originalColor = mat.color.getHex();
+          }
           mat.color.setHex(0xff0000);
           setTimeout(() => {
             if (obj.material) {
               const m = obj.material as any;
               if (m.color !== undefined) {
-                m.color.setHex(0xffffff);
+                m.color.setHex(obj.userData.originalColor ?? 0xffffff);
               }
             }
           }, 200);

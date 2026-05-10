@@ -167,6 +167,13 @@ export class NetworkManager {
       this.players = data.players;
       this.blockChanges = data.blockChanges;
       useGameStore.getState().setGameStartTime(data.gameStartTime || 0);
+
+      // Initialize leaderboard
+      for (const id in this.players) {
+        const p = this.players[id];
+        useGameStore.getState().setLeaderboardPlayer(id, p.name, p.team, p.kills || 0, p.deaths || 0);
+      }
+
       if (this._onInit) this._onInit(data);
     });
 
@@ -252,6 +259,7 @@ export class NetworkManager {
       } else {
         this.players[player.id] = player;
       }
+      useGameStore.getState().setLeaderboardPlayer(player.id, player.name, player.team, player.kills || 0, player.deaths || 0);
       if (this.onPlayerJoined) this.onPlayerJoined(this.players[player.id]);
     });
 
@@ -279,6 +287,7 @@ export class NetworkManager {
             isGrounded: !!(stateMask & 32),
             isBlocking: !!(stateMask & 64),
             isGliding: !!(stateMask & 128),
+            isInvulnerable: !!(stateMask & 256),
             swingSpeed: packed[6],
             heldItem: packed[7],
             offHandItem: packed[8],
@@ -308,7 +317,12 @@ export class NetworkManager {
 
     this.socket.on("playerLeft", (id) => {
       delete this.players[id];
+      useGameStore.getState().removeLeaderboardPlayer(id);
       if (this.onPlayerLeft) this.onPlayerLeft(id);
+    });
+
+    this.socket.on("playerStatsUpdate", (data) => {
+      useGameStore.getState().updateLeaderboardStats(data.id, data.kills, data.deaths);
     });
 
     this.socket.on("playerDied", (data) => {
@@ -455,6 +469,8 @@ export class NetworkManager {
     type: number,
     force: boolean = false,
   ) {
+    const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+    this.blockChanges[key] = type;
     this._emit("setBlock", { x, y, z, type, force });
   }
 

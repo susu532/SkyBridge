@@ -155,13 +155,10 @@ export class EntityManager {
           mob.hasInitialPosition = true;
 
           if (data[3] !== undefined) {
-            const serverHealth = data[3];
-            if (now - mob.lastDamagePredictedTime < 500) {
-              mob.health = Math.min(mob.health, serverHealth);
-            } else {
-              if (mob.health !== serverHealth) {
-                mob.health = serverHealth;
-              }
+            const serverHp = data[3] as number;
+            // Prevent jitter and prioritize lowest health locally (or after timeout)
+            if (now - mob.lastDamagePredictedTime > 500 || serverHp < mob.health) {
+              mob.health = serverHp;
             }
           }
         }
@@ -228,7 +225,7 @@ export class EntityManager {
       if (player) {
         player.isDead = false;
         player.isSpectator = false;
-        if (data.team) {
+        if (data.team !== undefined) {
           player.team = data.team;
           if ((player as any).updateTeam) (player as any).updateTeam(data.team);
         }
@@ -445,7 +442,8 @@ export class EntityManager {
       player.isSprinting = data.isSprinting;
       player.isSwinging = data.isSwinging;
       player.isGliding = data.isGliding;
-      if (data.team !== player.team) {
+      player.isInvulnerable = data.isInvulnerable;
+      if (data.team !== undefined && data.team !== player.team) {
         player.updateTeam(data.team);
       }
       player.swingSpeed = data.swingSpeed || 15;
@@ -570,14 +568,14 @@ export class EntityManager {
   ): Mob | null {
     const ray = new THREE.Ray(origin, direction);
     let closestMob: Mob | null = null;
-    let closestDistance = maxDistance;
+    let closestDistance = Infinity;
 
     for (const mob of this.mobs.values()) {
       const box = mob.getHitbox();
       const target = new THREE.Vector3();
       if (ray.intersectBox(box, target)) {
         const dist = origin.distanceTo(target);
-        const limit = mob.type === MobType.MORVANE ? 50 : maxDistance;
+        const limit = mob.type === MobType.MORVANE ? 3 : maxDistance;
         if (dist < limit) {
           if (dist < closestDistance) {
             closestDistance = dist;

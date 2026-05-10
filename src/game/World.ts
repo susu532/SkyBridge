@@ -37,6 +37,10 @@ export class World {
   isDungeonDelver: boolean = false;
   isBattleRoyale: boolean = false;
 
+  skycastlesBakedChunkMap: Map<string, {x: number, y: number, z: number, type: number}[]> = new Map();
+  bakedBlocksChunkMap: Map<string, {x: number, y: number, z: number, type: number}[]> = new Map();
+  bakedBlocksProcessed = false;
+
   // BAKED_BLOCKS_START
   bakedBlocks = new Map<string, number>([
     ["0,0,0", 0],
@@ -1446,7 +1450,7 @@ export class World {
     const urlParams = new URLSearchParams(window.location.search);
     const serverName = urlParams.get('server') || 'hub';
     this.isHub = serverName.startsWith('hub');
-    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
+    this.isSkyCastles = serverName.startsWith('skycastles');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
     this.isBattleRoyale = serverName.startsWith('battleroyale');
     this.lightingManager = new LightingManager(this);
@@ -1999,6 +2003,12 @@ export class World {
     if (isHub) return true;
 
     const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+    
+    // Player-placed blocks are always destructible
+    if (networkManager && networkManager.blockChanges && networkManager.blockChanges[key] !== undefined && networkManager.blockChanges[key] > 0) {
+      return false;
+    }
+
     if (this.isSkyCastles) {
       if (skycastlesBakedBlocks.has(key) && skycastlesBakedBlocks.get(key) !== 0) return true;
       if (this.bakedBlocks.has(key) && this.bakedBlocks.get(key) !== 0) return true;
@@ -2313,6 +2323,13 @@ export class World {
     
     for (let x = 0; x < CHUNK_SIZE; x++) {
       for (let z = 0; z < CHUNK_SIZE; z++) {
+        iterations++;
+        if (iterations > 64 && performance.now() - startTime > 3) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          startTime = performance.now();
+          iterations = 0;
+        }
+
         const worldX = cx * CHUNK_SIZE + x;
         const worldZ = cz * CHUNK_SIZE + z;
         
@@ -3044,22 +3061,39 @@ export class World {
     // Apply baked blocks
     if (!this.isHub) {
       if (this.isSkyCastles) {
-        for (const [key, type] of skycastlesBakedBlocks.entries()) {
-          const [bx, by, bz] = key.split(',').map(Number);
-          if (Math.floor(bx / 16) === cx && Math.floor(bz / 16) === cz) {
-            const cy = by - WORLD_Y_OFFSET;
-            if (cy >= 0 && cy < CHUNK_HEIGHT) {
-              chunk.setBlockFast(bx & 15, cy, bz & 15, type);
+        if (!this.bakedBlocksProcessed) {
+          this.bakedBlocksProcessed = true;
+          this.skycastlesBakedChunkMap = new Map();
+          this.bakedBlocksChunkMap = new Map();
+          const processMap = (source: Map<string, number>, target: Map<string, any[]>) => {
+            for (const [key, type] of source.entries()) {
+              const [bx, by, bz] = key.split(',').map(Number);
+              const ccx = Math.floor(bx / 16);
+              const ccz = Math.floor(bz / 16);
+              const cKey = ccx + "," + ccz;
+              if (!target.has(cKey)) target.set(cKey, []);
+              target.get(cKey)!.push({ x: bx & 15, y: by - WORLD_Y_OFFSET, z: bz & 15, type });
             }
+          };
+          processMap(skycastlesBakedBlocks, this.skycastlesBakedChunkMap);
+          processMap(this.bakedBlocks, this.bakedBlocksChunkMap);
+        }
+
+        const chunkKeyStr = cx + "," + cz;
+        
+        const skList = this.skycastlesBakedChunkMap.get(chunkKeyStr);
+        if (skList) {
+          for (let i = 0; i < skList.length; i++) {
+            const b = skList[i];
+            if (b.y >= 0 && b.y < CHUNK_HEIGHT) chunk.setBlockFast(b.x, b.y, b.z, b.type);
           }
         }
-        for (const [key, type] of this.bakedBlocks.entries()) {
-          const [bx, by, bz] = key.split(',').map(Number);
-          if (Math.floor(bx / 16) === cx && Math.floor(bz / 16) === cz) {
-            const cy = by - WORLD_Y_OFFSET;
-            if (cy >= 0 && cy < CHUNK_HEIGHT) {
-              chunk.setBlockFast(bx & 15, cy, bz & 15, type);
-            }
+        
+        const bbList = this.bakedBlocksChunkMap.get(chunkKeyStr);
+        if (bbList) {
+          for (let i = 0; i < bbList.length; i++) {
+            const b = bbList[i];
+            if (b.y >= 0 && b.y < CHUNK_HEIGHT) chunk.setBlockFast(b.x, b.y, b.z, b.type);
           }
         }
       }
@@ -3268,7 +3302,7 @@ export class World {
   reset(serverName: string = 'hub') {
     if (!serverName) serverName = 'hub';
     this.isHub = serverName.startsWith('hub');
-    this.isSkyCastles = serverName.startsWith('skycastles') || serverName.startsWith('voidtrail');
+    this.isSkyCastles = serverName.startsWith('skycastles');
     this.isDungeonDelver = serverName.startsWith('dungeondelver');
     this.isBattleRoyale = serverName.startsWith('battleroyale');
 
@@ -3295,26 +3329,73 @@ export class World {
     let t = 0;
     const step = 0.05;
     const pos = origin.clone();
-    let lastPos = origin.clone();
-
+    
+    // Use an exact voxel traversal to guarantee not missing thin faces and finding the exact adjacent air block.
+    // DDA (Digital Differential Analyzer) voxel raycast algorithm.
+    let x = Math.floor(pos.x);
+    let y = Math.floor(pos.y);
+    let z = Math.floor(pos.z);
+    
+    const stepX = Math.sign(direction.x);
+    const stepY = Math.sign(direction.y);
+    const stepZ = Math.sign(direction.z);
+    
+    let tMaxX = (stepX > 0 ? (x + 1 - pos.x) : (pos.x - x)) / Math.abs(direction.x);
+    let tMaxY = (stepY > 0 ? (y + 1 - pos.y) : (pos.y - y)) / Math.abs(direction.y);
+    let tMaxZ = (stepZ > 0 ? (z + 1 - pos.z) : (pos.z - z)) / Math.abs(direction.z);
+    
+    const tDeltaX = 1 / Math.abs(direction.x);
+    const tDeltaY = 1 / Math.abs(direction.y);
+    const tDeltaZ = 1 / Math.abs(direction.z);
+    
+    let prevX = x;
+    let prevY = y;
+    let prevZ = z;
+    
+    let hit = false;
     while (t < maxDistance) {
-      pos.add(direction.clone().multiplyScalar(step));
-      const x = Math.floor(pos.x);
-      const y = Math.floor(pos.y);
-      const z = Math.floor(pos.z);
-
       const block = this.getBlock(x, y, z);
       if (block !== BLOCK.AIR && !isWater(block)) {
-        return {
+        hit = true;
+        break;
+      }
+      
+      prevX = x;
+      prevY = y;
+      prevZ = z;
+      
+      if (tMaxX < tMaxY) {
+        if (tMaxX < tMaxZ) {
+          x += stepX;
+          t = tMaxX;
+          tMaxX += tDeltaX;
+        } else {
+          z += stepZ;
+          t = tMaxZ;
+          tMaxZ += tDeltaZ;
+        }
+      } else {
+        if (tMaxY < tMaxZ) {
+          y += stepY;
+          t = tMaxY;
+          tMaxY += tDeltaY;
+        } else {
+          z += stepZ;
+          t = tMaxZ;
+          tMaxZ += tDeltaZ;
+        }
+      }
+    }
+    
+    if (hit) {
+       return {
           hit: true,
           blockPos: new THREE.Vector3(x, y, z),
-          prevPos: new THREE.Vector3(Math.floor(lastPos.x), Math.floor(lastPos.y), Math.floor(lastPos.z)),
-          blockType: block
-        };
-      }
-      lastPos.copy(pos);
-      t += step;
+          prevPos: new THREE.Vector3(prevX, prevY, prevZ),
+          blockType: this.getBlock(x, y, z)
+       };
     }
+
     return { hit: false };
   }
 }

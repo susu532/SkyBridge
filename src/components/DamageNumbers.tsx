@@ -20,10 +20,11 @@ export const DamageNumbers: React.FC = () => {
       
       const el = document.createElement('div');
       el.className = `absolute font-bold text-2xl drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none transition-all duration-1000 ease-out z-[1000] ${isCrit ? 'text-[#FFFF55]' : 'text-white'}`;
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
+      el.style.left = '0';
+      el.style.top = '0';
       el.style.opacity = '1';
-      el.style.transform = `translate(-50%, -50%) scale(${isCrit ? 1.5 : 1})`;
+      // translate3d uses hardware acceleration
+      el.style.transform = `translate3d(calc(${x}px - 50%), calc(${y}px - 50%), 0) scale(${isCrit ? 1.5 : 1})`;
       
       el.innerText = isCrit ? `✧ ${amount} ✧` : `${amount}`;
       
@@ -31,7 +32,7 @@ export const DamageNumbers: React.FC = () => {
       
       // Animate up
       requestAnimationFrame(() => {
-        el.style.top = `${y - 100}px`;
+        el.style.transform = `translate3d(calc(${x}px - 50%), calc(${y - 100}px - 50%), 0) scale(${isCrit ? 1.5 : 1})`;
         el.style.opacity = '0';
       });
       

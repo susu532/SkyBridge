@@ -20,9 +20,11 @@ export const BattleRoyaleSidebar: React.FC = () => {
     let animationId: number;
     const loop = () => {
       if ((window as any).game && (window as any).game.player) {
-         setPlayerPos({
-           x: (window as any).game.player.position.x,
-           z: (window as any).game.player.position.z
+         setPlayerPos(prev => {
+            const nx = (window as any).game.player.position.x;
+            const nz = (window as any).game.player.position.z;
+            if (prev.x === nx && prev.z === nz) return prev;
+            return { x: nx, z: nz };
          });
       }
       animationId = requestAnimationFrame(loop);
@@ -176,10 +178,10 @@ export const BattleRoyaleSidebar: React.FC = () => {
 
 
   return (
-    <div className="absolute right-2 md:right-4 top-16 md:top-20 flex flex-col gap-2 pointer-events-none mc-font transform scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
+    <div className="absolute right-2 md:right-4 top-14 md:top-20 flex flex-col gap-2 pointer-events-none mc-font transform scale-[0.6] sm:scale-75 xl:scale-100 origin-top-right safe-pr safe-pt">
       
       {/* Sidebar Container */}
-      <div className="bg-black/60 backdrop-blur-md p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
+      <div className="bg-black/60  p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
         <div className="text-[#FFAA00] font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">BATTLE ROYALE</div>
         <div className="text-white/60 text-xs text-center mb-3 border-b border-white/10 pb-2 mc-text-shadow">{dateStr} <span className="text-[#55FF55]">{serverId || 'm123'}</span></div>
         
@@ -205,7 +207,7 @@ export const BattleRoyaleSidebar: React.FC = () => {
       </div>
 
       {/* Minimap Box */}
-      <div className="bg-black/80 backdrop-blur-md p-2 border-2 border-white/20 rounded shadow-2xl mt-2 flex flex-col items-center">
+      <div className="bg-black/80  p-2 border-2 border-white/20 rounded shadow-2xl mt-2 flex flex-col items-center">
         <canvas ref={canvasRef} width={150} height={150} className="rounded" />
         <span className="text-white/80 text-xs mt-1 font-bold">MINIMAP</span>
       </div>

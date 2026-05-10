@@ -36,7 +36,7 @@ export const LevelUpUI: React.FC = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="mt-4 bg-black/80 backdrop-blur-md px-8 py-3 border-y-2 border-[#55FF55] flex items-center gap-4 shadow-2xl"
+              className="mt-4 bg-black/80  px-8 py-3 border-y-2 border-[#55FF55] flex items-center gap-4 shadow-2xl"
             >
               <span className="text-white text-2xl font-mono uppercase tracking-widest">{data.skill}</span>
               <span className="text-[#55FF55] text-4xl font-black">{data.level}</span>

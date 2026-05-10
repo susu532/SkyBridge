@@ -146,6 +146,7 @@ export class Player {
   flyTransition = 0;
   blockTransition = 0;
   climbTransition = 0;
+  rightClickTimer = 0;
 
   get headMesh() {
     return this.renderer.headMesh;
@@ -298,7 +299,7 @@ export class Player {
 
   onNetworkPlayerRespawn = (e: any) => {
     if (e.detail.id === networkManager.id) {
-      if (e.detail.team) {
+      if (e.detail.team !== undefined) {
         this.team = e.detail.team;
         this.renderer.updateTeam(this.team);
       }
@@ -332,6 +333,51 @@ export class Player {
 
       if (useGameStore.getState().currentMode.startsWith('battleroyale') && e.detail.position.y >= 50) {
         this.isGliding = true;
+      }
+
+      const modeWithoutNum = useGameStore.getState().currentMode.split('_')[0];
+      let itemsAdded = false;
+
+      const getInventoryCount = (type: ItemType) => {
+        let cnt = 0;
+        for (const slot of this.inventory.slots) {
+          if (slot && slot.type === type) cnt += slot.count;
+        }
+        return cnt;
+      };
+
+      if (modeWithoutNum === 'skycastles') {
+        if (getInventoryCount(ItemType.WOODEN_SWORD) === 0) {
+          this.inventory.addItem(ItemType.WOODEN_SWORD, 1);
+          itemsAdded = true;
+        }
+        if (getInventoryCount(ItemType.TORCH) === 0) {
+          this.inventory.addItem(ItemType.TORCH, 1);
+          itemsAdded = true;
+        }
+        const planksCount = getInventoryCount(ItemType.PLANKS);
+        if (planksCount < 10) {
+          this.inventory.addItem(ItemType.PLANKS, 10 - planksCount);
+          itemsAdded = true;
+        }
+      } else if (modeWithoutNum === 'dungeondelver') {
+        if (getInventoryCount(ItemType.STONE_SWORD) === 0) {
+          this.inventory.addItem(ItemType.STONE_SWORD, 1);
+          itemsAdded = true;
+        }
+        const appleCount = getInventoryCount(ItemType.APPLE);
+        if (appleCount < 8) {
+          this.inventory.addItem(ItemType.APPLE, 8 - appleCount);
+          itemsAdded = true;
+        }
+        if (!this.inventory.slots[Inventory.OFF_HAND_SLOT] || this.inventory.slots[Inventory.OFF_HAND_SLOT]?.type !== ItemType.TORCH) {
+           this.inventory.slots[Inventory.OFF_HAND_SLOT] = { type: ItemType.TORCH, count: 1 };
+           itemsAdded = true;
+        }
+      }
+      
+      if (itemsAdded) {
+        useGameStore.getState().incrementInventoryVersion();
       }
 
       window.dispatchEvent(new CustomEvent("playerRespawn"));
@@ -1443,6 +1489,16 @@ export class Player {
 
   update(delta: number) {
     this.inputController.update();
+
+    if (this.rightClickTimer > 0) {
+      this.rightClickTimer -= delta;
+    }
+    if (this.inputController.isRightMouseDown && this.rightClickTimer <= 0) {
+      this.inputController.onMouseDown({ button: 2 } as MouseEvent);
+      // Fast placement while held, typical MC speed 4-5 blocks/sec
+      this.rightClickTimer = 0.2; 
+    }
+
     const isLocked = this.controls.isLocked;
 
     if (this.isDead) {

@@ -15,6 +15,7 @@ import { getTextureAtlasDataUrl, getBlockUVs } from './game/TextureAtlas';
 import { NPC } from './game/NPC';
 import { ItemIcon } from './components/inventory/Slot';
 import { ServerJoinUI } from './components/ServerJoinUI';
+import { StatsPanel } from './components/StatsPanel';
 import { ItemType } from './game/Inventory';
 import { networkManager } from './game/NetworkManager';
 import { audioManager } from './game/AudioManager';
@@ -383,11 +384,11 @@ export default function App() {
     const serverName = urlParams.get('server') || 'hub';
     if (serverName.startsWith('hub')) {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server voidtrail to join the game.');
+        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server battleroyale to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('voidtrail') ? 'Voidtrail' : 'SkyBridge'}!`);
+        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('battleroyale') ? 'Battle Royale' : 'SkyBridge'}!`);
       }, 2000);
     }
 
@@ -701,6 +702,8 @@ export default function App() {
 
       {/* Map Loading Screen */}
       <MapLoadingScreen />
+
+      <StatsPanel />
 
       {/* Force Landscape Overlay for Mobile */}
       {isMobile && (

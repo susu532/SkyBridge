@@ -129,8 +129,8 @@ export class Game {
       powerPreference: "high-performance",
       precision: initialSettings.performanceMode ? "mediump" : "highp"
     });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(initialSettings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
     const effectivePremiumShaders = initialSettings.premiumShaders && !initialSettings.performanceMode;
     this.renderer.shadowMap.enabled = effectivePremiumShaders;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for ultra-realistic soft penumbras
@@ -220,6 +220,10 @@ export class Game {
       } else {
         this.player.inventory.clear();
       }
+      
+      // Clear team immediately to prevent bleeding armor state until explicit assignment
+      this.player.team = undefined;
+      this.player.renderer.updateTeam(undefined);
       
       if (!this.world.isHub) {
         // Load local skills if they exist, otherwise use server skills
@@ -521,6 +525,7 @@ export class Game {
 
       // Reduce pixel ratio for better performance
       this.renderer.setPixelRatio(settings.performanceMode ? Math.min(0.6, window.devicePixelRatio) : window.devicePixelRatio);
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
   }
 

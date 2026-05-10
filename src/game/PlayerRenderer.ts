@@ -496,18 +496,7 @@ export class PlayerRenderer {
       headArmor.position.y = 0.11;
       this.headMesh.add(headArmor);
     }
-    if (this.leftArmMesh) {
-      // T-shirt sleeve
-      const leftArmArmor = createArmorMesh(0.24, 0.28, 0.24);
-      leftArmArmor.position.y = -0.14;
-      this.leftArmMesh.add(leftArmArmor);
-    }
-    if (this.rightArmMesh) {
-      // T-shirt sleeve
-      const rightArmArmor = createArmorMesh(0.24, 0.28, 0.24);
-      rightArmArmor.position.y = -0.14;
-      this.rightArmMesh.add(rightArmArmor);
-    }
+    // Shoulders (arm armor) intentionally hidden for 3rd person and remote players
     if (this.leftLegMesh) {
       // Trousers
       const leftLegArmor = createArmorMesh(0.24, 0.44, 0.24);

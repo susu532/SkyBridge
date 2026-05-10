@@ -32,6 +32,8 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
             el = document.createElement('div');
             el.id = `entity-tag-${tag.id}`;
             el.className = "absolute flex flex-col items-center justify-center transform origin-bottom";
+            el.style.top = "0";
+            el.style.left = "0";
             
             const innerDiv = document.createElement('div');
             const isPlayer = tag.type === 'Player';
@@ -90,10 +92,9 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
           const left = isFinite(tag.x) ? tag.x : -1000;
           const top = isFinite(tag.y) ? tag.y : -1000;
 
-          el.style.left = `${left}px`;
-          el.style.top = `${top}px`;
+          // Use transform translate3d instead of left/top to avoid layout thrashing
           el.style.opacity = isFinite(opacity) ? opacity.toString() : '0';
-          el.style.transform = `translate(-50%, -100%) scale(${isFinite(scale) ? scale : 0})`;
+          el.style.transform = `translate3d(calc(${left}px - 50%), calc(${top}px - 100%), 0) scale(${isFinite(scale) ? scale : 0})`;
         }
 
         // Remove elements that are no longer in entityTags

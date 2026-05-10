@@ -35,22 +35,23 @@ export const MobileControlsUI: React.FC = () => {
   const { isInventoryOpen, setInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, setPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isTyping, setTyping, setLocked } = useUI();
   const isAnyMenuOpen = isInventoryOpen || isShopOpen || isSettingsOpen || isPauseMenuOpen || isServerJoinOpen || isLaunchMenuOpen || isTyping;
 
-  const joystickRef = useRef<HTMLDivElement>(null);
-  const [joystickCenter, setJoystickCenter] = useState<{ x: number, y: number } | null>(null);
-  const [joystickPos, setJoystickPos] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
+  const baseRef = useRef<HTMLDivElement>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
+
   const joystickTouchId = useRef<number | null>(null);
+  const joystickCenter = useRef<{ x: number, y: number } | null>(null);
 
   const lookTouchId = useRef<number | null>(null);
   const lastLookPos = useRef<{ x: number, y: number } | null>(null);
 
-  const [maxRadius, setMaxRadius] = useState(50);
+  const maxRadius = useRef(50);
 
   useEffect(() => {
     const isTablet = window.innerWidth >= 768;
-    setMaxRadius(isTablet ? 75 : 50);
+    maxRadius.current = isTablet ? 75 : 50;
 
     const handleResize = () => {
-      setMaxRadius(window.innerWidth >= 768 ? 75 : 50);
+      maxRadius.current = window.innerWidth >= 768 ? 75 : 50;
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -73,8 +74,20 @@ export const MobileControlsUI: React.FC = () => {
         if (touch.clientX < window.innerWidth / 2 && joystickTouchId.current === null) {
           if (target && !target.closest('.mobile-button') && !target.closest('.pointer-events-auto')) {
             joystickTouchId.current = touch.identifier;
-            setJoystickCenter({ x: touch.clientX, y: touch.clientY });
-            setJoystickPos({ x: 0, y: 0 });
+            joystickCenter.current = { x: touch.clientX, y: touch.clientY };
+            
+            if (baseRef.current && knobRef.current) {
+              baseRef.current.style.display = 'block';
+              baseRef.current.style.transform = `translate3d(${joystickCenter.current.x - maxRadius.current}px, ${joystickCenter.current.y - maxRadius.current}px, 0)`;
+              baseRef.current.style.left = '0px';
+              baseRef.current.style.top = '0px';
+              baseRef.current.style.width = `${maxRadius.current * 2}px`;
+              baseRef.current.style.height = `${maxRadius.current * 2}px`;
+
+              knobRef.current.style.transform = `translate3d(${maxRadius.current}px, ${maxRadius.current}px, 0)`;
+              knobRef.current.style.left = '-25px';
+              knobRef.current.style.top = '-25px';
+            }
           }
         } 
         // Right side for looking
@@ -95,20 +108,24 @@ export const MobileControlsUI: React.FC = () => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         
-        if (touch.identifier === joystickTouchId.current && joystickCenter) {
-          const dx = touch.clientX - joystickCenter.x;
-          const dy = touch.clientY - joystickCenter.y;
+        if (touch.identifier === joystickTouchId.current && joystickCenter.current) {
+          const dx = touch.clientX - joystickCenter.current.x;
+          const dy = touch.clientY - joystickCenter.current.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
           let nx = dx;
           let ny = dy;
-          if (distance > maxRadius) {
-            nx = (dx / distance) * maxRadius;
-            ny = (dy / distance) * maxRadius;
+          if (distance > maxRadius.current) {
+            nx = (dx / distance) * maxRadius.current;
+            ny = (dy / distance) * maxRadius.current;
           }
-          setJoystickPos({ x: nx, y: ny });
-          window.mobileInputs.joystickX = nx / maxRadius;
-          window.mobileInputs.joystickY = ny / maxRadius;
+          
+          if (knobRef.current) {
+            knobRef.current.style.transform = `translate3d(${maxRadius.current + nx}px, ${maxRadius.current + ny}px, 0)`;
+          }
+
+          window.mobileInputs.joystickX = nx / maxRadius.current;
+          window.mobileInputs.joystickY = ny / maxRadius.current;
         } else if (touch.identifier === lookTouchId.current && lastLookPos.current) {
           const dx = touch.clientX - lastLookPos.current.x;
           const dy = touch.clientY - lastLookPos.current.y;
@@ -128,8 +145,10 @@ export const MobileControlsUI: React.FC = () => {
         const touch = e.changedTouches[i];
         if (touch.identifier === joystickTouchId.current) {
           joystickTouchId.current = null;
-          setJoystickCenter(null);
-          setJoystickPos({ x: 0, y: 0 });
+          joystickCenter.current = null;
+          if (baseRef.current) {
+            baseRef.current.style.display = 'none';
+          }
           window.mobileInputs.joystickX = 0;
           window.mobileInputs.joystickY = 0;
         } else if (touch.identifier === lookTouchId.current) {
@@ -150,7 +169,7 @@ export const MobileControlsUI: React.FC = () => {
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [joystickCenter, isAnyMenuOpen]);
+  }, [isAnyMenuOpen]);
 
   // If a menu is open, don't show controls, but let hotbar clicks work? The hotbar is shown on bottom.
   if (isAnyMenuOpen) return null;
@@ -158,21 +177,21 @@ export const MobileControlsUI: React.FC = () => {
   return (
     <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none safe-pb">
       {/* Top HUD Buttons */}
-      <div className="absolute top-4 right-2 md:right-4 flex gap-2 md:gap-4 pointer-events-auto safe-pr safe-pt">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex gap-2 md:gap-4 pointer-events-auto safe-pr safe-pt transform scale-90 sm:scale-100 origin-top-right">
         <button 
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white backdrop-blur-md active:bg-white/40"
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
           onClick={() => { setTyping(true); setLocked(false); }}
         >
           <MessageSquare size={18} className="md:w-6 md:h-6" />
         </button>
         <button 
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white backdrop-blur-md active:bg-white/40"
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
           onClick={() => { setInventoryOpen(true); setLocked(false); }}
         >
           <Backpack size={18} className="md:w-6 md:h-6" />
         </button>
         <button 
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white backdrop-blur-md active:bg-white/40"
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
           onClick={() => { setPauseMenuOpen(true); setLocked(false); }}
         >
           <Menu size={18} className="md:w-6 md:h-6" />
@@ -185,31 +204,22 @@ export const MobileControlsUI: React.FC = () => {
       </div>
 
       {/* Virtual Joystick */}
-      {joystickCenter && (
+      <div 
+        ref={baseRef}
+        className="absolute rounded-full border-2 border-white/30 bg-black/20"
+        style={{ display: 'none' }}
+      >
         <div 
-          className="absolute rounded-full border-2 border-white/30 bg-black/20"
-          style={{
-            left: joystickCenter.x - maxRadius,
-            top: joystickCenter.y - maxRadius,
-            width: maxRadius * 2,
-            height: maxRadius * 2,
-          }}
-        >
-          <div 
-            className="absolute rounded-full bg-white/60 w-10 h-10 -ml-5 -mt-5"
-            style={{
-              left: maxRadius + joystickPos.x,
-              top: maxRadius + joystickPos.y,
-            }}
-          />
-        </div>
-      )}
+          ref={knobRef}
+          className="absolute rounded-full bg-white/60 w-10 h-10 -ml-5 -mt-5"
+        />
+      </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
-      <div className="absolute bottom-16 right-4 md:bottom-20 md:right-16 pointer-events-none w-48 h-48 md:w-64 md:h-64 safe-mr safe-mb">
+      <div className="absolute bottom-12 right-2 md:bottom-20 md:right-12 pointer-events-none w-40 h-40 md:w-56 md:h-56 safe-mr safe-mb transform scale-90 sm:scale-100 origin-bottom-right">
         {/* Jump Button (Top) */}
         <button 
-          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto backdrop-blur-md shadow-lg"
+          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isJumping = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isJumping = false; }}
           onPointerLeave={() => window.mobileInputs.isJumping = false}
@@ -219,7 +229,7 @@ export const MobileControlsUI: React.FC = () => {
         
         {/* Interact Button (Left) */}
         <button 
-          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto backdrop-blur-md shadow-lg"
+          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-14 h-14 md:w-20 md:h-20 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isInteracting = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isInteracting = false; }}
           onPointerLeave={() => window.mobileInputs.isInteracting = false}
@@ -229,7 +239,7 @@ export const MobileControlsUI: React.FC = () => {
         
         {/* Attack/Mine Button (Right) */}
         <button 
-          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-16 h-16 md:w-24 md:h-24 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto backdrop-blur-md shadow-lg"
+          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-16 h-16 md:w-24 md:h-24 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto  shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = false; }}
           onPointerLeave={() => window.mobileInputs.isAttacking = false}
@@ -239,7 +249,7 @@ export const MobileControlsUI: React.FC = () => {
 
         {/* Crouch Button (Bottom) */}
         <button 
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-12 h-12 md:w-16 md:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto backdrop-blur-md shadow-md"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-12 h-12 md:w-16 md:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto  shadow-md"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isCrouching = true; }}
           onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isCrouching = false; }}
           onPointerLeave={() => window.mobileInputs.isCrouching = false}

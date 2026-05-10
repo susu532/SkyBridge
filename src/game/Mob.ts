@@ -1361,11 +1361,7 @@ export class Mob {
     isLocalPrediction: boolean = true,
   ) {
     if (isLocalPrediction) {
-      if (this.type === MobType.MORVANE) {
-        this.health = Math.max(1, this.health - amount);
-      } else {
-        this.health -= amount;
-      }
+      this.health -= amount;
       this.lastDamagePredictedTime = Date.now();
     }
 

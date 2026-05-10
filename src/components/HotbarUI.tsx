@@ -21,7 +21,7 @@ export const HotbarUI: React.FC<{ game: Game | null }> = ({ game }) => {
 
   return (
       <div 
-        className="absolute bottom-2 md:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 md:gap-0 p-1 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] shadow-2xl pointer-events-auto max-w-[98vw] md:max-w-none overflow-x-auto custom-scrollbar rounded-sm safe-mb"
+        className="absolute bottom-1 md:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 md:gap-0 p-1 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] shadow-2xl pointer-events-auto max-w-[98vw] md:max-w-none overflow-x-auto custom-scrollbar rounded-sm safe-mb transform scale-90 sm:scale-100 origin-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {hotbarItems.map((item, i) => {

@@ -15,7 +15,7 @@ export const GameMessages: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="px-4 py-1 bg-black/50 rounded-full text-sm font-medium backdrop-blur-sm border border-white/10"
+            className="px-4 py-1 bg-black/50 rounded-full text-sm font-medium  border border-white/10"
             style={{ color: m.color }}
           >
             {m.text}

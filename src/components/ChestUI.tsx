@@ -160,7 +160,7 @@ export const ChestUI = React.memo<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60  pointer-events-auto"
       onContextMenu={(e) => e.preventDefault()}
     >
       <AnimatePresence>
@@ -168,7 +168,7 @@ export const ChestUI = React.memo<{
            initial={{ opacity: 0, scale: 0.9 }}
            animate={{ opacity: 1, scale: 1 }}
            exit={{ opacity: 0, scale: 0.9 }}
-           className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4"
+           className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4 max-h-[95vh] overflow-y-auto custom-scrollbar"
         >
           {/* Title */}
           <div className="flex justify-between items-center mb-2">

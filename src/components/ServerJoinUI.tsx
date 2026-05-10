@@ -13,7 +13,7 @@ interface ServerJoinUIProps {
 }
 
 export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName = 'skybridge', npc, onClose, onJoin, onOpenShop }) => {
-  const displayName = serverName === 'skycastles' ? 'SkyCastles' : serverName === 'voidtrail' ? 'Voidtrail' : serverName === 'dungeondelver' ? 'Dungeon Delver' : serverName === 'battleroyale' ? 'Battle Royale' : 'SkyBridge';
+  const displayName = serverName === 'skycastles' ? 'SkyCastles' : serverName === 'dungeondelver' ? 'Dungeon Delver' : serverName === 'battleroyale' ? 'Battle Royale' : 'SkyBridge';
   return (
     <AnimatePresence>
       {isOpen && (
@@ -23,14 +23,14 @@ export const ServerJoinUI: React.FC<ServerJoinUIProps> = ({ isOpen, serverName =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 "
           />
           
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
-            className="relative w-full max-w-sm bg-[#1a1a1a]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center"
+            className="relative w-full max-w-sm bg-[#1a1a1a]/90  border border-white/10 rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center"
           >
             <div className="w-16 h-16 bg-[#FFFF55]/10 rounded-2xl flex items-center justify-center mb-6">
               <Server className="w-8 h-8 text-[#FFFF55]" />

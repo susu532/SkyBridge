@@ -15,7 +15,10 @@ export const DebugInfo: React.FC<DebugInfoProps> = ({ game, showDebug }) => {
     let frameId: number;
     const updateCoords = () => {
       const pos = game.player.position;
-      setCoords({ x: pos.x, y: pos.y, z: pos.z });
+      setCoords(prev => {
+        if (prev.x === pos.x && prev.y === pos.y && prev.z === pos.z) return prev;
+        return { x: pos.x, y: pos.y, z: pos.z };
+      });
       frameId = requestAnimationFrame(updateCoords);
     };
 
@@ -26,7 +29,7 @@ export const DebugInfo: React.FC<DebugInfoProps> = ({ game, showDebug }) => {
   if (!showDebug) return null;
 
   return (
-    <div className="absolute top-4 left-4 text-white font-mono text-sm bg-black/60 p-3 rounded-lg pointer-events-none backdrop-blur-md border border-white/20 shadow-xl">
+    <div className="absolute top-4 left-4 text-white font-mono text-sm bg-black/60 p-3 rounded-lg pointer-events-none  border border-white/20 shadow-xl">
       <div className="text-green-400 font-bold mb-1 border-b border-white/10 pb-1">DEBUG INFO</div>
       <div className="space-y-0.5">
         <div>XYZ: {coords.x.toFixed(3)} / {coords.y.toFixed(3)} / {coords.z.toFixed(3)}</div>

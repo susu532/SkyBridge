@@ -52,10 +52,13 @@ export class PlayerPhysics {
   }
 
   isSupported(pos: THREE.Vector3): boolean {
-    const minX = Math.floor(pos.x - this.player.playerRadius);
-    const maxX = Math.floor(pos.x + this.player.playerRadius);
-    const minZ = Math.floor(pos.z - this.player.playerRadius);
-    const maxZ = Math.floor(pos.z + this.player.playerRadius);
+    // Use a much smaller radius (e.g. 0.05) for support check so player 
+    // stops right before the center leaves the block, just like MC sneaking
+    const supportRadius = 0.05; 
+    const minX = Math.floor(pos.x - supportRadius);
+    const maxX = Math.floor(pos.x + supportRadius);
+    const minZ = Math.floor(pos.z - supportRadius);
+    const maxZ = Math.floor(pos.z + supportRadius);
     const yBelow = Math.floor(pos.y - this.player.playerHeight - 0.1);
 
     for (let x = minX; x <= maxX; x++) {

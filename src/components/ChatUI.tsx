@@ -48,7 +48,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
       if (val) {
         if (val.startsWith('/server ')) {
           const target = val.split(' ')[1];
-          if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'voidtrail') {
+          if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'battleroyale') {
              networkManager.initMatchmaking(target);
              window.dispatchEvent(new CustomEvent('requestGameRestart'));
           } else {
@@ -73,12 +73,12 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
 
   return (
     <div 
-      className="absolute bottom-20 md:bottom-24 left-2 md:left-4 w-[75vw] sm:w-80 flex flex-col gap-2 pointer-events-none z-30 safe-ml"
+      className="absolute bottom-16 md:bottom-24 left-2 md:left-4 w-[75vw] sm:w-80 flex flex-col gap-2 pointer-events-none z-30 safe-ml transform scale-75 sm:scale-100 origin-bottom-left"
       onClick={(e) => e.stopPropagation()}
     >
       <div 
         ref={chatContainerRef}
-        className="max-h-48 md:max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
+        className="max-h-32 sm:max-h-48 md:max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
         style={{ scrollbarWidth: 'none' }}
       >
         {messages.map((msg, i) => {
