@@ -22,7 +22,7 @@ export function TopObjectiveHUD() {
   const inOvertime = timeLeft === 0;
 
   return (
-    <div className="absolute top-1 md:top-4 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-50 transform scale-75 sm:scale-100 landscape:scale-[0.6] sm:landscape:scale-75 md:landscape:scale-100 origin-top safe-pt">
+    <div className="absolute top-0 md:top-4 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-50 transform scale-[0.65] sm:scale-100 landscape:scale-[0.45] sm:landscape:scale-75 md:landscape:scale-100 origin-top safe-pt">
       <div className={`font-mono tracking-wider text-4xl font-bold bg-black/60 px-6 py-1 rounded-t-lg border-t-2 border-l-2 border-r-2 border-white/10  shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] ${inOvertime ? 'text-red-500 animate-pulse' : 'text-white'}`}>
         {inOvertime ? 'OVERTIME' : `${minutes}:${seconds}`}
       </div>

@@ -49,7 +49,7 @@ export const SkyCastlesSidebar: React.FC = () => {
   }, [addSkycoins]);
 
   return (
-    <div className="absolute right-2 md:right-4 top-14 md:top-20 flex flex-col gap-2 pointer-events-none mc-font z-10 transform scale-[0.6] sm:scale-75 xl:scale-100 origin-top-right safe-pr safe-pt landscape:max-h-[85vh] md:landscape:max-h-none landscape:-mr-4 sm:landscape:mr-0 md:landscape:mr-0 landscape:scale-[0.5] sm:landscape:scale-75 xl:landscape:scale-100">
+    <div className="absolute right-0 md:right-4 top-0 md:top-20 flex flex-col gap-2 pointer-events-none mc-font z-10 transform scale-[0.6] sm:scale-75 xl:scale-100 origin-top-right safe-pr safe-pt landscape:max-h-[85vh] md:landscape:max-h-none landscape:scale-[0.5] sm:landscape:scale-75 xl:landscape:scale-100">
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">
           +{reward.amount} Skycoins!

@@ -183,7 +183,7 @@ export const MobileControlsUI: React.FC = () => {
   return (
     <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none safe-pb">
       {/* Top HUD Buttons */}
-      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex gap-1.5 md:gap-4 pointer-events-auto safe-pr safe-pt transform scale-[0.85] sm:scale-100 origin-top-right landscape:scale-[0.8] sm:landscape:scale-100">
+      <div className="absolute top-1 right-1 md:top-4 md:right-4 flex gap-1.5 md:gap-4 pointer-events-auto safe-pr safe-pt transform scale-[0.85] sm:scale-100 origin-top-right landscape:top-1 landscape:right-1 landscape:gap-1.5 landscape:scale-[0.7] sm:landscape:scale-100">
         <button 
           className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white  active:bg-white/40"
           onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.triggerPerspective = true; }}
@@ -228,7 +228,7 @@ export const MobileControlsUI: React.FC = () => {
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
-      <div className="absolute bottom-2 right-2 md:bottom-12 md:right-12 pointer-events-none w-36 h-36 md:w-56 md:h-56 landscape:w-32 landscape:h-32 md:landscape:w-56 md:landscape:h-56 landscape:bottom-2 landscape:right-2 md:landscape:bottom-12 md:landscape:right-12 safe-mr safe-mb transform origin-bottom-right">
+      <div className="absolute bottom-1 right-1 md:bottom-12 md:right-12 pointer-events-none w-36 h-36 md:w-56 md:h-56 landscape:w-28 landscape:h-28 md:landscape:w-56 md:landscape:h-56 landscape:bottom-1 landscape:right-1 md:landscape:bottom-12 md:landscape:right-12 safe-mr safe-mb transform origin-bottom-right">
         {/* Zoom Button (Top Left) */}
         <button 
           className="absolute top-0 left-0 mobile-button w-10 h-10 md:w-16 md:h-16 landscape:w-8 landscape:h-8 md:landscape:w-16 md:landscape:h-16 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto shadow-md"
