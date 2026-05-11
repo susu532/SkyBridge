@@ -46,22 +46,6 @@ export class EntityManager {
           kbDir = new THREE.Vector3(dir.x, dir.y, dir.z);
         }
         player.takeDamage(kbDir);
-
-        const { damage, isCrit } = hit;
-        if (damage !== undefined && this.camera) {
-          const pPos = player.group.position.clone().add(new THREE.Vector3(0, 1.5, 0));
-          pPos.project(this.camera);
-          // Only show if in front of camera
-          if (pPos.z < 1) {
-            const screenX = (pPos.x * 0.5 + 0.5) * window.innerWidth;
-            const screenY = -(pPos.y * 0.5 - 0.5) * window.innerHeight;
-            window.dispatchEvent(
-              new CustomEvent("mobDamage", {
-                detail: { amount: damage, isCrit: !!isCrit, screenX, screenY },
-              }),
-            );
-          }
-        }
       }
     }
   };
@@ -86,21 +70,6 @@ export class EntityManager {
         }
         mob.takeDamage(0, kbDir, false);
         // visual only, health updated via tick
-
-        const { damage, isCrit } = hit;
-        if (damage !== undefined && this.camera) {
-          const pPos = mob.position.clone().add(new THREE.Vector3(0, 1.5, 0));
-          pPos.project(this.camera);
-          if (pPos.z < 1) {
-            const screenX = (pPos.x * 0.5 + 0.5) * window.innerWidth;
-            const screenY = -(pPos.y * 0.5 - 0.5) * window.innerHeight;
-            window.dispatchEvent(
-              new CustomEvent("mobDamage", {
-                detail: { amount: damage, isCrit: !!isCrit, screenX, screenY },
-              }),
-            );
-          }
-        }
       }
     }
   };
