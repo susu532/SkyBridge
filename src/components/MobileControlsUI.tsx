@@ -69,44 +69,84 @@ export const MobileControlsUI: React.FC = () => {
   const dpadPointerId = useRef<number | null>(null);
 
   const startDpad = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
+    e.stopPropagation();
     if (dpadPointerId.current !== null) return;
     dpadPointerId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    updateDpad(e);
+    updateDpadInputs(e);
   };
 
   const updateDpad = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dpadPointerId.current !== e.pointerId || !dpadRef.current) return;
+    if (dpadPointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    updateDpadInputs(e);
+  };
+  
+  const updateDpadInputs = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dpadRef.current) return;
     const rect = dpadRef.current.getBoundingClientRect();
     
-    let x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    let y = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = e.clientX - centerX;
+    const dy = e.clientY - centerY;
 
-    const deadzone = 0.25;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const radius = rect.width / 2;
     
+    const deadzone = radius * 0.25;
+
     let newX = 0;
     let newY = 0;
 
-    if (x < -deadzone) newX = -1;
-    else if (x > deadzone) newX = 1;
+    if (distance > deadzone) {
+      const angle = Math.atan2(dy, dx);
+      const degrees = angle * (180 / Math.PI);
+      
+      const threshold = 22.5; // used for 8 way
+      if (degrees > -112.5 && degrees <= -67.5) {
+        newY = -1; // UP
+      } else if (degrees > -67.5 && degrees <= -22.5) {
+        newX = 1; newY = -1; // UP-RIGHT
+      } else if (degrees > -22.5 && degrees <= 22.5) {
+        newX = 1; // RIGHT
+      } else if (degrees > 22.5 && degrees <= 67.5) {
+        newX = 1; newY = 1; // DOWN-RIGHT
+      } else if (degrees > 67.5 && degrees <= 112.5) {
+        newY = 1; // DOWN
+      } else if (degrees > 112.5 && degrees <= 157.5) {
+        newX = -1; newY = 1; // DOWN-LEFT
+      } else if (degrees > -157.5 && degrees <= -112.5) {
+        newX = -1; newY = -1; // UP-LEFT
+      } else {
+        newX = -1; // LEFT
+      }
+    }
 
-    if (y < -deadzone) newY = -1;
-    else if (y > deadzone) newY = 1;
-
-    window.mobileInputs.joystickX = newX;
-    window.mobileInputs.joystickY = newY;
-    
-    setDpad(prev => (prev.x !== newX || prev.y !== newY) ? { x: newX, y: newY } : prev);
+    setDpad((prev) => {
+      if (prev.x !== newX || prev.y !== newY) {
+        window.mobileInputs.joystickX = newX;
+        window.mobileInputs.joystickY = newY;
+        return { x: newX, y: newY };
+      }
+      return prev;
+    });
   };
 
   const stopDpad = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dpadPointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
     dpadPointerId.current = null;
     window.mobileInputs.joystickX = 0;
     window.mobileInputs.joystickY = 0;
     setDpad({ x: 0, y: 0 });
-    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch(err) {}
   };
 
   useEffect(() => {
@@ -348,28 +388,34 @@ export const MobileControlsUI: React.FC = () => {
       {/* D-Pad Container (Left side) */}
       <div 
         ref={dpadRef}
-        className="absolute bottom-4 left-4 w-36 h-36 landscape:w-32 landscape:h-32 landscape:bottom-2 landscape:left-2 safe-ml safe-mb z-50 pointer-events-auto touch-none"
+        className="absolute bottom-6 left-6 w-40 h-40 landscape:w-36 landscape:h-36 landscape:bottom-6 landscape:left-6 safe-ml safe-mb z-50 pointer-events-auto touch-none"
         onPointerDown={startDpad}
         onPointerMove={updateDpad}
         onPointerUp={stopDpad}
         onPointerCancel={stopDpad}
+        onContextMenu={(e) => e.preventDefault()}
       >
+        <div className="absolute inset-0 bg-transparent rounded-full" />
+        
         {/* Forward */}
-        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-12 h-16 landscape:w-12 landscape:h-12 border-[3px] border-white/50 rounded flex justify-center items-center shadow-lg transition-colors ${dpad.y === -1 ? 'bg-white/40' : 'bg-white/20'}`}>
-          <ArrowUp size={24} className="text-white drop-shadow-md" />
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.y === -1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
+          <ArrowUp size={24} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
         </div>
         {/* Backward */}
-        <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-16 landscape:w-12 landscape:h-12 border-[3px] border-white/50 rounded flex justify-center items-center shadow-lg transition-colors ${dpad.y === 1 ? 'bg-white/40' : 'bg-white/20'}`}>
-          <ArrowUp size={24} className="text-white drop-shadow-md rotate-180" />
+        <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.y === 1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
+          <ArrowDown size={24} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
         </div>
         {/* Left */}
-        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-16 h-12 landscape:w-12 landscape:h-12 border-[3px] border-white/50 rounded flex justify-center items-center shadow-lg transition-colors ${dpad.x === -1 ? 'bg-white/40' : 'bg-white/20'}`}>
-          <ArrowUp size={24} className="text-white drop-shadow-md -rotate-90" />
+        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === -1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
+          <ArrowUp size={24} className="text-white -rotate-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
         </div>
         {/* Right */}
-        <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-16 h-12 landscape:w-12 landscape:h-12 border-[3px] border-white/50 rounded flex justify-center items-center shadow-lg transition-colors ${dpad.x === 1 ? 'bg-white/40' : 'bg-white/20'}`}>
-          <ArrowUp size={24} className="text-white drop-shadow-md rotate-90" />
+        <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === 1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
+          <ArrowUp size={24} className="text-white rotate-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
         </div>
+        
+        {/* Center */}
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === 0 && dpad.y === 0 ? 'bg-black/20 border-white/20' : 'bg-white/20 border-white/40'} rounded-sm transition-all pointer-events-none`} />
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
