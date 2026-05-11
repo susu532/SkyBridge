@@ -110,16 +110,24 @@ export class PlayerInputController {
           window.mobileInputs.triggerTap = false;
           
           let hitPlayer = false;
-          const nearest = this.player.world.entityManager.getEntities()
+          const entities = [
+            ...Array.from(this.player.entityManager.mobs.values()),
+            ...Array.from(this.player.entityManager.remotePlayers.values())
+          ];
+          const nearest = entities
             .filter((e: any) => e !== this.player)
-            .sort((a: any, b: any) => this.player.worldPosition.distanceTo(a.position) - this.player.worldPosition.distanceTo(b.position))[0];
+            .sort((a: any, b: any) => this.player.worldPosition.distanceTo(a.position || (a.group && a.group.position)) - this.player.worldPosition.distanceTo(b.position || (b.group && b.group.position)))[0];
           
-          if (nearest && this.player.worldPosition.distanceTo(nearest.position) < 5) {
-            const dirToNearest = nearest.position.clone().sub(this.player.worldPosition).normalize();
-            const angle = this.player.camera.getWorldDirection(new THREE.Vector3()).angleTo(dirToNearest);
-            if (angle < Math.PI / 4) {
-              hitPlayer = true;
-              this.onMouseDown({ button: 0 } as MouseEvent); // Synthesize Left Click to attack
+          if (nearest) {
+            const near: any = nearest;
+            const nearPos = near.position || (near.group && near.group.position);
+            if (nearPos && this.player.worldPosition.distanceTo(nearPos) < 5) {
+              const dirToNearest = nearPos.clone().sub(this.player.worldPosition).normalize();
+              const angle = this.player.camera.getWorldDirection(new THREE.Vector3()).angleTo(dirToNearest);
+              if (angle < Math.PI / 4) {
+                hitPlayer = true;
+                this.onMouseDown({ button: 0 } as MouseEvent); // Synthesize Left Click to attack
+              }
             }
           }
           
@@ -187,7 +195,7 @@ export class PlayerInputController {
     const checkEntities = (entities: Iterable<any>) => {
       for (const entity of entities) {
         if (!entity || entity.isDead || entity.health <= 0) continue;
-        if (entity.id === this.player.id || entity === this.player) continue;
+        if (entity === this.player) continue;
 
         const targetPos = entity.position || (entity.group && entity.group.position);
         if (!targetPos) continue;
@@ -211,8 +219,8 @@ export class PlayerInputController {
       }
     };
 
-    checkEntities(this.player.world.entityManager.mobs.values());
-    checkEntities(this.player.world.entityManager.remotePlayers.values());
+    checkEntities(this.player.entityManager.mobs.values());
+    checkEntities(this.player.entityManager.remotePlayers.values());
 
     if (closestTarget) {
       const targetPos = closestTarget.position || (closestTarget.group && closestTarget.group.position);

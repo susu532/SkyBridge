@@ -50,8 +50,8 @@ export const SkyCastlesSidebar: React.FC = () => {
 
   return (
     <div 
-      className="absolute right-0 top-32 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt"
-      style={{ transform: 'scale(clamp(0.5, 60vw / 100, 1))', transformOrigin: 'top right' }}
+      className="absolute right-0 top-16 md:top-32 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt"
+      style={{ transform: 'scale(clamp(0.4, 40vw / 100, 1))', transformOrigin: 'top right' }}
     >
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">

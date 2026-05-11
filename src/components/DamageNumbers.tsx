@@ -30,11 +30,12 @@ export const DamageNumbers: React.FC = () => {
       
       containerRef.current.appendChild(el);
       
+      // Force reflow so the browser catches the initial opacity and position
+      void el.offsetHeight;
+      
       // Animate up
-      requestAnimationFrame(() => {
-        el.style.transform = `translate3d(calc(${x}px - 50%), calc(${y - 100}px - 50%), 0) scale(${isCrit ? 1.5 : 1})`;
-        el.style.opacity = '0';
-      });
+      el.style.transform = `translate3d(calc(${x}px - 50%), calc(${y - 100}px - 50%), 0) scale(${isCrit ? 1.5 : 1})`;
+      el.style.opacity = '0';
       
       setTimeout(() => {
         el.remove();
