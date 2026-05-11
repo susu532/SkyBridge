@@ -115,7 +115,7 @@ export class Game {
   private getResolvedDpr(perfMode: boolean) {
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (perfMode) {
-      return isMobile ? Math.min(0.5, window.devicePixelRatio) : Math.min(0.7, window.devicePixelRatio);
+      return isMobile ? Math.min(0.7, window.devicePixelRatio) : Math.min(0.9, window.devicePixelRatio);
     } else {
       return isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(1.0, window.devicePixelRatio); // Let desktop use standard, mobile 1.0
     }
