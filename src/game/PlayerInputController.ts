@@ -125,22 +125,10 @@ export class PlayerInputController {
           
           if (!hitPlayer) {
             this.onMouseDown({ button: 2 } as MouseEvent); // Synthesize Right Click to interact/place
+            setTimeout(() => this.onMouseUp({ button: 2 } as MouseEvent), 50);
+          } else {
+            setTimeout(() => this.onMouseUp({ button: 0 } as MouseEvent), 50);
           }
-        }
-        
-        // Attack sync from mobile
-        if (window.mobileInputs.isAttacking) {
-          this.player.isLeftMouseDown = true;
-          this.onMouseDown({ button: 0 } as MouseEvent); // this will also mine if held since isLeftMouseDown = true
-        } else if (!this.player.isLeftMouseDown) {
-          // don't interfere if they are using a physical mouse on PC
-        }
-
-        if (!window.mobileInputs.isAttacking && this.player.isLeftMouseDown && !this.isRightMouseDown) {
-            // ensure it releases
-            const isMouseLeft = false; // logic would need to know if real mouse left is down
-            // For mobile exclusively:
-            this.player.isLeftMouseDown = false;
         }
         
         if (window.mobileInputs.triggerPerspective) {
@@ -160,13 +148,11 @@ export class PlayerInputController {
           this.onMouseUp({ button: 0 } as MouseEvent);
         }
 
-        const wasRightMouseDown = this.player.isBlocking || this.player.isSwinging; // Rough approx
+        const wasRightMouseDown = this.isRightMouseDown;
         if (window.mobileInputs.isInteracting && !wasRightMouseDown) {
            this.onMouseDown({ button: 2 } as MouseEvent);
-           // Immediately lift to avoid continuous right click spam unless held, 
-           // but keeping it simple for now and firing mouse up
-           setTimeout(() => this.onMouseUp({ button: 2 } as MouseEvent), 50);
-           window.mobileInputs.isInteracting = false; // consume it so it fires once per tap
+        } else if (!window.mobileInputs.isInteracting && wasRightMouseDown) {
+           this.onMouseUp({ button: 2 } as MouseEvent);
         }
 
         // Camera Look
@@ -416,6 +402,7 @@ export class PlayerInputController {
 
     if (event.button === 2) { // Right click
       this.isRightMouseDown = true;
+      this.player.rightClickTimer = 0.25; // Prevent immediate double placement in update() loop
       const npc = this.player.entityManager.raycastNPC(rayOrigin, direction, 4, this.player.camera);
       if (npc) {
         if (npc.id === 'hub_npc_q') {

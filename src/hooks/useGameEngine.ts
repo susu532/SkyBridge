@@ -401,6 +401,14 @@ export function useGameEngine() {
     }
 
     if (game && !game.controls.isLocked && !isInventoryOpen && !isShopOpen && !isSettingsOpen && !isPauseMenuOpen && !isServerJoinOpen) {
+      const isTouch = e && e.pointerType === 'touch';
+      if (isTouch) {
+        try {
+          audioManager.resume();
+        } catch (err) {}
+        return;
+      }
+
       const now = Date.now();
       const hasCooldown = now - lastUnlockTime.current < 1250;
       

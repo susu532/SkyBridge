@@ -29,7 +29,7 @@ export default function App() {
   return (
     <div 
       className="relative w-full h-screen overflow-hidden bg-black font-sans cursor-crosshair"
-      onClick={handleStart}
+      onPointerDown={handleStart}
     >
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       

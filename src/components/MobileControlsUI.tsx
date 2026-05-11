@@ -63,6 +63,7 @@ export const MobileControlsUI: React.FC = () => {
   const maxRadius = useRef(50);
   
   const activeTaps = useRef<Map<number, { x: number, y: number, time: number, isSwipe: boolean, holdTimeout: any, isHolding: boolean }>>(new Map());
+  const isButtonAttacking = useRef(false);
 
   const [joystick, setJoystick] = useState({ x: 0, y: 0 });
   const joystickRef = useRef<HTMLDivElement>(null);
@@ -151,42 +152,29 @@ export const MobileControlsUI: React.FC = () => {
       
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
-        let handled = false;
         
-        // Left side for joystick
-        if (touch.clientX < window.innerWidth / 2 && joystickTouchId.current === null) {
-          if (target && !target.closest('.mobile-button') && !target.closest('.pointer-events-auto')) {
-            // D-Pad handles movement directly, we only need to catch stray touches to prevent screen look from left side
-            handled = false;
-          }
-        } 
-        // Right side for looking
-        else if (touch.clientX >= window.innerWidth / 2 && lookTouchId.current === null) {
-          // ensure it's not pressing a button
-          if (target && !target.closest('.mobile-button') && !target.closest('.pointer-events-auto')) {
-            handled = true;
+        if (target && !target.closest('.mobile-button') && !target.closest('.pointer-events-auto')) {
+          if (lookTouchId.current === null) {
             lookTouchId.current = touch.identifier;
             lastLookPos.current = { x: touch.clientX, y: touch.clientY };
           }
-        }
 
-        if (handled) {
-            const holdTimeout = setTimeout(() => {
-                const tap = activeTaps.current.get(touch.identifier);
-                if (tap && !tap.isSwipe) {
-                    window.mobileInputs.isAttacking = true;
-                    tap.isHolding = true;
-                }
-            }, 300);
+          const holdTimeout = setTimeout(() => {
+            const tap = activeTaps.current.get(touch.identifier);
+            if (tap && !tap.isSwipe) {
+              window.mobileInputs.isAttacking = true;
+              tap.isHolding = true;
+            }
+          }, 300);
 
-            activeTaps.current.set(touch.identifier, {
-                x: touch.clientX,
-                y: touch.clientY,
-                time: Date.now(),
-                isSwipe: false,
-                holdTimeout,
-                isHolding: false
-            });
+          activeTaps.current.set(touch.identifier, {
+            x: touch.clientX,
+            y: touch.clientY,
+            time: Date.now(),
+            isSwipe: false,
+            holdTimeout,
+            isHolding: false
+          });
         }
       }
     };
@@ -211,9 +199,7 @@ export const MobileControlsUI: React.FC = () => {
                    tap.isHolding = false;
                    let anyHolding = false;
                    activeTaps.current.forEach(t => { if (t.isHolding) anyHolding = true; });
-                   if (!anyHolding) {
-                       window.mobileInputs.isAttacking = false;
-                   }
+                   window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
                 }
             }
         }
@@ -256,9 +242,7 @@ export const MobileControlsUI: React.FC = () => {
       
       let anyHolding = false;
       activeTaps.current.forEach(t => { if (t.isHolding) anyHolding = true; });
-      if (!anyHolding) {
-          window.mobileInputs.isAttacking = false;
-      }
+      window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
     };
 
     document.addEventListener('touchstart', handleTouchStart, { passive: false });
@@ -428,9 +412,29 @@ export const MobileControlsUI: React.FC = () => {
         {/* Attack/Mine Button (Right) */}
         <button 
           className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-16 h-16 landscape:w-14 landscape:h-14 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
-          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = true; e.currentTarget.setPointerCapture?.(e.pointerId); }}
-          onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isAttacking = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
-          onPointerCancel={(e) => { window.mobileInputs.isAttacking = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
+          onPointerDown={(e) => { 
+            e.preventDefault(); 
+            isButtonAttacking.current = true;
+            window.mobileInputs.isAttacking = true;
+            e.currentTarget.setPointerCapture?.(e.pointerId); 
+          }}
+          onPointerUp={(e) => { 
+            e.preventDefault(); 
+            isButtonAttacking.current = false;
+            
+            let anyHolding = false;
+            activeTaps.current.forEach(t => { if (t.isHolding) anyHolding = true; });
+            window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
+            
+            e.currentTarget.releasePointerCapture?.(e.pointerId); 
+          }}
+          onPointerCancel={(e) => { 
+            isButtonAttacking.current = false;
+            let anyHolding = false;
+            activeTaps.current.forEach(t => { if (t.isHolding) anyHolding = true; });
+            window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
+            e.currentTarget.releasePointerCapture?.(e.pointerId); 
+          }}
         >
           <Sword size={28} className="text-white drop-shadow-md" />
         </button>
