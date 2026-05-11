@@ -456,7 +456,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 pointer-events-auto" 
       onContextMenu={(e) => e.preventDefault()}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && heldItem) {
@@ -465,12 +465,16 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
         }
       }}
     >
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="mc-panel p-2 md:p-4 shadow-2xl relative mc-font max-w-[98vw] max-h-[98vh] overflow-y-auto overflow-x-hidden custom-scrollbar"
+      <div 
+        className="transform scale-[0.6] sm:scale-[0.8] md:scale-100 landscape:scale-[0.55] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center pointer-events-none"
       >
+        <div className="pointer-events-auto flex items-center justify-center" onMouseDown={(e) => e.stopPropagation()}>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="mc-panel p-2 md:p-4 shadow-2xl relative mc-font max-w-[98vw] max-h-[98vh] overflow-y-auto overflow-x-hidden custom-scrollbar"
+          >
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 border-b-2 border-[#373737]/30 pb-2">
           <span className="font-bold text-sm md:text-lg px-2 md:px-3 py-1 text-[#373737]">
             Survival Inventory
@@ -529,89 +533,93 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
           dragState={dragState}
         />
 
-        {/* Tooltip */}
-        {hoveredItem && !heldItem && (
-          <div 
-            ref={tooltipRef}
-            className="fixed z-[200] px-3 py-2 bg-[#100010]/95 border-2 border-[#25015b] text-white text-sm pointer-events-none shadow-xl min-w-[150px] mc-font"
-            style={{ left: -1000 }}
-          >
-            <div 
-              className="font-bold text-xl mb-1 mc-text-shadow" 
-              style={{ color: RARITY_COLORS[hoveredItem.metadata?.rarity || Rarity.COMMON] }}
-            >
-              {ITEM_NAMES[hoveredItem.type]}
-            </div>
-            
-            {hoveredItem.metadata?.stats && (
-              <div className="space-y-0.5 mb-2 border-b border-white/10 pb-2">
-                {Object.entries(hoveredItem.metadata.stats).map(([stat, value]) => {
-                  const isBaseStat = stat === 'damage' || stat === 'health' || stat === 'intelligence' || stat === 'defense';
-                  const color = stat === 'damage' ? '#FF5555' : (stat === 'strength' ? '#FFAA00' : '#55FF55');
-                  
-                  return (
-                    <div key={stat} className="flex justify-between mc-text-shadow">
-                      <span className="text-[#AAAAAA] capitalize">{stat.replace(/([A-Z])/g, ' $1')}:</span>
-                      <span className="font-bold" style={{ color }}>{isBaseStat ? "" : "+"}{value}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {hoveredItem.metadata?.description && (
-              <div className="text-[#AAAAAA] mb-2 leading-tight mc-text-shadow">
-                {hoveredItem.metadata.description}
-              </div>
-            )}
-
-            {hoveredItem.metadata?.ability && (
-              <div className="mb-2 border-t border-white/10 pt-2">
-                <div className="text-[#FFFF55] font-bold uppercase text-xs mc-text-shadow">Ability: {hoveredItem.metadata.ability.name}</div>
-                <div className="text-[#AAAAAA] text-xs leading-tight mc-text-shadow">{hoveredItem.metadata.ability.description}</div>
-                {hoveredItem.metadata.ability.manaCost && (
-                  <div className="text-[#55FFFF] text-[10px] mt-1 mc-text-shadow">Mana Cost: {hoveredItem.metadata.ability.manaCost}</div>
-                )}
-              </div>
-            )}
-
-            {hoveredItem.metadata?.durability !== undefined && hoveredItem.metadata?.maxDurability !== undefined && (
-              <div className="text-[#AAAAAA] text-xs mt-1 border-t border-white/10 pt-1 mc-text-shadow">
-                Durability: {hoveredItem.metadata.durability} / {hoveredItem.metadata.maxDurability}
-              </div>
-            )}
-
-            <div 
-              className="font-bold uppercase tracking-widest mt-1 text-center border-t border-white/10 pt-1 mc-text-shadow"
-              style={{ color: RARITY_COLORS[hoveredItem.metadata?.rarity || Rarity.COMMON] }}
-            >
-              {hoveredItem.metadata?.rarity || Rarity.COMMON}
-            </div>
-          </div>
-        )}
-
-        {heldItem && (
-          <div 
-            ref={heldItemRef}
-            className="fixed pointer-events-none z-[100] -translate-x-1/2 -translate-y-1/2 drop-shadow-lg w-10 h-10 flex items-center justify-center overflow-hidden"
-            style={{ left: -100, top: -100 }}
-          >
-             <ItemIcon item={heldItem} />
-             {heldItem?.metadata?.durability !== undefined && heldItem?.metadata?.maxDurability !== undefined && (
-              <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none">
-                <div 
-                  className="h-full"
-                  style={{ 
-                    width: `${(heldItem.metadata.durability / heldItem.metadata.maxDurability) * 100}%`,
-                    backgroundColor: (heldItem.metadata.durability / heldItem.metadata.maxDurability) > 0.5 ? '#00FF00' : (heldItem.metadata.durability / heldItem.metadata.maxDurability) > 0.2 ? '#FFFF00' : '#FF0000'
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
       </motion.div>
+        </div>
+      </div>
+
+      {/* Tooltip (Moved outside scaled wrapper for mouse alignment) */}
+      {hoveredItem && !heldItem && (
+        <div 
+          ref={tooltipRef}
+          className="fixed z-[200] px-3 py-2 bg-[#100010]/95 border-2 border-[#25015b] text-white text-sm pointer-events-none shadow-xl min-w-[150px] mc-font scale-75 sm:scale-100 origin-top-left"
+          style={{ left: -1000 }}
+        >
+          <div 
+            className="font-bold text-xl mb-1 mc-text-shadow" 
+            style={{ color: RARITY_COLORS[hoveredItem.metadata?.rarity || Rarity.COMMON] }}
+          >
+            {ITEM_NAMES[hoveredItem.type]}
+          </div>
+          
+          {hoveredItem.metadata?.stats && (
+            <div className="space-y-0.5 mb-2 border-b border-white/10 pb-2">
+              {Object.entries(hoveredItem.metadata.stats).map(([stat, value]) => {
+                const isBaseStat = stat === 'damage' || stat === 'health' || stat === 'intelligence' || stat === 'defense';
+                const color = stat === 'damage' ? '#FF5555' : (stat === 'strength' ? '#FFAA00' : '#55FF55');
+                
+                return (
+                  <div key={stat} className="flex justify-between mc-text-shadow">
+                    <span className="text-[#AAAAAA] capitalize">{stat.replace(/([A-Z])/g, ' $1')}:</span>
+                    <span className="font-bold" style={{ color }}>{isBaseStat ? "" : "+"}{value}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {hoveredItem.metadata?.description && (
+            <div className="text-[#AAAAAA] mb-2 leading-tight mc-text-shadow">
+              {hoveredItem.metadata.description}
+            </div>
+          )}
+
+          {hoveredItem.metadata?.ability && (
+            <div className="mb-2 border-t border-white/10 pt-2">
+              <div className="text-[#FFFF55] font-bold uppercase text-xs mc-text-shadow">Ability: {hoveredItem.metadata.ability.name}</div>
+              <div className="text-[#AAAAAA] text-xs leading-tight mc-text-shadow">{hoveredItem.metadata.ability.description}</div>
+              {hoveredItem.metadata.ability.manaCost && (
+                <div className="text-[#55FFFF] text-[10px] mt-1 mc-text-shadow">Mana Cost: {hoveredItem.metadata.ability.manaCost}</div>
+              )}
+            </div>
+          )}
+
+          {hoveredItem.metadata?.durability !== undefined && hoveredItem.metadata?.maxDurability !== undefined && (
+            <div className="text-[#AAAAAA] text-xs mt-1 border-t border-white/10 pt-1 mc-text-shadow">
+              Durability: {hoveredItem.metadata.durability} / {hoveredItem.metadata.maxDurability}
+            </div>
+          )}
+
+          <div 
+            className="font-bold uppercase tracking-widest mt-1 text-center border-t border-white/10 pt-1 mc-text-shadow"
+            style={{ color: RARITY_COLORS[hoveredItem.metadata?.rarity || Rarity.COMMON] }}
+          >
+            {hoveredItem.metadata?.rarity || Rarity.COMMON}
+          </div>
+        </div>
+      )}
+
+      {/* Held Item (Moved outside scaled wrapper) */}
+      {heldItem && (
+        <div 
+          ref={heldItemRef}
+          className="fixed pointer-events-none z-[200] -translate-x-1/2 -translate-y-1/2 drop-shadow-lg w-10 h-10 flex items-center justify-center overflow-hidden scale-75 sm:scale-100 origin-center"
+          style={{ left: -100, top: -100 }}
+        >
+           <ItemIcon item={heldItem} />
+           {heldItem?.metadata?.durability !== undefined && heldItem?.metadata?.maxDurability !== undefined && (
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none">
+              <div 
+                className="h-full"
+                style={{ 
+                  width: `${(heldItem.metadata.durability / heldItem.metadata.maxDurability) * 100}%`,
+                  backgroundColor: (heldItem.metadata.durability / heldItem.metadata.maxDurability) > 0.5 ? '#00FF00' : (heldItem.metadata.durability / heldItem.metadata.maxDurability) > 0.2 ? '#FFFF00' : '#FF0000'
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 });
-

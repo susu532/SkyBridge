@@ -150,7 +150,7 @@ export const ChestUI = React.memo<{
     return (
       <div 
         ref={tooltipRef}
-        className="fixed pointer-events-none z-[100] mc-panel p-2 text-white shadow-xl max-w-xs"
+        className="fixed pointer-events-none z-[200] mc-panel p-2 text-white shadow-xl max-w-xs scale-75 sm:scale-100 origin-top-left"
       >
         <div className="font-bold mc-text-shadow leading-tight mb-1" style={{ color: '#55FFFF' }}>
           {ITEM_NAMES[hoveredItem.type] || `Unknown Item (${hoveredItem.type})`}
@@ -163,13 +163,15 @@ export const ChestUI = React.memo<{
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60  pointer-events-auto"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <AnimatePresence>
-        <motion.div
-           initial={{ opacity: 0, scale: 0.9 }}
-           animate={{ opacity: 1, scale: 1 }}
-           exit={{ opacity: 0, scale: 0.9 }}
-           className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4 max-h-[95vh] overflow-y-auto custom-scrollbar"
-        >
+      <div className="transform scale-[0.6] sm:scale-[0.8] md:scale-100 landscape:scale-[0.55] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center pointer-events-none w-full h-full flex items-center justify-center">
+        <div className="pointer-events-auto flex items-center justify-center w-full" onMouseDown={(e) => e.stopPropagation()}>
+          <AnimatePresence>
+            <motion.div
+               initial={{ opacity: 0, scale: 0.9 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.9 }}
+               className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4 max-h-[95vh] overflow-y-auto custom-scrollbar"
+            >
           {/* Title */}
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xl font-bold mc-text-shadow text-white uppercase tracking-wide">Chest</h2>
@@ -235,12 +237,14 @@ export const ChestUI = React.memo<{
             </div>
 
           </div>
-        </motion.div>
-      </AnimatePresence>
+          </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
 
       {/* Held Item Render */}
       {heldItem && (
-        <div ref={heldItemRef} className="fixed pointer-events-none z-[90] -translate-x-1/2 -translate-y-1/2 w-8 h-8">
+        <div ref={heldItemRef} className="fixed pointer-events-none z-[200] -translate-x-1/2 -translate-y-1/2 w-8 h-8 scale-75 sm:scale-100">
           <Slot item={heldItem} onClick={() => {}} onHover={() => {}} />
         </div>
       )}
