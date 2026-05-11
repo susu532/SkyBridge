@@ -130,7 +130,19 @@ export class Game {
       precision: initialSettings.performanceMode ? "mediump" : "highp"
     });
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    this.renderer.setPixelRatio(initialSettings.performanceMode ? (isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(0.6, window.devicePixelRatio)) : window.devicePixelRatio);
+    // For mobile, standard devicePixelRatio is often 2 or 3, which is a massive performance hit.
+    // Clamp it to 1.0 or lower if performance mode is enabled.
+    const maxDesktopDpr = window.devicePixelRatio;
+    const maxMobileDpr = 1.0;
+    
+    let resolvedDpr;
+    if (initialSettings.performanceMode) {
+      resolvedDpr = isMobile ? Math.min(0.6, window.devicePixelRatio) : Math.min(0.8, window.devicePixelRatio);
+    } else {
+      resolvedDpr = isMobile ? Math.min(maxMobileDpr, window.devicePixelRatio) : maxDesktopDpr;
+    }
+    
+    this.renderer.setPixelRatio(resolvedDpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     const effectivePremiumShaders = initialSettings.premiumShaders && !initialSettings.performanceMode;
     this.renderer.shadowMap.enabled = effectivePremiumShaders;

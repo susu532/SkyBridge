@@ -78,7 +78,7 @@ export class PlayerInputController {
         this.moveBackward = jY > 0.2;
         this.moveLeft = jX < -0.2;
         this.moveRight = jX > 0.2;
-        this.isSprinting = jY < -0.6;
+        this.isSprinting = window.mobileInputs.isSprinting;
         
         const wasMovingUp = this.moveUp;
         this.moveUp = window.mobileInputs.isJumping;
@@ -176,7 +176,77 @@ export class PlayerInputController {
            window.mobileInputs.lookDeltaX = 0;
            window.mobileInputs.lookDeltaY = 0;
         }
+
+        // Zoom Joystick Look
+        if (Math.abs(window.mobileInputs.zoomJoystickX) > 0 || Math.abs(window.mobileInputs.zoomJoystickY) > 0) {
+           const scale = 25; // Continuous rotation speed
+           this.player.mouseDeltaX += window.mobileInputs.zoomJoystickX * scale;
+           this.player.mouseDeltaY += window.mobileInputs.zoomJoystickY * scale;
+        }
+        
+        this.updateAimAssist();
       }
+    }
+  }
+
+  updateAimAssist() {
+    // Only aim assist if attacking or specifically requested
+    if (!window.mobileInputs.isAttacking) return;
+
+    let closestTarget = null;
+    let minAngleDist = Infinity;
+    const assistRange = 8;
+    const maxAssistAngle = Math.PI / 6; // 30 degrees
+
+    const checkEntities = (entities: Iterable<any>) => {
+      for (const entity of entities) {
+        if (!entity || entity.isDead || entity.health <= 0) continue;
+        if (entity.id === this.player.id || entity === this.player) continue;
+
+        const targetPos = entity.position || (entity.group && entity.group.position);
+        if (!targetPos) continue;
+
+        const dist = this.player.worldPosition.distanceTo(targetPos);
+        if (dist > assistRange) continue;
+
+        // Calculate direction to entity
+        const dirToEntity = new THREE.Vector3().subVectors(targetPos, this.player.worldPosition).normalize();
+        
+        // Get current look direction
+        const lookDir = new THREE.Vector3(0, 0, -1);
+        lookDir.applyEuler(new THREE.Euler(this.player.cameraPitch, this.player.cameraYaw, 0, 'YXZ'));
+
+        // Calculate angle diff
+        const angle = lookDir.angleTo(dirToEntity);
+        if (angle < maxAssistAngle && angle < minAngleDist) {
+          minAngleDist = angle;
+          closestTarget = entity;
+        }
+      }
+    };
+
+    checkEntities(this.player.world.entityManager.mobs.values());
+    checkEntities(this.player.world.entityManager.remotePlayers.values());
+
+    if (closestTarget) {
+      const targetPos = closestTarget.position || (closestTarget.group && closestTarget.group.position);
+      // Calculate desired yaw and pitch
+      const dirToTarget = new THREE.Vector3().subVectors(targetPos, this.player.worldPosition);
+      const targetYaw = Math.atan2(dirToTarget.x, dirToTarget.z) + Math.PI;
+      const targetPitch = Math.atan2(dirToTarget.y + 1.0, Math.sqrt(dirToTarget.x * dirToTarget.x + dirToTarget.z * dirToTarget.z));
+
+      // Ease towards target
+      let yawDiff = targetYaw - this.player.cameraYaw;
+      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+      let pitchDiff = targetPitch - this.player.cameraPitch;
+
+      // Convert delta to mouse Delta format so Player.ts update handles it
+      // player.mouseDeltaX reduces cameraYaw by 0.002 * mouseDeltaX
+      // so mouseDeltaX = -yawDiff / 0.002
+      this.player.mouseDeltaX += -(yawDiff * 0.1) / 0.002;
+      this.player.mouseDeltaY += (pitchDiff * 0.1) / 0.002;
     }
   }
 

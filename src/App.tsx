@@ -38,13 +38,13 @@ export default function App() {
 
       {/* Underwater Overlay */}
       {isUnderwater && !isUnderLava && (
-        <div className="absolute inset-0 pointer-events-none bg-blue-600/30 backdrop-blur-[2px] animate-pulse" />
+        <div className="absolute inset-0 pointer-events-none bg-blue-600/30 md:backdrop-blur-[2px] animate-pulse" />
       )}
 
       {/* Lava Overlay */}
       {isUnderLava && (
         <>
-          <div className="absolute inset-0 pointer-events-none bg-orange-600/60 backdrop-blur-[4px] animate-pulse mix-blend-overlay" />
+          <div className="absolute inset-0 pointer-events-none bg-orange-600/60 md:backdrop-blur-[4px] animate-pulse" />
           <div className="absolute inset-0 pointer-events-none bg-red-900/40" />
         </>
       )}
