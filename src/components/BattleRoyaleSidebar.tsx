@@ -178,7 +178,10 @@ export const BattleRoyaleSidebar: React.FC = () => {
 
 
   return (
-    <div className="absolute right-0 md:right-4 landscape:right-0 xl:landscape:right-4 top-8 md:top-32 landscape:top-8 xl:landscape:top-24 flex flex-col gap-2 pointer-events-none mc-font transform scale-[0.25] sm:scale-75 xl:scale-100 origin-top-right safe-pr safe-pt landscape:scale-[0.15] sm:landscape:scale-[0.2] md:landscape:scale-[0.5] xl:landscape:scale-100 pb-2">
+    <div 
+      className="absolute right-0 top-32 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt"
+      style={{ transform: 'scale(clamp(0.5, 60vw / 100, 1))', transformOrigin: 'top right' }}
+    >
       
       {/* Sidebar Container */}
       <div className="bg-black/60  p-3 md:p-4 border-l-4 border-[#FFAA00] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">

@@ -69,6 +69,8 @@ export const MobileControlsUI: React.FC = () => {
   const joystickRef = useRef<HTMLDivElement>(null);
   const joystickPointerId = useRef<number | null>(null);
 
+  const [joystickOrigin, setJoystickOrigin] = useState<{x: number, y: number} | null>(null);
+
   const startJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
@@ -76,7 +78,9 @@ export const MobileControlsUI: React.FC = () => {
     if (joystickPointerId.current !== null) return;
     joystickPointerId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    updateJoystickInputs(e);
+    
+    setJoystickOrigin({ x: e.clientX, y: e.clientY });
+    updateJoystickInputs(e, { x: e.clientX, y: e.clientY });
   };
 
   const updateJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -86,17 +90,19 @@ export const MobileControlsUI: React.FC = () => {
     updateJoystickInputs(e);
   };
   
-  const updateJoystickInputs = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!joystickRef.current) return;
-    const rect = joystickRef.current.getBoundingClientRect();
+  const updateJoystickInputs = (e: React.PointerEvent<HTMLDivElement>, overrideOrigin?: {x: number, y: number}) => {
+    const origin = overrideOrigin || joystickOrigin;
+    if (!origin) return;
     
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+    const centerX = origin.x;
+    const centerY = origin.y;
     const dx = e.clientX - centerX;
     const dy = e.clientY - centerY;
 
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const maxRadius = rect.width / 2;
+    // Base max radius on viewport width/height roughly
+    const isTablet = window.innerWidth >= 768;
+    const maxRadius = isTablet ? 72 : 56; 
     
     let normalizedX = dx / maxRadius;
     let normalizedY = dy / maxRadius;
@@ -106,7 +112,8 @@ export const MobileControlsUI: React.FC = () => {
       normalizedY = dy / distance;
     }
     
-    if (distance < maxRadius * 0.15) {
+    // Add visual deadzone
+    if (distance < maxRadius * 0.25) {
       normalizedX = 0;
       normalizedY = 0;
     }
@@ -124,6 +131,7 @@ export const MobileControlsUI: React.FC = () => {
     window.mobileInputs.joystickX = 0;
     window.mobileInputs.joystickY = 0;
     setJoystick({ x: 0, y: 0 });
+    setJoystickOrigin(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     } catch(err) {}
@@ -348,25 +356,32 @@ export const MobileControlsUI: React.FC = () => {
         <Crosshair size={24} />
       </div>
 
-      {/* Joystick Container (Left side) */}
+      {/* Floating Joystick Area (Left half) */}
       <div 
         ref={joystickRef}
-        className="absolute bottom-6 left-6 w-32 h-32 md:w-36 md:h-36 landscape:w-32 landscape:h-32 landscape:bottom-6 landscape:left-6 safe-ml safe-mb z-50 pointer-events-auto touch-none bg-black/20 border border-white/20 rounded-full flex items-center justify-center p-2"
+        className="absolute inset-y-0 left-0 w-1/2 z-50 pointer-events-auto touch-none"
         onPointerDown={startJoystick}
         onPointerMove={updateJoystick}
         onPointerUp={stopJoystick}
         onPointerCancel={stopJoystick}
         onContextMenu={(e) => e.preventDefault()}
       >
-         <div 
-            className="w-12 h-12 md:w-16 md:h-16 bg-white/40 border-2 border-white/60 rounded-full shadow-lg pointer-events-none flex items-center justify-center"
-            style={{ 
-               transform: `translate(${joystick.x * 125}%, ${joystick.y * 125}%)`,
-               transition: joystickPointerId.current === null ? 'transform 0.15s ease-out' : 'none'
-            }}
-         >
-           <Navigation size={20} className={`text-white drop-shadow-md ${joystick.y < -0.5 ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
-         </div>
+        {joystickOrigin && (
+          <div 
+            className="absolute w-32 h-32 md:w-36 md:h-36 bg-black/20 border border-white/20 rounded-full flex items-center justify-center p-2 pointer-events-none -translate-x-1/2 -translate-y-1/2"
+            style={{ left: joystickOrigin.x, top: joystickOrigin.y }}
+          >
+             <div 
+                className="w-12 h-12 md:w-16 md:h-16 bg-white/40 border-2 border-white/60 rounded-full shadow-lg pointer-events-none flex items-center justify-center"
+                style={{ 
+                   transform: `translate(${joystick.x * 125}%, ${joystick.y * 125}%)`,
+                   transition: joystickPointerId.current === null ? 'transform 0.15s ease-out' : 'none'
+                }}
+             >
+               <Navigation size={20} className={`text-white drop-shadow-md ${joystick.y < -0.5 ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
+             </div>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
