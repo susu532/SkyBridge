@@ -552,7 +552,7 @@ export class Chunk {
       for (let y = 0; y < CHUNK_HEIGHT; y++) {
         for (let z = 0; z < CHUNK_SIZE; z++) {
           iterations++;
-          if (iterations > 6000 && performance.now() - startTime > 3) {
+          if (iterations > 6000 && performance.now() - startTime > 10) {
             await new Promise(resolve => setTimeout(resolve, 0));
             startTime = performance.now();
             iterations = 0;

@@ -331,7 +331,8 @@ export class RemotePlayer {
       const mat = this.capeMesh.material as any;
       if (mat.color !== undefined) {
         mat.color.setHex(capeColor);
-        this.capeMesh.userData.originalColor = capeColor;
+        if (!mat.userData) mat.userData = {};
+        mat.userData.originalColor = capeColor;
       }
       if (this.capeMesh.userData.originalMaterial) {
         const origMat = this.capeMesh.userData.originalMaterial as any;
@@ -343,8 +344,10 @@ export class RemotePlayer {
       const teamColor = team === 'blue' ? 0x3366cc : 0xcc3333;
       this.armorMeshes.forEach(mesh => {
         mesh.visible = true;
-        (mesh.material as any).color.setHex(teamColor);
-        mesh.userData.originalColor = teamColor;
+        const mat = mesh.material as any;
+        mat.color.setHex(teamColor);
+        if (!mat.userData) mat.userData = {};
+        mat.userData.originalColor = teamColor;
       });
     } else {
       this.armorMeshes.forEach(mesh => {
@@ -374,14 +377,15 @@ export class RemotePlayer {
             const mesh = child as THREE.Mesh;
             const mat = mesh.material as any;
             if (mat && mat.color !== undefined && mat.emissive !== undefined) {
+              if (!mat.userData) mat.userData = {};
               if (mesh.scale.x > 10) { // Accent
                 mat.color.setHex(accentColor);
                 mat.emissive.setHex(accentEmissive);
-                mesh.userData.originalColor = accentColor;
-                mesh.userData.originalEmissive = accentEmissive;
+                mat.userData.originalColor = accentColor;
+                mat.userData.originalEmissive = accentEmissive;
               } else { // Base wing
                 mat.emissive.setHex(emissiveColor);
-                mesh.userData.originalEmissive = emissiveColor;
+                mat.userData.originalEmissive = emissiveColor;
               }
             }
             if (mesh.userData.originalMaterial) {
@@ -1278,40 +1282,40 @@ export class RemotePlayer {
 
     this.group.traverse((obj) => {
       if (obj instanceof THREE.Mesh && obj.material) {
-        const mat = obj.material as any;
-        if (mat.emissive !== undefined) {
-          if (obj.userData.originalEmissive === undefined) {
-            obj.userData.originalEmissive = mat.emissive.getHex();
-          }
-          if (obj.userData.originalEmissiveIntensity === undefined) {
-            obj.userData.originalEmissiveIntensity = mat.emissiveIntensity;
-          }
-          mat.emissive.setHex(0xff0000);
-          mat.emissiveIntensity = 0.5;
-          
-          // Use a local timeout for this specific material to ensure it resets
-          setTimeout(() => {
-            if (obj.material) {
-              const m = obj.material as any;
-              if (m.emissive !== undefined) {
-                m.emissive.setHex(obj.userData.originalEmissive ?? 0x000000);
-                m.emissiveIntensity = obj.userData.originalEmissiveIntensity ?? 0;
-              }
+        // Handle array of materials
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+        
+        for (const mat of materials) {
+          if (mat.emissive !== undefined) {
+            if (mat.userData === undefined) mat.userData = {};
+            if (mat.userData.originalEmissive === undefined) {
+              mat.userData.originalEmissive = mat.emissive.getHex();
             }
-          }, 200);
-        } else if (mat.color !== undefined) {
-          if (obj.userData.originalColor === undefined) {
-            obj.userData.originalColor = mat.color.getHex();
-          }
-          mat.color.setHex(0xff0000);
-          setTimeout(() => {
-            if (obj.material) {
-              const m = obj.material as any;
-              if (m.color !== undefined) {
-                m.color.setHex(obj.userData.originalColor ?? 0xffffff);
-              }
+            if (mat.userData.originalEmissiveIntensity === undefined) {
+              mat.userData.originalEmissiveIntensity = mat.emissiveIntensity;
             }
-          }, 200);
+            mat.emissive.setHex(0xff0000);
+            mat.emissiveIntensity = 0.5;
+            
+            setTimeout(() => {
+              if (mat.emissive !== undefined) {
+                mat.emissive.setHex(mat.userData.originalEmissive ?? 0x000000);
+                mat.emissiveIntensity = mat.userData.originalEmissiveIntensity ?? 0;
+              }
+            }, 200);
+          } else if (mat.color !== undefined) {
+            if (mat.userData === undefined) mat.userData = {};
+            if (mat.userData.originalColor === undefined) {
+              mat.userData.originalColor = mat.color.getHex();
+            }
+            mat.color.setHex(0xff0000);
+            
+            setTimeout(() => {
+              if (mat.color !== undefined) {
+                mat.color.setHex(mat.userData.originalColor ?? 0xffffff);
+              }
+            }, 200);
+          }
         }
       }
     });

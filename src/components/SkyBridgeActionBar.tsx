@@ -39,7 +39,7 @@ export const SkyBridgeActionBar: React.FC = () => {
   }, []);
 
   return (
-    <div className="absolute bottom-[55px] md:bottom-24 landscape:bottom-[45px] xl:landscape:bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 md:gap-12 pointer-events-none select-none mc-font w-full max-w-[100vw] justify-center px-1 transform scale-[0.45] sm:scale-100 origin-bottom landscape:scale-[0.25] sm:landscape:scale-[0.25] md:landscape:scale-[0.6] xl:landscape:scale-100">
+    <div className="absolute bottom-[55px] md:bottom-24 landscape:bottom-[45px] xl:landscape:bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 md:gap-12 pointer-events-none select-none mc-font w-full max-w-[100vw] justify-center px-1 transform scale-[0.45] sm:scale-100 origin-bottom landscape:scale-[0.15] sm:landscape:scale-[0.15] md:landscape:scale-[0.5] xl:landscape:scale-100">
       {/* Health */}
       <div className="flex flex-col items-center">
         <div className="text-[#FF5555] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow mb-0.5 md:mb-1 whitespace-nowrap">

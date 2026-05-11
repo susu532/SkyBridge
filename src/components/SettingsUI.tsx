@@ -57,11 +57,12 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
           if (!rebindingKey) onClose();
         }}
       >
+        <div className="w-full max-w-2xl transform landscape:scale-[0.55] sm:landscape:scale-[0.6] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center">
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
-          className="bg-[#C6C6C6] border-t-4 border-l-4 border-white border-b-4 border-r-4 border-[#555555] w-full max-w-2xl overflow-hidden shadow-2xl"
+          className="bg-[#C6C6C6] border-t-4 border-l-4 border-white border-b-4 border-r-4 border-[#555555] w-full overflow-hidden shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -324,6 +325,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
         </motion.div>
+        </div>
       </motion.div>
     </AnimatePresence>
   );
