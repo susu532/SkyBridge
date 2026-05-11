@@ -112,6 +112,15 @@ export class Game {
     return tags;
   }
   
+  private getResolvedDpr(perfMode: boolean) {
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (perfMode) {
+      return isMobile ? Math.min(0.5, window.devicePixelRatio) : Math.min(0.7, window.devicePixelRatio);
+    } else {
+      return isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(1.0, window.devicePixelRatio); // Let desktop use standard, mobile 1.0
+    }
+  }
+
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
     const skyColor = 0x99ccff;
@@ -129,20 +138,8 @@ export class Game {
       powerPreference: "high-performance",
       precision: initialSettings.performanceMode ? "mediump" : "highp"
     });
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    // For mobile, standard devicePixelRatio is often 2 or 3, which is a massive performance hit.
-    // Clamp it to 1.0 or lower if performance mode is enabled.
-    const maxDesktopDpr = window.devicePixelRatio;
-    const maxMobileDpr = 1.0;
     
-    let resolvedDpr;
-    if (initialSettings.performanceMode) {
-      resolvedDpr = isMobile ? Math.min(0.6, window.devicePixelRatio) : Math.min(0.8, window.devicePixelRatio);
-    } else {
-      resolvedDpr = isMobile ? Math.min(maxMobileDpr, window.devicePixelRatio) : maxDesktopDpr;
-    }
-    
-    this.renderer.setPixelRatio(resolvedDpr);
+    this.renderer.setPixelRatio(this.getResolvedDpr(initialSettings.performanceMode));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     const effectivePremiumShaders = initialSettings.premiumShaders && !initialSettings.performanceMode;
     this.renderer.shadowMap.enabled = effectivePremiumShaders;
@@ -537,8 +534,7 @@ export class Game {
       }
 
       // Reduce pixel ratio for better performance
-      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      this.renderer.setPixelRatio(settings.performanceMode ? (isMobile ? Math.min(1.0, window.devicePixelRatio) : Math.min(0.6, window.devicePixelRatio)) : window.devicePixelRatio);
+      this.renderer.setPixelRatio(this.getResolvedDpr(settings.performanceMode));
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
   }

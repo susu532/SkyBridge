@@ -81,7 +81,7 @@ export default function App() {
                </div>
              </div>
           </div>
-          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Rotate Device</h2>
+          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Tap Screen</h2>
           <p className="text-zinc-400 text-lg max-w-[280px] mx-auto leading-relaxed">
             Please rotate your device to landscape mode to play.
           </p>

@@ -37,11 +37,11 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
             
             const innerDiv = document.createElement('div');
             const isPlayer = tag.type === 'Player';
-            innerDiv.className = `px-3 py-1 rounded border flex items-center gap-2 whitespace-nowrap mc-font text-[16px] shadow-lg ${isPlayer ? 'bg-black/40 border-white/10' : 'bg-black/70 border-white/20'}`;
+            innerDiv.className = `px-1.5 py-0.5 md:px-3 md:py-1 rounded border flex items-center gap-1 md:gap-2 whitespace-nowrap mc-font text-[10px] md:text-[16px] shadow-lg ${isPlayer ? 'bg-black/40 border-white/10' : 'bg-black/70 border-white/20'}`;
             
             if (!tag.isPassive && !isPlayer && tag.type !== 'Morvane') {
               const lvSpan = document.createElement('span');
-              lvSpan.className = "text-[#FFFF55] font-bold text-[18px]";
+              lvSpan.className = "text-[#FFFF55] font-bold text-[12px] md:text-[18px]";
               lvSpan.innerText = `Lv${tag.level}`;
               innerDiv.appendChild(lvSpan);
             }
