@@ -64,30 +64,30 @@ export const MobileControlsUI: React.FC = () => {
   
   const activeTaps = useRef<Map<number, { x: number, y: number, time: number, isSwipe: boolean, holdTimeout: any, isHolding: boolean }>>(new Map());
 
-  const [dpad, setDpad] = useState({ x: 0, y: 0 });
-  const dpadRef = useRef<HTMLDivElement>(null);
-  const dpadPointerId = useRef<number | null>(null);
+  const [joystick, setJoystick] = useState({ x: 0, y: 0 });
+  const joystickRef = useRef<HTMLDivElement>(null);
+  const joystickPointerId = useRef<number | null>(null);
 
-  const startDpad = (e: React.PointerEvent<HTMLDivElement>) => {
+  const startJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    if (dpadPointerId.current !== null) return;
-    dpadPointerId.current = e.pointerId;
+    if (joystickPointerId.current !== null) return;
+    joystickPointerId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    updateDpadInputs(e);
+    updateJoystickInputs(e);
   };
 
-  const updateDpad = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dpadPointerId.current !== e.pointerId) return;
+  const updateJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointerId.current !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
-    updateDpadInputs(e);
+    updateJoystickInputs(e);
   };
   
-  const updateDpadInputs = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dpadRef.current) return;
-    const rect = dpadRef.current.getBoundingClientRect();
+  const updateJoystickInputs = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!joystickRef.current) return;
+    const rect = joystickRef.current.getBoundingClientRect();
     
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -95,55 +95,34 @@ export const MobileControlsUI: React.FC = () => {
     const dy = e.clientY - centerY;
 
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const radius = rect.width / 2;
+    const maxRadius = rect.width / 2;
     
-    const deadzone = radius * 0.25;
+    let normalizedX = dx / maxRadius;
+    let normalizedY = dy / maxRadius;
 
-    let newX = 0;
-    let newY = 0;
-
-    if (distance > deadzone) {
-      const angle = Math.atan2(dy, dx);
-      const degrees = angle * (180 / Math.PI);
-      
-      const threshold = 22.5; // used for 8 way
-      if (degrees > -112.5 && degrees <= -67.5) {
-        newY = -1; // UP
-      } else if (degrees > -67.5 && degrees <= -22.5) {
-        newX = 1; newY = -1; // UP-RIGHT
-      } else if (degrees > -22.5 && degrees <= 22.5) {
-        newX = 1; // RIGHT
-      } else if (degrees > 22.5 && degrees <= 67.5) {
-        newX = 1; newY = 1; // DOWN-RIGHT
-      } else if (degrees > 67.5 && degrees <= 112.5) {
-        newY = 1; // DOWN
-      } else if (degrees > 112.5 && degrees <= 157.5) {
-        newX = -1; newY = 1; // DOWN-LEFT
-      } else if (degrees > -157.5 && degrees <= -112.5) {
-        newX = -1; newY = -1; // UP-LEFT
-      } else {
-        newX = -1; // LEFT
-      }
+    if (distance > maxRadius) {
+      normalizedX = dx / distance;
+      normalizedY = dy / distance;
     }
-
-    setDpad((prev) => {
-      if (prev.x !== newX || prev.y !== newY) {
-        window.mobileInputs.joystickX = newX;
-        window.mobileInputs.joystickY = newY;
-        return { x: newX, y: newY };
-      }
-      return prev;
-    });
+    
+    if (distance < maxRadius * 0.15) {
+      normalizedX = 0;
+      normalizedY = 0;
+    }
+    
+    setJoystick({ x: normalizedX, y: normalizedY });
+    window.mobileInputs.joystickX = normalizedX;
+    window.mobileInputs.joystickY = normalizedY;
   };
 
-  const stopDpad = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dpadPointerId.current !== e.pointerId) return;
+  const stopJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointerId.current !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
-    dpadPointerId.current = null;
+    joystickPointerId.current = null;
     window.mobileInputs.joystickX = 0;
     window.mobileInputs.joystickY = 0;
-    setDpad({ x: 0, y: 0 });
+    setJoystick({ x: 0, y: 0 });
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     } catch(err) {}
@@ -307,8 +286,8 @@ export const MobileControlsUI: React.FC = () => {
       window.mobileInputs.isAttacking = false;
       window.mobileInputs.isZooming = false;
       
-      setDpad({ x: 0, y: 0 });
-      dpadPointerId.current = null;
+      setJoystick({ x: 0, y: 0 });
+      joystickPointerId.current = null;
     }
   }, [isAnyMenuOpen]);
 
@@ -385,37 +364,25 @@ export const MobileControlsUI: React.FC = () => {
         <Crosshair size={24} />
       </div>
 
-      {/* D-Pad Container (Left side) */}
+      {/* Joystick Container (Left side) */}
       <div 
-        ref={dpadRef}
-        className="absolute bottom-6 left-6 w-40 h-40 landscape:w-36 landscape:h-36 landscape:bottom-6 landscape:left-6 safe-ml safe-mb z-50 pointer-events-auto touch-none"
-        onPointerDown={startDpad}
-        onPointerMove={updateDpad}
-        onPointerUp={stopDpad}
-        onPointerCancel={stopDpad}
+        ref={joystickRef}
+        className="absolute bottom-6 left-6 w-32 h-32 md:w-36 md:h-36 landscape:w-32 landscape:h-32 landscape:bottom-6 landscape:left-6 safe-ml safe-mb z-50 pointer-events-auto touch-none bg-black/20 border border-white/20 rounded-full flex items-center justify-center p-2"
+        onPointerDown={startJoystick}
+        onPointerMove={updateJoystick}
+        onPointerUp={stopJoystick}
+        onPointerCancel={stopJoystick}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <div className="absolute inset-0 bg-transparent rounded-full" />
-        
-        {/* Forward */}
-        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.y === -1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
-          <ArrowUp size={24} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
-        </div>
-        {/* Backward */}
-        <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.y === 1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
-          <ArrowDown size={24} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
-        </div>
-        {/* Left */}
-        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === -1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
-          <ArrowUp size={24} className="text-white -rotate-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
-        </div>
-        {/* Right */}
-        <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === 1 ? 'bg-white/40 border-white/80 scale-110' : 'bg-black/40 border-white/30'} flex justify-center items-center rounded-sm transition-all shadow-md`}>
-          <ArrowUp size={24} className="text-white rotate-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
-        </div>
-        
-        {/* Center */}
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 border-2 ${dpad.x === 0 && dpad.y === 0 ? 'bg-black/20 border-white/20' : 'bg-white/20 border-white/40'} rounded-sm transition-all pointer-events-none`} />
+         <div 
+            className="w-12 h-12 md:w-16 md:h-16 bg-white/40 border-2 border-white/60 rounded-full shadow-lg pointer-events-none flex items-center justify-center"
+            style={{ 
+               transform: `translate(${joystick.x * 125}%, ${joystick.y * 125}%)`,
+               transition: joystickPointerId.current === null ? 'transform 0.15s ease-out' : 'none'
+            }}
+         >
+           <Navigation size={20} className={`text-white drop-shadow-md ${joystick.y < -0.5 ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
+         </div>
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
