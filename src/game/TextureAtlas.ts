@@ -2209,6 +2209,8 @@ IS_SOLID[BLOCK.LARGE_AMETHYST_BUD] = false;
 IS_SOLID[BLOCK.MEDIUM_AMETHYST_BUD] = false;
 IS_SOLID[BLOCK.SMALL_AMETHYST_BUD] = false;
 IS_SOLID[BLOCK.CANDLE] = false;
+IS_SOLID[BLOCK.GLOW_LICHEN] = false;
+IS_SOLID[BLOCK.TORCHFLOWER] = false;
 
 export const isSolidBlock = (blockType: number) => {
   return IS_SOLID[blockType] ?? true;

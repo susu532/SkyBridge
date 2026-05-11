@@ -94,9 +94,9 @@ export function GameHUD({ game, isMobile, showDebug, targetInfo, setPauseMenuOpe
       {isHUDVisible && isMobile && <MobileControlsUI />}
 
       {/* Sidebars */}
-      {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar />}
-      {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar />}
-      {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar />}
+      {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar isMobile={isMobile} />}
+      {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar isMobile={isMobile} />}
+      {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar isMobile={isMobile} />}
 
       {/* SkyBridge UI */}
       {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />}

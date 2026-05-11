@@ -3,7 +3,11 @@ import React from 'react';
 import { useGameStore } from '../store/gameStore';
 import { skyBridgeManager, PlayerStats } from '../game/SkyBridgeManager';
 
-export const SkyBridgeSidebar: React.FC = () => {
+interface SkyBridgeSidebarProps {
+  isMobile?: boolean;
+}
+
+export const SkyBridgeSidebar: React.FC<SkyBridgeSidebarProps> = ({ isMobile }) => {
   const currentMode = useGameStore(state => state.currentMode);
   const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
   const playerStats = useGameStore(state => state.playerStats);
@@ -17,8 +21,11 @@ export const SkyBridgeSidebar: React.FC = () => {
 
   return (
     <div 
-      className="absolute right-0 top-16 md:top-32 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt"
-      style={{ transform: 'scale(clamp(0.4, 40vw / 100, 1))', transformOrigin: 'top right' }}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all ${isMobile ? 'top-1' : 'top-16 md:top-32'}`}
+      style={{ 
+        transform: isMobile ? 'scale(0.5)' : 'scale(clamp(0.4, 40vw / 100, 1))', 
+        transformOrigin: 'top right' 
+      }}
     >
       {/* Sidebar Container */}
       <div className="bg-black/60  p-3 md:p-4 border-l-4 border-[#FFFF55] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">

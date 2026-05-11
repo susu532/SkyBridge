@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 
-export const SkyCastlesSidebar: React.FC = () => {
+interface SkyCastlesSidebarProps {
+  isMobile?: boolean;
+}
+
+export const SkyCastlesSidebar: React.FC<SkyCastlesSidebarProps> = ({ isMobile }) => {
   const currentMode = useGameStore(state => state.currentMode);
   const skycoins = useGameStore(state => state.skycoins[currentMode] ?? 500);
   const addSkycoins = useGameStore(state => state.addSkycoins);
@@ -50,8 +54,11 @@ export const SkyCastlesSidebar: React.FC = () => {
 
   return (
     <div 
-      className="absolute right-0 top-16 md:top-32 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt"
-      style={{ transform: 'scale(clamp(0.4, 40vw / 100, 1))', transformOrigin: 'top right' }}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt transition-all ${isMobile ? 'top-1' : 'top-16 md:top-32'}`}
+      style={{ 
+        transform: isMobile ? 'scale(0.5)' : 'scale(clamp(0.4, 40vw / 100, 1))', 
+        transformOrigin: 'top right' 
+      }}
     >
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">
