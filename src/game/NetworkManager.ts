@@ -214,7 +214,8 @@ export class NetworkManager {
     }
 
     try {
-      const resp = await fetch(`/api/matchmake?mode=${mode}`);
+      const baseUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+      const resp = await fetch(`${baseUrl}/api/matchmake?mode=${mode}`);
       const data = await resp.json();
       if (data.serverId) {
         // serverId already starts with / e.g. /hub_1
@@ -296,8 +297,9 @@ export class NetworkManager {
     useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "hub");
     useGameStore.getState().setServerId(serverName);
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.socket = new FakeClientSocket(`${protocol}//${window.location.host}/ws/${serverName}`);
+    const backendUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+    const wsUrl = backendUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+    this.socket = new FakeClientSocket(`${wsUrl}/ws/${serverName}`);
     
     this.socket.reconnectCallback = () => {
       console.log("WebSocket disconnected. Attempting to reconnect...");
