@@ -1,10 +1,104 @@
 import { useGameStore } from "../store/gameStore";
-import { io, Socket } from "socket.io-client";
 import * as THREE from "three";
+import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
+import { encodeRLE, decodeRLE } from "./RLE";
 import { getSecureBackendUrl } from '../utils/security';
 
+class FakeClientSocket {
+  public connected = false;
+  public ws: WebSocket | null = null;
+  public handlers: Record<string, Function> = {};
+  private emitQueue: { event: string; args: any[] }[] = [];
+  public _id = "";
+  public reconnectCallback: (() => void) | null = null;
+  private isVolatileMode = false;
+
+  constructor(public url: string) {
+    this.connect();
+  }
+
+  connect() {
+    this.ws = new WebSocket(this.url);
+    this.ws.binaryType = 'arraybuffer';
+    
+    this.ws.onopen = () => {
+      this.connected = true;
+      if (this.handlers['connect']) this.handlers['connect']();
+      for (const pending of this.emitQueue) {
+         this.ws!.send(encodePacketClient(pending.event, pending.args));
+      }
+      this.emitQueue = [];
+    };
+
+    this.ws.onmessage = async (e) => {
+      const decoded = await decodePacketClient(e.data);
+      if (decoded) {
+          if (decoded.event === 'set_id') {
+              this._id = decoded.args[0];
+          } else if (this.handlers[decoded.event]) {
+              this.handlers[decoded.event](...decoded.args);
+          }
+      }
+    };
+
+    this.ws.onclose = () => {
+      this.connected = false;
+      if (this.handlers['disconnect']) this.handlers['disconnect']();
+      if (this.reconnectCallback) {
+        this.reconnectCallback();
+      }
+    };
+  }
+
+  get id() { return this._id; }
+
+  on(event: string, handler: Function) {
+    this.handlers[event] = handler;
+  }
+
+  off(event: string, handler?: Function) {
+    if (handler && this.handlers[event] === handler) {
+       delete this.handlers[event];
+    } else if (!handler) {
+       delete this.handlers[event];
+    }
+  }
+
+  emit(event: string, ...args: any[]) {
+    if (this.connected && this.ws) {
+       this.ws.send(encodePacketClient(event, args));
+    } else if (!this.isVolatileMode) {
+       this.emitQueue.push({ event, args });
+    }
+  }
+
+  get volatile() { 
+    return {
+      emit: (event: string, ...args: any[]) => {
+        this.isVolatileMode = true;
+        this.emit(event, ...args);
+        this.isVolatileMode = false;
+      }
+    }; 
+  }
+
+  disconnect() {
+    this.reconnectCallback = null;
+    if (this.ws) {
+       this.ws.close();
+       this.ws = null;
+    }
+    this.connected = false;
+  }
+
+  removeAllListeners() {
+    this.handlers = {};
+  }
+}
+
 export class NetworkManager {
-  socket!: Socket;
+  socket!: FakeClientSocket;
+  // ... rest of implementation (using socket as FakeClientSocket)
   serverName: string = "hub";
   players: Record<string, any> = {};
   blockChanges: Record<string, number> = {};
@@ -70,6 +164,7 @@ export class NetworkManager {
   }) => void;
   onTimeUpdate?: (data: { dayTime: number }) => void;
   private initData: any = null;
+  private reconnectAttempt = 0;
 
   resetHandlers() {
     this._onInit = undefined;
@@ -105,8 +200,11 @@ export class NetworkManager {
     this.initMatchmaking();
   }
 
-  async initMatchmaking(modeOverride?: string) {
-    useGameStore.getState().setIsMapLoading(true);
+  async initMatchmaking(modeOverride?: string, isReconnect = false) {
+    if (!isReconnect) {
+      useGameStore.getState().setIsMapLoading(true);
+      this.reconnectAttempt = 0;
+    }
     const urlParams = new URLSearchParams(window.location.search);
     const mode = modeOverride || urlParams.get("server") || "hub";
 
@@ -131,11 +229,55 @@ export class NetworkManager {
         this.connect(connectMode);
         window.history.pushState({}, "", `?server=${connectMode}`);
       }
+      this.reconnectAttempt = 0; // Reset on success
     } catch (e) {
       console.error("Matchmaking failed:", e);
-      const connectMode = mode.includes('_') ? mode : `${mode}_1`;
-      this.connect(connectMode);
-      window.history.pushState({}, "", `?server=${connectMode}`);
+      if (isReconnect && this.reconnectAttempt < 5) {
+        setTimeout(() => {
+          this.reconnectAttempt++;
+          this.initMatchmaking(modeOverride, true);
+        }, Math.min(1000 * Math.pow(2, this.reconnectAttempt), 15000));
+      } else {
+        const connectMode = mode.includes('_') ? mode : `${mode}_1`;
+        this.connect(connectMode);
+        window.history.pushState({}, "", `?server=${connectMode}`);
+      }
+    }
+  }
+
+  private applyPlayerUpdate(id: string, packed: Float32Array | any[]) {
+    const stateMask = packed[5];
+    const player = {
+      id: id,
+      position: { x: packed[0], y: packed[1], z: packed[2] },
+      rotation: { x: packed[3], y: packed[4], z: 0 },
+      isFlying: !!(stateMask & 1),
+      isSwimming: !!(stateMask & 2),
+      isCrouching: !!(stateMask & 4),
+      isSprinting: !!(stateMask & 8),
+      isSwinging: !!(stateMask & 16),
+      isGrounded: !!(stateMask & 32),
+      isBlocking: !!(stateMask & 64),
+      isGliding: !!(stateMask & 128),
+      isInvulnerable: !!(stateMask & 256),
+      swingSpeed: packed[6],
+      heldItem: packed[7],
+      offHandItem: packed[8],
+      defense: packed[9],
+      health: packed[10],
+    };
+
+    let isNew = false;
+    if (this.players[id]) {
+      Object.assign(this.players[id], player);
+    } else {
+      this.players[id] = player as any;
+      isNew = true;
+      this.socket.emit("requestPlayerInfo", id);
+    }
+
+    if (this.onPlayerMoved) {
+      this.onPlayerMoved(this.players[id]);
     }
   }
 
@@ -154,8 +296,15 @@ export class NetworkManager {
     useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "hub");
     useGameStore.getState().setServerId(serverName);
 
-    const BACKEND_URL = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
-    this.socket = io(`${BACKEND_URL}/${serverName}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    this.socket = new FakeClientSocket(`${protocol}//${window.location.host}/ws/${serverName}`);
+    
+    this.socket.reconnectCallback = () => {
+      console.log("WebSocket disconnected. Attempting to reconnect...");
+      setTimeout(() => {
+        this.initMatchmaking(this.serverName, true);
+      }, Math.min(1000 * Math.pow(2, this.reconnectAttempt), 15000));
+    };
 
     this.socket.on("connect", () => {
       for (const pending of this.pendingEmits) {
@@ -165,15 +314,16 @@ export class NetworkManager {
     });
 
     this.socket.on("init", (data) => {
+      if (!data) return;
       this.initData = data;
-      this.players = data.players;
-      this.blockChanges = data.blockChanges;
+      this.players = data.players || {};
+      
       useGameStore.getState().setGameStartTime(data.gameStartTime || 0);
 
       // Initialize leaderboard
       for (const id in this.players) {
         const p = this.players[id];
-        useGameStore.getState().setLeaderboardPlayer(id, p.name, p.team, p.kills || 0, p.deaths || 0);
+        useGameStore.getState().setLeaderboardPlayer(id, p.name || 'Unknown', p.team, p.kills || 0, p.deaths || 0);
       }
 
       if (this._onInit) this._onInit(data);
@@ -192,10 +342,11 @@ export class NetworkManager {
     });
 
     this.socket.on("entitiesReset", (data) => {
-      this.blockChanges = {};
       if (data.gameStartTime) {
         useGameStore.getState().setGameStartTime(data.gameStartTime);
       }
+      (window as any)["looted_mid_chest_red"] = false;
+      (window as any)["looted_mid_chest_blue"] = false;
       if (this.onEntitiesReset) this.onEntitiesReset(data);
     });
 
@@ -206,7 +357,7 @@ export class NetworkManager {
     this.socket.on(
       "mobsUpdate",
       (updates: Record<string, any[] | ArrayBuffer>) => {
-        // Create a modified updates object with Float32Array unpacked
+        // legacy json fallback
         const unpacked: Record<string, any[]> = {};
         for (const id in updates) {
           const packedData = updates[id];
@@ -254,6 +405,7 @@ export class NetworkManager {
     });
 
     this.socket.on("playerJoined", (player) => {
+      if (!player || !player.id) return;
       let isBrandNew = !this.players[player.id];
       if (this.players[player.id]) {
         // We already have their movement state, but we need their name/skin
@@ -261,61 +413,76 @@ export class NetworkManager {
       } else {
         this.players[player.id] = player;
       }
-      useGameStore.getState().setLeaderboardPlayer(player.id, player.name, player.team, player.kills || 0, player.deaths || 0);
+      useGameStore.getState().setLeaderboardPlayer(player.id, player.name || 'Unknown', player.team, player.kills || 0, player.deaths || 0);
       if (this.onPlayerJoined) this.onPlayerJoined(this.players[player.id]);
     });
 
-    this.socket.on(
-      "playersUpdate",
-      (updates: Record<string, any[] | ArrayBuffer>) => {
-        for (const id in updates) {
-          if (id === this.id) continue;
-          const packedData = updates[id];
-          const packed =
-            packedData instanceof ArrayBuffer
-              ? new Float32Array(packedData)
-              : (packedData as any[]);
+    this.socket.on("playersUpdate", (updates: Record<string, any[] | ArrayBuffer>) => {
+      // Legacy JSON support
+      for (const id in updates) {
+        if (id === this.id) continue;
+        const packedData = updates[id];
+        const packed = packedData instanceof ArrayBuffer ? new Float32Array(packedData) : (packedData as any[]);
+        this.applyPlayerUpdate(id, packed);
+      }
+    });
 
-          const stateMask = packed[5];
-          const player = {
-            id: id,
-            position: { x: packed[0], y: packed[1], z: packed[2] },
-            rotation: { x: packed[3], y: packed[4], z: 0 },
-            isFlying: !!(stateMask & 1),
-            isSwimming: !!(stateMask & 2),
-            isCrouching: !!(stateMask & 4),
-            isSprinting: !!(stateMask & 8),
-            isSwinging: !!(stateMask & 16),
-            isGrounded: !!(stateMask & 32),
-            isBlocking: !!(stateMask & 64),
-            isGliding: !!(stateMask & 128),
-            isInvulnerable: !!(stateMask & 256),
-            swingSpeed: packed[6],
-            heldItem: packed[7],
-            offHandItem: packed[8],
-            defense: packed[9],
-            health: packed[10],
-          };
-
-          let isNew = false;
-          if (this.players[id]) {
-            Object.assign(this.players[id], player);
-          } else {
-            this.players[id] = player;
-            isNew = true;
-            this.socket.emit("requestPlayerInfo", id);
-          }
-
-          if (isNew && this.onPlayerJoined) {
-            // If we receive a full payload via playerJoined event directly, handle it there.
-            // The update event only has movement data, not name or skinSeed.
-          }
-          if (this.onPlayerMoved) {
-            this.onPlayerMoved(player);
-          }
+    this.socket.on("playersUpdateB", (buffer: ArrayBuffer) => {
+      const view = new DataView(buffer);
+      const buf8 = new Uint8Array(buffer);
+      let offset = 0;
+      const count = view.getUint16(offset, true); offset += 2;
+      
+      const decoder = new TextDecoder('utf8');
+      for (let i = 0; i < count; i++) {
+        const idLen = buf8[offset++];
+        const idBytes = buf8.subarray(offset, offset + idLen);
+        const id = decoder.decode(idBytes);
+        offset += idLen;
+        
+        let floatOffset = offset;
+        if (floatOffset % 4 !== 0) {
+            floatOffset += 4 - (floatOffset % 4);
         }
-      },
-    );
+        offset = floatOffset;
+        
+        const packed = new Float32Array(buffer, offset, 11);
+        offset += 11 * 4;
+        
+        if (id !== this.id) {
+           this.applyPlayerUpdate(id, packed);
+        }
+      }
+    });
+
+    this.socket.on("mobsUpdateB", (buffer: ArrayBuffer) => {
+      const view = new DataView(buffer);
+      const buf8 = new Uint8Array(buffer);
+      let offset = 0;
+      const count = view.getUint16(offset, true); offset += 2;
+      
+      const decoder = new TextDecoder('utf8');
+      const unpacked: Record<string, any[]> = {};
+      
+      for (let i = 0; i < count; i++) {
+        const idLen = buf8[offset++];
+        const idBytes = buf8.subarray(offset, offset + idLen);
+        const id = decoder.decode(idBytes);
+        offset += idLen;
+        
+        let floatOffset = offset;
+        if (floatOffset % 4 !== 0) {
+            floatOffset += 4 - (floatOffset % 4);
+        }
+        offset = floatOffset;
+        
+        const packed = new Float32Array(buffer, offset, 4);
+        offset += 4 * 4;
+        
+        unpacked[id] = [packed[0], packed[1], packed[2], packed[3]];
+      }
+      if (this.onMobsUpdate) this.onMobsUpdate(unpacked);
+    });
 
     this.socket.on("playerLeft", (id) => {
       delete this.players[id];
@@ -324,6 +491,7 @@ export class NetworkManager {
     });
 
     this.socket.on("playerStatsUpdate", (data) => {
+      if (!data || !data.id) return;
       useGameStore.getState().updateLeaderboardStats(data.id, data.kills, data.deaths);
     });
 
@@ -391,8 +559,6 @@ export class NetworkManager {
     });
 
     this.socket.on("blockChanged", (data) => {
-      const key = `${data.x},${data.y},${data.z}`;
-      this.blockChanges[key] = data.type;
       if (this.onBlockChanged) this.onBlockChanged(data);
     });
 
@@ -494,6 +660,38 @@ export class NetworkManager {
 
   spawnMinion(type: number, position: { x: number; y: number; z: number }) {
     this._emit("spawnMinion", { type, position });
+  }
+
+  async requestChunkChanges(cx: number, cz: number): Promise<Uint16Array | null> {
+    return new Promise((resolve) => {
+      const handler = (data: any) => {
+        if (data.cx === cx && data.cz === cz) {
+          this.socket.off("chunkData", handler);
+          if (data.patch) {
+             const out = new Uint16Array(16*256*16);
+             for(let i=0; i<data.patch.length; i+=2) {
+                 out[data.patch[i]] = data.patch[i+1];
+             }
+             resolve(out);
+          } else if (data.data) {
+             const compressed = new Uint16Array(data.data);
+             const out = new Uint16Array(16*256*16);
+             decodeRLE(compressed, out);
+             resolve(out);
+          } else {
+             resolve(null);
+          }
+        }
+      };
+      this.socket.on("chunkData", handler);
+      this._emit("requestChunkChanges", { cx, cz });
+      
+      // Auto resolve if timeout
+      setTimeout(() => {
+        this.socket.off("chunkData", handler);
+        resolve(null);
+      }, 5000);
+    });
   }
 
   removeMinion(id: string) {

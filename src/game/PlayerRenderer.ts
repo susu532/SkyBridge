@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { Player } from './Player';
 import { generateSkin, applySkinUVs } from './SkinManager';
-import { createTextureAtlas, createBreakingTexture, getBlockUVs, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting } from './TextureAtlas';
+import { createTextureAtlas, createBreakingTexture, getBlockUVs, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting, BLOCK } from './TextureAtlas';
+import { createVoidtrailTextureAtlas } from './VoidTrailTextureAtlas';
 import { ItemType } from './Inventory';
 import { createItemModel } from './ItemModels';
 import { settingsManager } from './Settings';
+import { audioManager } from './AudioManager';
 
 export class PlayerRenderer {
   player: Player;
@@ -595,6 +597,7 @@ export class PlayerRenderer {
   private createFirstPersonArm() {
     const skinTexture = generateSkin('player_seed_1');
     const isPerformance = settingsManager.getSettings().performanceMode;
+    const isVoidtrail = this.player.world.isVoidtrail;
     const skinMaterial = isPerformance ?
       new THREE.MeshBasicMaterial({ map: skinTexture }) :
       new THREE.MeshStandardMaterial({ 
@@ -614,7 +617,7 @@ export class PlayerRenderer {
     this.fpArmMesh.rotation.set(0.4, -0.2, 0.1);
     
     const blockGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-    const texture = createTextureAtlas();
+    const texture = this.player.world.isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
     const blockMat = isPerformance ?
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
       new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
@@ -633,6 +636,7 @@ export class PlayerRenderer {
   private createFirstPersonOffHandArm() {
     const skinTexture = generateSkin('player_seed_1');
     const isPerformance = settingsManager.getSettings().performanceMode;
+    const isVoidtrail = this.player.world.isVoidtrail;
     const skinMaterial = isPerformance ?
       new THREE.MeshBasicMaterial({ map: skinTexture }) :
       new THREE.MeshStandardMaterial({ 
@@ -651,7 +655,7 @@ export class PlayerRenderer {
     this.fpOffHandArmMesh.rotation.set(0.4, 0.2, -0.1);
     
     const blockGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-    const texture = createTextureAtlas();
+    const texture = this.player.world.isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
     const blockMat = isPerformance ?
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
       new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
@@ -842,11 +846,484 @@ export class PlayerRenderer {
         uvAttribute.needsUpdate = true;
         
         if (!(mesh.material as THREE.MeshStandardMaterial).map) {
-          (mesh.material as THREE.MeshStandardMaterial).map = createTextureAtlas();
+          (mesh.material as THREE.MeshStandardMaterial).map = this.player.world.isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
         }
       } else {
         mesh.visible = false;
       }
+    }
+  }
+
+  animate(delta: number) {
+    const horizontalVelocity = new THREE.Vector2(
+      this.player.velocity.x,
+      this.player.velocity.z,
+    ).length();
+    const isMoving = horizontalVelocity > 0.1;
+
+    this.player.idleTime += delta;
+
+    if (isMoving && this.player.canJump && !this.player.isFlying) {
+      const cycleSpeed = this.player.inputController.isSprinting ? 15 : 10;
+      const oldWalkCycle = this.player.walkCycle;
+      this.player.walkCycle += delta * cycleSpeed;
+
+      // Play footstep sound at the peak of the walk cycle
+      if (Math.sin(this.player.walkCycle) < 0 && Math.sin(oldWalkCycle) >= 0) {
+        const blockBelow = this.player.world.getBlock(
+          Math.floor(this.player.worldPosition.x),
+          Math.floor(this.player.worldPosition.y - this.player.playerHeight - 0.1),
+          Math.floor(this.player.worldPosition.z),
+        );
+        let surface = "grass";
+        if (
+          blockBelow === BLOCK.STONE ||
+          blockBelow === BLOCK.BLUE_STONE ||
+          blockBelow === BLOCK.RED_STONE ||
+          blockBelow === BLOCK.BRICK
+        )
+          surface = "stone";
+        else if (blockBelow === BLOCK.SAND) surface = "sand";
+        else if (blockBelow === BLOCK.WOOD || blockBelow === BLOCK.PLANKS)
+          surface = "wood";
+
+        audioManager.playStep(surface);
+      }
+    } else {
+      this.player.walkCycle = THREE.MathUtils.lerp(this.player.walkCycle, 0, 0.1);
+    }
+
+    if (this.player.isSwinging) {
+      this.player.swingSpeed = 18; // Default snappy swing
+
+      this.player.swingTimer += delta * this.player.swingSpeed;
+      if (this.player.swingTimer > Math.PI) {
+        this.player.isSwinging = false;
+        this.player.swingTimer = 0;
+      }
+    }
+
+    // Update animation transitions
+    this.player.crouchTransition = THREE.MathUtils.lerp(
+      this.player.crouchTransition,
+      this.player.inputController.isCrouching ? 1 : 0,
+      delta * 10,
+    );
+    this.player.swimTransition = THREE.MathUtils.lerp(
+      this.player.swimTransition,
+      this.player.isSwimming ? 1 : 0,
+      delta * 8,
+    );
+    this.player.flyTransition = THREE.MathUtils.lerp(
+      this.player.flyTransition,
+      this.player.isFlying && !this.player.isSwimming ? 1 : 0,
+      delta * 8,
+    );
+    this.player.blockTransition = THREE.MathUtils.lerp(
+      this.player.blockTransition,
+      this.player.inputController.isBlocking ? 1 : 0,
+      delta * 12,
+    );
+
+    // Climb transition: active when moving up steps/slopes
+    const verticalMovement =
+      (this.player.worldPosition.y -
+        (this.player.lastWorldPosition?.y || this.player.worldPosition.y)) /
+      delta;
+    const isClimbing = isMoving && verticalMovement > 0.5 && this.player.canJump;
+    this.player.climbTransition = THREE.MathUtils.lerp(
+      this.player.climbTransition,
+      isClimbing ? 1 : 0,
+      delta * 10,
+    );
+    if (!this.player.lastWorldPosition) this.player.lastWorldPosition = new THREE.Vector3();
+    this.player.lastWorldPosition.copy(this.player.worldPosition);
+
+    if (this.player.landingTimer > 0) {
+      this.player.landingTimer -= delta * 5;
+    }
+
+    const swingAngle = Math.sin(this.player.walkCycle) * 0.5;
+    const armSwingAngle = Math.sin(this.player.swingTimer) * 1.5;
+
+    if (
+      this.player.leftLegMesh &&
+      this.player.rightLegMesh &&
+      this.player.leftArmMesh &&
+      this.player.rightArmMesh &&
+      this.player.bodyMesh &&
+      this.player.headMesh &&
+      this.player.capeMesh
+    ) {
+      // Reset rotations
+      this.player.leftLegMesh.rotation.set(0, 0, 0);
+      this.player.rightLegMesh.rotation.set(0, 0, 0);
+      this.player.leftArmMesh.rotation.set(0, 0, 0);
+      this.player.rightArmMesh.rotation.set(0, 0, 0);
+      this.player.bodyMesh.rotation.set(0, 0, 0);
+
+      // Apply camera pitch to head for shadow/third-person
+      this.player.headMesh.rotation.x = this.player.cameraPitch;
+
+      this.player.capeMesh.rotation.x = -0.1; // Default hang
+
+      // Reset positions (relative to parents)
+      this.player.bodyMesh.position.set(0, 0.9, 0);
+      this.player.headMesh.position.set(0, 0.5, 0);
+      this.player.leftArmMesh.position.set(-0.3, 0.3, 0);
+      this.player.rightArmMesh.position.set(0.3, 0.3, 0);
+      this.player.leftLegMesh.position.set(-0.1, 0.6, 0);
+      this.player.rightLegMesh.position.set(0.1, 0.6, 0);
+      this.player.capeMesh.position.set(0, 0.3, 0.1);
+      this.player.bodyMesh.scale.set(1, 1, 1);
+      this.player.headMesh.scale.set(1, 1, 1);
+      this.player.leftArmMesh.scale.set(1, 1, 1);
+      this.player.rightArmMesh.scale.set(1, 1, 1);
+
+      // Apply landing squash effect
+      if (this.player.landingTimer > 0) {
+        const squash = Math.sin(this.player.landingTimer * Math.PI) * 0.2;
+        this.player.bodyMesh.scale.y -= squash;
+        this.player.bodyMesh.scale.x += squash * 0.5;
+        this.player.bodyMesh.scale.z += squash * 0.5;
+        this.player.bodyMesh.position.y -= squash * 0.3;
+      }
+
+      // Calculate target cape angle based on state
+      let targetCapeAngle = -0.1;
+      if (this.player.isFlying) {
+        targetCapeAngle = -1.2 - Math.sin(this.player.idleTime * 10) * 0.05; // Flutter in wind
+      } else if (!this.player.canJump) {
+        targetCapeAngle = this.player.velocity.y < 0 ? -0.8 : -0.2; // Fall vs Jump
+      } else if (isMoving) {
+        targetCapeAngle =
+          -0.2 -
+          (horizontalVelocity / this.player.sprintSpeed) * 0.8 -
+          Math.sin(this.player.walkCycle * 2) * 0.1;
+      } else {
+        const breath = Math.sin(this.player.idleTime * 2) * 0.02;
+        targetCapeAngle = -0.1 - breath * 0.5;
+      }
+
+      // Smooth cape physics (spring-like)
+      const capeDiff = targetCapeAngle - this.player.capeAngle;
+      this.player.capeVelocity += capeDiff * 0.1;
+      this.player.capeVelocity *= 0.8; // Dampening
+      this.player.capeAngle += this.player.capeVelocity;
+      this.player.capeMesh.rotation.x = this.player.capeAngle;
+
+      // Cape sway when turning
+      this.player.capeMesh.rotation.z = THREE.MathUtils.lerp(
+        this.player.capeMesh.rotation.z,
+        -this.player.mouseDeltaX * 0.005,
+        0.1,
+      );
+
+      if (this.player.isFlying) {
+        // Flying pose: legs trailing, arms slightly out
+        this.player.leftLegMesh.rotation.x = 0.5;
+        this.player.rightLegMesh.rotation.x = 0.5;
+        this.player.leftArmMesh.rotation.x = -0.2;
+        this.player.rightArmMesh.rotation.x = -0.2;
+      } else if (this.player.swimTransition > 0.01) {
+        const t = this.player.swimTransition;
+        // Swimming pose: flatter body to feel like swimming (Face-down)
+        this.player.bodyMesh.rotation.x = THREE.MathUtils.lerp(0, -1.3, t);
+        this.player.headMesh.rotation.x += 0.6 * t;
+        this.player.bodyMesh.position.y = THREE.MathUtils.lerp(0.9, 0.4, t);
+
+        // Breaststroke / flutter kick animation
+        const swimSpeed = this.player.inputController.isSprinting ? 1.5 : 1.0;
+        const paddleAngle = Math.sin(this.player.walkCycle * swimSpeed) * 0.5;
+
+        // Arms extending forward and sweeping
+        this.player.leftArmMesh.rotation.x = THREE.MathUtils.lerp(0, -1.5, t);
+        this.player.leftArmMesh.rotation.y = THREE.MathUtils.lerp(
+          0,
+          -0.4 + paddleAngle,
+          t,
+        );
+        this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(0, -1.5, t);
+        this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+          0,
+          0.4 - paddleAngle,
+          t,
+        );
+
+        // Legs fluttering behind
+        const kickAngle = Math.cos(this.player.walkCycle * swimSpeed * 1.5) * 0.4;
+        this.player.leftLegMesh.rotation.x = THREE.MathUtils.lerp(0, kickAngle, t);
+        this.player.rightLegMesh.rotation.x = THREE.MathUtils.lerp(0, -kickAngle, t);
+      } else if (!this.player.canJump) {
+        // Minecraft-style Jumping/Falling pose (Split limbs)
+        const jumpProgress = THREE.MathUtils.clamp(this.player.velocity.y / 15, -1, 1);
+
+        // Subtle body tilt
+        this.player.bodyMesh.rotation.x = 0.15 * jumpProgress;
+
+        if (jumpProgress > 0) {
+          // Ascending: Pronounced split
+          // Left arm forward/up, right arm back/up | Left leg back, right leg forward
+          const swing = 0.8 * jumpProgress;
+          this.player.leftArmMesh.rotation.x = -swing - 0.2;
+          this.player.rightArmMesh.rotation.x = swing - 0.2;
+          this.player.leftLegMesh.rotation.x = swing;
+          this.player.rightLegMesh.rotation.x = -swing;
+
+          // Arms spread out for balance
+          this.player.leftArmMesh.rotation.z = 0.3 * jumpProgress;
+          this.player.rightArmMesh.rotation.z = -0.3 * jumpProgress;
+        } else {
+          // Descending: Wide flail
+          const fallFactor = Math.abs(jumpProgress);
+          const swing = 0.5 * fallFactor;
+          this.player.leftArmMesh.rotation.x = swing;
+          this.player.rightArmMesh.rotation.x = -swing;
+          this.player.leftLegMesh.rotation.x = -swing;
+          this.player.rightLegMesh.rotation.x = swing;
+
+          // Arms flail out wide when falling
+          this.player.leftArmMesh.rotation.z = 0.6 * fallFactor;
+          this.player.rightArmMesh.rotation.z = -0.6 * fallFactor;
+
+          // Head looks down to spot the landing
+          this.player.headMesh.rotation.x += 0.3 * fallFactor;
+        }
+      } else if (isMoving) {
+        // Walking/Sprinting animation
+        this.player.leftLegMesh.rotation.x = swingAngle;
+        this.player.rightLegMesh.rotation.x = -swingAngle;
+        this.player.leftArmMesh.rotation.x = -swingAngle;
+        this.player.rightArmMesh.rotation.x = swingAngle;
+
+        if (this.player.climbTransition > 0.01) {
+          const t = this.player.climbTransition;
+          // High-knee step when climbing
+          const stepLift = Math.max(0, Math.sin(this.player.walkCycle)) * 0.5 * t;
+          const stepLiftAlt =
+            Math.max(0, Math.sin(this.player.walkCycle + Math.PI)) * 0.5 * t;
+          this.player.leftLegMesh.rotation.x += stepLift;
+          this.player.rightLegMesh.rotation.x += stepLiftAlt;
+
+          // Lean forward into the climb
+          this.player.bodyMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.bodyMesh.rotation.x,
+            0.4,
+            t,
+          );
+        }
+
+        if (this.player.inputController.isSprinting) {
+          this.player.bodyMesh.rotation.x = 0.3;
+          this.player.headMesh.rotation.x = -0.2;
+          this.player.leftArmMesh.rotation.x = -swingAngle * 1.5;
+          this.player.rightArmMesh.rotation.x = swingAngle * 1.5;
+          this.player.leftLegMesh.rotation.x = swingAngle * 1.2;
+          this.player.rightLegMesh.rotation.x = -swingAngle * 1.2;
+        }
+      } else {
+        // Idle animation (breathing)
+        const breath = Math.sin(this.player.idleTime * 2) * 0.02;
+        this.player.bodyMesh.scale.y = 1.0 + breath;
+        this.player.headMesh.position.y += breath * 0.8;
+        this.player.leftArmMesh.position.y += breath * 0.8;
+        this.player.rightArmMesh.position.y += breath * 0.8;
+      }
+
+      if (this.player.crouchTransition > 0.01) {
+        const t = this.player.crouchTransition;
+
+        // Lower the body mesh specifically to simulate the crouch
+        const crouchDrop = 0.15 * t; // Reduced to elevate torso
+        this.player.bodyMesh.position.y -= crouchDrop;
+        this.player.bodyMesh.position.z -= 0.1 * t; // Move torso forward
+
+        // Squash torso to look shorter
+        const bodyScaleY = 1.0 - 0.2 * t;
+        this.player.bodyMesh.scale.y = bodyScaleY;
+        // Inverse scale children to keep them uniform
+        this.player.headMesh.scale.y = 1.0 / bodyScaleY;
+        this.player.leftArmMesh.scale.y = 1.0 / bodyScaleY;
+        this.player.rightArmMesh.scale.y = 1.0 / bodyScaleY;
+
+        // Elevate head and arms slightly on the torso
+        this.player.headMesh.position.y += 0.05 * t;
+        this.player.leftArmMesh.position.y += 0.05 * t;
+        this.player.rightArmMesh.position.y += 0.05 * t;
+
+        // Lean body forward (head and arms follow because they are children)
+        this.player.bodyMesh.rotation.x = THREE.MathUtils.lerp(
+          this.player.bodyMesh.rotation.x,
+          -0.5,
+          t,
+        );
+        // Counter-rotate head to look forward
+        this.player.headMesh.rotation.x += 0.4 * t;
+
+        // Bend legs (simulated by rotating them forward and shifting up)
+        this.player.leftLegMesh.rotation.x = THREE.MathUtils.lerp(
+          this.player.leftLegMesh.rotation.x,
+          0.3,
+          t,
+        );
+        this.player.rightLegMesh.rotation.x = THREE.MathUtils.lerp(
+          this.player.rightLegMesh.rotation.x,
+          0.3,
+          t,
+        );
+        this.player.leftLegMesh.position.y += 0.0 * t;
+        this.player.rightLegMesh.position.y += 0.0 * t;
+
+        if (isMoving) {
+          // Tactical sneak walk
+          const sneakStride = this.player.walkCycle * 0.8;
+          const sneakSwing = Math.sin(sneakStride) * 0.4 * t;
+
+          this.player.leftLegMesh.rotation.x += sneakSwing;
+          this.player.rightLegMesh.rotation.x -= sneakSwing;
+
+          // Arms held in a ready/tactical position (Minecraft-style sneak arms)
+          // Arms are held slightly back and out
+          const baseArmX = -0.4 * t;
+          const baseArmZ = 0.15 * t;
+
+          this.player.leftArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.x,
+            baseArmX - sneakSwing * 0.3,
+            t,
+          );
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            baseArmX + sneakSwing * 0.3,
+            t,
+          );
+          this.player.leftArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.z,
+            baseArmZ,
+            t,
+          );
+          this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.z,
+            -baseArmZ,
+            t,
+          );
+        } else {
+          // Idle crouch pose - subtle breathing sway
+          const sway = Math.sin(this.player.idleTime * 2) * 0.05 * t;
+          this.player.leftArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.x,
+            0.2 + sway,
+            t,
+          );
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            0.2 + sway,
+            t,
+          );
+          this.player.leftArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.z,
+            0.15,
+            t,
+          );
+          this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.z,
+            -0.15,
+            t,
+          );
+        }
+      }
+
+      if (this.player.blockTransition > 0.01 && this.heldItemModel) {
+        const t = this.player.blockTransition;
+        // 3rd Person Sword Block Animation
+        this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+          this.player.rightArmMesh.rotation.x,
+          -0.5,
+          t,
+        );
+        this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+          this.player.rightArmMesh.rotation.y,
+          -0.3,
+          t,
+        );
+        this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+          this.player.rightArmMesh.rotation.z,
+          0.5,
+          t,
+        );
+
+        if (this.player.isSwinging) {
+          this.player.rightArmMesh.rotation.x += Math.sin(this.player.swingTimer) * 0.5 * t;
+        }
+      }
+
+      // Apply arm swing (overrides walk/crouch swing for right arm)
+      // Moved to the end to prevent being overridden by crouch logic
+      if (this.player.isSwinging && this.player.blockTransition < 0.5) {
+        const t = this.player.swingTimer / Math.PI;
+        // Use a power curve for more "snap" at the start of the swing
+        const swingProgress = Math.sin(Math.pow(t, 0.4) * Math.PI);
+
+        const equippedItem = this.player.inventory.slots[this.player.hotbarIndex];
+        const isSword =
+          equippedItem &&
+          ((equippedItem.type >= ItemType.WOODEN_SWORD &&
+            equippedItem.type <= ItemType.DIAMOND_SWORD) ||
+            equippedItem.type === ItemType.ASPECT_OF_THE_END);
+
+        if (isSword) {
+          // Upside down swipe (Underhand/Upward slash)
+          // Starts from behind/down and swipes upwards
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            0.4 - swingProgress * 2.0,
+            0.8,
+          );
+          this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.y,
+            swingProgress * 0.8,
+            0.5,
+          );
+          this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.z,
+            swingProgress * 0.4,
+            0.5,
+          );
+        } else {
+          // Diagonal slash motion for tools
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            swingProgress * 1.5 - 0.2,
+            0.8,
+          );
+          this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.y,
+            -swingProgress * 0.8,
+            0.5,
+          );
+          this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.z,
+            -swingProgress * 0.4,
+            0.5,
+          );
+        }
+
+        // If crouching, make the swing slightly more forward-leaning
+        if (this.player.inputController.isCrouching) {
+          this.player.rightArmMesh.rotation.x -= 0.2;
+        }
+      }
+
+      // Final clamp for head rotation to prevent extreme angles from animations
+      const limitUp = Math.PI * 0.35;
+      const limitDown = Math.PI * 0.2; // ~86 degrees
+
+      // Apply the head rotation offset after clamp so crouch still looks right
+      const headPitchOffset =
+        this.player.crouchTransition > 0.01 ? -(this.player.crouchTransition * 0.4) : 0;
+      this.player.headMesh.rotation.x =
+        Math.max(-limitDown, Math.min(limitUp, this.player.headMesh.rotation.x)) +
+        headPitchOffset;
     }
   }
 }

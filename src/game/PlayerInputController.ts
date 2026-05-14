@@ -5,9 +5,14 @@ import { BLOCK, isPlant, ATLAS_TILES, isFlatItem, isSolidBlock } from './Texture
 import { ItemType } from './Inventory';
 import { audioManager } from './AudioManager';
 import { networkManager } from './NetworkManager';
-import { skyBridgeManager, SkillType } from './SkyBridgeManager';
+import { skyBridgeManager, SkillType, Rarity } from './SkyBridgeManager';
 import { settingsManager } from './Settings';
 import { ITEM_NAMES } from './Constants';
+import { getMiningStats } from './MiningStats';
+
+const _dirAux = new THREE.Vector3();
+const _lookDirAux = new THREE.Vector3();
+const _targetDirAux = new THREE.Vector3();
 
 export class PlayerInputController {
   player: Player;
@@ -123,7 +128,7 @@ export class PlayerInputController {
             const nearPos = near.position || (near.group && near.group.position);
             if (nearPos && this.player.worldPosition.distanceTo(nearPos) < 5) {
               const dirToNearest = nearPos.clone().sub(this.player.worldPosition).normalize();
-              const angle = this.player.camera.getWorldDirection(new THREE.Vector3()).angleTo(dirToNearest);
+              const angle = this.player.camera.getWorldDirection(_dirAux).angleTo(dirToNearest);
               if (angle < Math.PI / 4) {
                 hitPlayer = true;
                 this.onMouseDown({ button: 0 } as MouseEvent); // Synthesize Left Click to attack
@@ -204,10 +209,10 @@ export class PlayerInputController {
         if (dist > assistRange) continue;
 
         // Calculate direction to entity
-        const dirToEntity = new THREE.Vector3().subVectors(targetPos, this.player.worldPosition).normalize();
+        const dirToEntity = _dirAux.subVectors(targetPos, this.player.worldPosition).normalize();
         
         // Get current look direction
-        const lookDir = new THREE.Vector3(0, 0, -1);
+        const lookDir = _lookDirAux.set(0, 0, -1);
         lookDir.applyEuler(new THREE.Euler(this.player.cameraPitch, this.player.cameraYaw, 0, 'YXZ'));
 
         // Calculate angle diff
@@ -225,7 +230,7 @@ export class PlayerInputController {
     if (closestTarget) {
       const targetPos = closestTarget.position || (closestTarget.group && closestTarget.group.position);
       // Calculate desired yaw and pitch
-      const dirToTarget = new THREE.Vector3().subVectors(targetPos, this.player.worldPosition);
+      const dirToTarget = _targetDirAux.subVectors(targetPos, this.player.worldPosition);
       const targetYaw = Math.atan2(dirToTarget.x, dirToTarget.z) + Math.PI;
       const targetPitch = Math.atan2(dirToTarget.y + 1.0, Math.sqrt(dirToTarget.x * dirToTarget.x + dirToTarget.z * dirToTarget.z));
 
@@ -334,8 +339,8 @@ export class PlayerInputController {
       // Cap movement to prevent extreme jumps when locking/unlocking
       if (Math.abs(event.movementX) > 500 || Math.abs(event.movementY) > 500) return;
       
-      this.player.mouseDeltaX = event.movementX;
-      this.player.mouseDeltaY = event.movementY;
+      this.player.mouseDeltaX += event.movementX;
+      this.player.mouseDeltaY += event.movementY;
     }
   };
 
@@ -346,7 +351,7 @@ export class PlayerInputController {
       const itemType = stack.type;
       this.player.inventory.removeItemFromSlot(this.player.hotbarIndex, amount);
       
-      const direction = new THREE.Vector3();
+      const direction = _dirAux;
       this.player.camera.getWorldDirection(direction);
       
       const forwardScale = Math.abs(direction.y) > 0.8 ? 0.8 : 0.5;
@@ -357,11 +362,12 @@ export class PlayerInputController {
       tossVelocity.y += 2;
       
       for (let i = 0; i < amount; i++) {
-        const finalVel = tossVelocity.clone().add(new THREE.Vector3(
+        _targetDirAux.set(
           (Math.random() - 0.5) * 1.5,
           (Math.random() - 0.5) * 1.5,
           (Math.random() - 0.5) * 1.5
-        ));
+        );
+        const finalVel = tossVelocity.clone().add(_targetDirAux);
 
         networkManager.dropItem(itemType, {
           x: dropPos.x + (Math.random() - 0.5) * 0.1,
@@ -403,7 +409,7 @@ export class PlayerInputController {
     this.player.isSwinging = true;
     this.player.swingTimer = 0;
 
-    const direction = new THREE.Vector3();
+    const direction = _dirAux;
     this.player.camera.getWorldDirection(direction);
 
     const rayOrigin = this.player.playerHeadPos.clone();
@@ -464,28 +470,28 @@ export class PlayerInputController {
         if (skyBridgeManager.useMana(manaCost)) {
           console.log(`Used ability: ${ability.name}`);
           window.dispatchEvent(new CustomEvent('spawnParticles', { 
-            detail: { pos: this.player.playerHeadPos.clone().add(direction.multiplyScalar(2)), type: BLOCK.BLUE_STONE } 
+            detail: { pos: this.player.playerHeadPos.clone().add(direction.clone().multiplyScalar(2)), type: BLOCK.BLUE_STONE } 
           }));
           
           if (ability.name === "Instant Transmission") {
             const teleportDist = 8;
-            const targetPos = this.player.worldPosition.clone().add(direction.multiplyScalar(teleportDist));
+            const targetPos = this.player.worldPosition.clone().add(direction.clone().multiplyScalar(teleportDist));
             
             if (this.player.world.getBlock(Math.floor(targetPos.x), Math.floor(targetPos.y), Math.floor(targetPos.z)) === 0) {
               this.player.worldPosition.copy(targetPos);
               audioManager.play('pop', 1.0, 0.5);
-              this.player.velocity.add(direction.multiplyScalar(10));
+              this.player.velocity.add(direction.clone().multiplyScalar(10));
             } else {
               useGameStore.getState().addMessage("There are blocks in the way!", "#FF5555");
             }
           } else if (ability.name === "Deep Strike") {
-            this.player.velocity.add(direction.multiplyScalar(30));
+            this.player.velocity.add(direction.clone().multiplyScalar(30));
             audioManager.play('explosion', 0.5, 1.5);
           } else if (ability.name === "Dragon's Breath") {
             audioManager.play('explosion', 0.8, 0.8);
             for(let i=0; i<5; i++) {
                window.dispatchEvent(new CustomEvent('spawnParticles', { 
-                detail: { pos: this.player.playerHeadPos.clone().add(direction.multiplyScalar(3 + i)), type: BLOCK.RED_STONE } 
+                detail: { pos: this.player.playerHeadPos.clone().add(direction.clone().multiplyScalar(3 + i)), type: BLOCK.RED_STONE } 
               }));
             }
           }
@@ -500,7 +506,7 @@ export class PlayerInputController {
       if (now - this.lastAttackTime < 250) return;
       
       const rayOrigin = this.player.camera.position.clone();
-      const direction = new THREE.Vector3();
+      const direction = _dirAux;
       this.player.camera.getWorldDirection(direction);
 
       const player = this.player.entityManager.raycastPlayer(rayOrigin, direction, 4, this.player.camera);
@@ -622,7 +628,7 @@ export class PlayerInputController {
           this.player.miningProgress = 0;
           
           const activeTool = this.player.inventory.slots[this.player.hotbarIndex];
-          const stats = this.player.getMiningStats(blockType, activeTool);
+          const stats = getMiningStats(blockType, activeTool);
           this.player.miningTimeRequired = stats.time;
           this.player.canHarvestTarget = stats.drops;
           
@@ -640,6 +646,28 @@ export class PlayerInputController {
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         
         if (blockType === ItemType.CHEST || blockType === ItemType.ENDER_CHEST || blockType === ItemType.CHEST_REVERSED) {
+          if (hitResult.blockPos.y === 16 && hitResult.blockPos.x === 0 && Math.abs(hitResult.blockPos.z) <= 12) {
+            const hasLootedKey = `looted_mid_chest_${hitResult.blockPos.z > 0 ? 'blue' : 'red'}`;
+            if (!(window as any)[hasLootedKey]) {
+              (window as any)[hasLootedKey] = true;
+              let emptySlot = this.player.chestInventory.slots.findIndex(s => !s);
+              if (emptySlot === -1) emptySlot = 13;
+              this.player.chestInventory.slots[emptySlot] = {
+                type: ItemType.ASPECT_OF_THE_END,
+                count: 1,
+                metadata: {
+                  rarity: Rarity.RARE,
+                  stats: { damage: 80, strength: 60 },
+                  description: "Teleport 8 blocks ahead of you and gain +50 Speed for 3 seconds.",
+                  ability: {
+                    name: "Instant Transmission",
+                    description: "Teleport 8 blocks ahead of you and gain +50 Speed for 3 seconds.",
+                    manaCost: 50
+                  }
+                }
+              };
+            }
+          }
           window.dispatchEvent(new CustomEvent('openChest'));
           this.player.controls.unlock();
           return;

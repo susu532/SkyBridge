@@ -400,29 +400,31 @@ export function createItemModel(type: ItemType): THREE.Group {
     group.add(rodGroup);
   } else if (isBow) {
     const bowGroup = new THREE.Group();
+    const voxelSize = 0.08;
+    const vGeo = new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize);
     
-    // Angled segments for bow
-    for(let i=0; i<3; i++) {
-        const segGeo = new THREE.BoxGeometry(0.06, 0.4, 0.06);
-        const topSeg = new THREE.Mesh(segGeo, handleMaterial);
-        const botSeg = new THREE.Mesh(segGeo, handleMaterial);
-        
-        const angle = i * 0.5;
-        topSeg.position.set(Math.sin(angle)*0.3, i*0.35, 0);
-        topSeg.rotation.z = -angle * 0.8;
-        
-        botSeg.position.set(Math.sin(angle)*0.3, -i*0.35, 0);
-        botSeg.rotation.z = angle * 0.8;
-        
-        bowGroup.add(topSeg);
-        bowGroup.add(botSeg);
+    // Voxel positions (x, y) relative to center
+    const voxels = [
+        // Handle
+        [0, -1], [0, 0], [0, 1],
+        // Upper limb
+        [-1, 2], [-2, 3], [-3, 4],
+        // Lower limb
+        [-1, -2], [-2, -3], [-3, -4]
+    ];
+    
+    for (const pos of voxels) {
+        const v = new THREE.Mesh(vGeo, handleMaterial);
+        v.position.set(pos[0] * voxelSize, pos[1] * voxelSize, 0);
+        bowGroup.add(v);
     }
     
     // String
-    const stringGeo = new THREE.BoxGeometry(0.01, 1.6, 0.01);
+    const stringLength = 8 * voxelSize;
+    const stringGeo = new THREE.BoxGeometry(0.02, stringLength, 0.02);
     const stringMat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
     const string = new THREE.Mesh(stringGeo, stringMat);
-    string.position.x = 0;
+    string.position.set(-3 * voxelSize + 0.01, 0, 0);
     bowGroup.add(string);
     
     group.add(bowGroup);

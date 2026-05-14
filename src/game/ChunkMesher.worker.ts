@@ -107,7 +107,7 @@ class DynamicFloat32Buffer {
     this.data = newData;
   }
   toArray() {
-    return new Float32Array(this.data.buffer, 0, this.length);
+    return this.data.slice(0, this.length);
   }
 }
 
@@ -130,7 +130,7 @@ class DynamicUint32Buffer {
     this.data = newData;
   }
   toArray() {
-    return new Uint32Array(this.data.buffer, 0, this.length);
+    return this.data.slice(0, this.length);
   }
 }
 
@@ -162,7 +162,7 @@ class LayerData {
         const cdx = Math.floor(lx / 16);
         const cdz = Math.floor(lz / 16);
         const c = { blocks: data.neighborsBlocks[(cdx + 1) + (cdz + 1) * 3], light: data.neighborsLight[(cdx + 1) + (cdz + 1) * 3] };
-        if (c) {
+        if (c.blocks) {
           b = c.blocks[(lx & 15) | ((lz & 15) << 4) | (ly << 8)];
         } else {
           b = BLOCK.AIR;
@@ -179,7 +179,7 @@ class LayerData {
           const cdx = Math.floor(lx / 16);
           const cdz = Math.floor(lz / 16);
           const c = { blocks: data.neighborsBlocks[(cdx + 1) + (cdz + 1) * 3], light: data.neighborsLight[(cdx + 1) + (cdz + 1) * 3] };
-          if (c) {
+          if (c.blocks) {
             above = c.blocks[(lx & 15) | ((lz & 15) << 4) | ((ly + 1) << 8)];
           } else {
             above = BLOCK.AIR;
@@ -339,7 +339,7 @@ class LayerData {
           const cdx = nx >> 4;
           const cdz = nz >> 4;
           const c = { blocks: data.neighborsBlocks[(cdx + 1) + (cdz + 1) * 3], light: data.neighborsLight[(cdx + 1) + (cdz + 1) * 3] };
-          if (c) {
+          if (c.blocks) {
             return isSolidBlock(c.blocks[(nx & 15) | ((nz & 15) << 4) | (ny << 8)]);
           }
           return false;
@@ -607,7 +607,7 @@ class LayerData {
         const cdx = nx >> 4;
         const cdz = nz >> 4;
         const c = { blocks: data.neighborsBlocks[(cdx + 1) + (cdz + 1) * 3], light: data.neighborsLight[(cdx + 1) + (cdz + 1) * 3] };
-        if (c) return isSolidBlock(c.blocks[(nx & 15) | ((nz & 15) << 4) | (ny << 8)]);
+        if (c.blocks) return isSolidBlock(c.blocks[(nx & 15) | ((nz & 15) << 4) | (ny << 8)]);
         return false;
       }
     };
@@ -623,7 +623,7 @@ class LayerData {
         const cdx = nx >> 4;
         const cdz = nz >> 4;
         const c = { blocks: data.neighborsBlocks[(cdx + 1) + (cdz + 1) * 3], light: data.neighborsLight[(cdx + 1) + (cdz + 1) * 3] };
-        if (c) return c.light[(nx & 15) | ((nz & 15) << 4) | (ny << 8)];
+        if (c.light) return c.light[(nx & 15) | ((nz & 15) << 4) | (ny << 8)];
         return 15;
       }
     };
@@ -640,7 +640,7 @@ class LayerData {
           const isTypeCutout = isCutout(type);
           const layer = (isTypeTransparent || isTypeCutout) ? transparent : opaque;
           
-          if (isPlant(type)) {
+          if (isPlant(type) || isAnyTorch(type)) {
             addCross(x, y, z, type, layer);
             continue;
           }
@@ -648,7 +648,7 @@ class LayerData {
           const typeIsSlab = isSlab(type);
           const typeIsWater = isWater(type);
           const typeIsChest = isChest(type);
-          const isFullBlock = !typeIsSlab && !typeIsWater && !isCutout(type) && !typeIsChest;
+          const isFullBlock = !typeIsSlab && !typeIsWater && !isPlant(type) && !isAnyTorch(type) && !typeIsChest;
           
           // Right (dir 0)
           let nType;
@@ -659,7 +659,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[0 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -683,7 +683,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[15 | (z << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -701,7 +701,7 @@ class LayerData {
           
           // Top (dir 2)
           nType = y < (CHUNK_HEIGHT - 1) ? data.blocks[x | (z << 4) | ((y + 1) << 8)] : BLOCK.AIR;
-          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || typeIsSlab || isSlab(nType)) {
+          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || typeIsSlab || isSlab(nType)) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -719,7 +719,7 @@ class LayerData {
           
           // Bottom (dir 3)
           nType = y > 0 ? data.blocks[x | (z << 4) | ((y - 1) << 8)] : BLOCK.AIR;
-          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || isSlab(nType)) {
+          if (typeIsChest || nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || isSlab(nType)) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -743,7 +743,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[x | (0 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {
@@ -767,7 +767,7 @@ class LayerData {
             const isCMeshed = !!(c && c.blocks);
             nType = isCMeshed ? c.blocks[x | (15 << 4) | (y << 8)] : (typeIsWater ? BLOCK.WATER : BLOCK.AIR);
           }
-          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || isCutout(nType) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
+          if (nType === BLOCK.AIR || (isTransparent(nType) && !(typeIsWater && isWater(nType)) && nType !== type) || (isCutout(nType) && nType !== type) || (!typeIsSlab && isSlab(nType)) || typeIsChest) {
             if (isFullBlock) {
               let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
               if (!performanceMode) {

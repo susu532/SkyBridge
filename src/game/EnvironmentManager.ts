@@ -50,7 +50,9 @@ export class EnvironmentManager {
     dirLight.shadow.bias = -0.0004; // Increased bias to prevent HD artifacts in FP
     dirLight.shadow.normalBias = 0.05; // Stronger normal bias for voxel edges
     dirLight.shadow.autoUpdate = true;
-    dirLight.shadow.radius = 1; // Sharper, higher quality soft shadow
+    dirLight.shadow.radius = this.game.world.isVoidtrail ? 6 : 1; // Super soft shadow for voidtrail
+    
+    // Add VSM or PCF softness if needed through renderer? Three handles radius based on map type.
     
     this.game.scene.add(dirLight);
     this.game.scene.add(dirLight.target);
@@ -76,16 +78,19 @@ export class EnvironmentManager {
 
     // Clouds
     this.clouds = new THREE.Group();
-    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+    const cloudColor = this.game.world.isVoidtrail ? 0xffeef5 : 0xffffff;
+    const cloudOpacity = this.game.world.isVoidtrail ? 0.95 : 0.8;
+    const cloudMat = new THREE.MeshLambertMaterial({ color: cloudColor, transparent: true, opacity: cloudOpacity });
     for (let i = 0; i < 40; i++) {
       const cloud = new THREE.Group();
       const blocks = 3 + Math.floor(Math.random() * 5);
       for (let j = 0; j < blocks; j++) {
-        const blockGeo = new THREE.BoxGeometry(
-          10 + Math.random() * 10,
-          4 + Math.random() * 4,
-          10 + Math.random() * 10
-        );
+        // If voidtrail, we could use rounded corners... but BoxGeometry is fine if we stick to voxels.
+        // We'll make them taller and chunkier.
+        const width = 10 + Math.random() * 10;
+        const height = this.game.world.isVoidtrail ? 8 + Math.random() * 8 : 4 + Math.random() * 4;
+        const depth = 10 + Math.random() * 10;
+        const blockGeo = new THREE.BoxGeometry(width, height, depth);
         const block = new THREE.Mesh(blockGeo, cloudMat);
         block.castShadow = false;
         block.receiveShadow = false;
@@ -346,12 +351,12 @@ export class EnvironmentManager {
     }
     
     // Sky and Fog
-    const daySky = new THREE.Color(0x4facfe);
-    const nightSky = new THREE.Color(0x0f0c29);
-    const sunsetSky = new THREE.Color(0xff8c00);
+    const daySky = this.game.world.isVoidtrail ? new THREE.Color(0x7ec8e3) : new THREE.Color(0x4facfe);
+    const nightSky = this.game.world.isVoidtrail ? new THREE.Color(0x191970) : new THREE.Color(0x0f0c29);
+    const sunsetSky = this.game.world.isVoidtrail ? new THREE.Color(0xffa07a) : new THREE.Color(0xff8c00);
     const waterSky = new THREE.Color(0x103060);
     const lavaSky = new THREE.Color(0x601010);
-    const rainSky = new THREE.Color(0x5a6a7a);
+    const rainSky = this.game.world.isVoidtrail ? new THREE.Color(0x90b0c0) : new THREE.Color(0x5a6a7a);
     
     let skyColor;
     if (this.game.world.isDungeonDelver) {
@@ -393,7 +398,12 @@ export class EnvironmentManager {
         const fogFactor = Math.max(0, -sunY * 2 + 0.5);
         // Volumetric fog effect: enhance fog density in the morning/evening for god ray simulation
         const volumetricBoost = (isPremium && sunY > 0.0 && sunY < 0.3) ? 0.003 : 0.0;
-        const baseDensity = isDay ? (0.004 + volumetricBoost) : 0.002 + fogFactor * 0.005;
+        let baseDensity = isDay ? (0.004 + volumetricBoost) : 0.002 + fogFactor * 0.005;
+        if (this.game.world.isVoidtrail) {
+            baseDensity *= 1.5; // Thicker pastel fog
+            // Tint fog pastel:
+            this.game.scene.fog.color.lerp(new THREE.Color(0xffe4e1), 0.3 * (sunY > 0.1 ? 1 : 0));
+        }
         const weatherFogDensity = 0.025;
         this.game.scene.fog.density = THREE.MathUtils.lerp(baseDensity, weatherFogDensity, this.globalWeatherIntensity);
       }
@@ -417,9 +427,9 @@ export class EnvironmentManager {
       dirLight.target.position.copy(snappedPos);
       dirLight.target.updateMatrixWorld();
       
-      const sunColorDay = new THREE.Color(0xffffee);
-      const sunColorSunset = new THREE.Color(0xffaa55);
-      const sunColorNight = new THREE.Color(0xabcdef);
+      const sunColorDay = this.game.world.isVoidtrail ? new THREE.Color(0xfffbcc) : new THREE.Color(0xffffee);
+      const sunColorSunset = this.game.world.isVoidtrail ? new THREE.Color(0xffbbaa) : new THREE.Color(0xffaa55);
+      const sunColorNight = this.game.world.isVoidtrail ? new THREE.Color(0xccddff) : new THREE.Color(0xabcdef);
       
       let sunCol;
       if (sunY > 0.2) {
@@ -436,7 +446,10 @@ export class EnvironmentManager {
 
       dirLight.color.copy(sunCol);
       
-      let targetIntensity = isDay ? Math.max(0, sunY) * 6.5 + 1.0 : Math.max(0, Math.abs(sunY)) * 1.5;
+      let targetIntensity = isDay ? Math.max(0, sunY) * 2.5 + 0.5 : Math.max(0, Math.abs(sunY)) * 0.8;
+      if (this.game.world.isVoidtrail) {
+       targetIntensity = isDay ? targetIntensity * 0.1 : targetIntensity * 0.2;
+      }
       
       if (this.globalWeatherIntensity > 0) {
         targetIntensity = THREE.MathUtils.lerp(targetIntensity, targetIntensity * 0.4, this.globalWeatherIntensity);
@@ -452,20 +465,27 @@ export class EnvironmentManager {
             hemiLight.groundColor.copy(new THREE.Color(0x111111));
             hemiLight.intensity = 0.6;
           } else {
-            hemiLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.5);
-            hemiLight.groundColor.copy(new THREE.Color(0x556633)).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
-            hemiLight.intensity = isDay ? 0.8 : 0.3;
+            const upBlend = this.game.world.isVoidtrail ? new THREE.Color(0xffffee) : new THREE.Color(0xffffff);
+            const downBlend = this.game.world.isVoidtrail ? new THREE.Color(0xddeeff) : new THREE.Color(0x556633);
+            hemiLight.color.copy(skyColor).lerp(upBlend, 0.5);
+            hemiLight.groundColor.copy(downBlend).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
+            hemiLight.intensity = isDay ? (this.game.world.isVoidtrail ? 1.0 : 0.8) : (this.game.world.isVoidtrail ? 0.5 : 0.3);
           }
       }
     }
     const ambientLight = this.game.scene.getObjectByName('ambient') as THREE.AmbientLight;
     if (ambientLight) {
       let ambientIntensity = isDay ? (Math.max(0, sunY) * 0.4 + 0.4) : (Math.abs(sunY) * 0.2 + 0.2);
+      if (this.game.world.isVoidtrail) ambientIntensity *= 1.3;
       if (this.globalWeatherIntensity > 0) {
         ambientIntensity = THREE.MathUtils.lerp(ambientIntensity, ambientIntensity * 0.6, this.globalWeatherIntensity);
       }
       ambientLight.intensity = ambientIntensity;
-      ambientLight.color.copy(skyColor);
+      if (this.game.world.isVoidtrail) {
+        ambientLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.3);
+      } else {
+        ambientLight.color.copy(skyColor);
+      }
     }
   }
 }

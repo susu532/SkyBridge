@@ -46,7 +46,17 @@ window.mobileInputs = window.mobileInputs || {
 import { Menu, Backpack, MessageSquare, Camera, ScanEye, ArrowDownToLine, Sword, ArrowDown, ChevronsUp } from 'lucide-react';
 
 export const MobileControlsUI: React.FC = () => {
-  const { isInventoryOpen, setInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, setPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isTyping, setTyping, setLocked } = useUI();
+  const isInventoryOpen = useUI(state => state.isInventoryOpen);
+  const setInventoryOpen = useUI(state => state.setInventoryOpen);
+  const isShopOpen = useUI(state => state.isShopOpen);
+  const isSettingsOpen = useUI(state => state.isSettingsOpen);
+  const isPauseMenuOpen = useUI(state => state.isPauseMenuOpen);
+  const setPauseMenuOpen = useUI(state => state.setPauseMenuOpen);
+  const isServerJoinOpen = useUI(state => state.isServerJoinOpen);
+  const isLaunchMenuOpen = useUI(state => state.isLaunchMenuOpen);
+  const isTyping = useUI(state => state.isTyping);
+  const setTyping = useUI(state => state.setTyping);
+  const setLocked = useUI(state => state.setLocked);
   const isAnyMenuOpen = isInventoryOpen || isShopOpen || isSettingsOpen || isPauseMenuOpen || isServerJoinOpen || isLaunchMenuOpen || isTyping;
 
   const baseRef = useRef<HTMLDivElement>(null);
@@ -359,7 +369,7 @@ export const MobileControlsUI: React.FC = () => {
       {/* Floating Joystick Area (Left half) */}
       <div 
         ref={joystickRef}
-        className="absolute inset-y-0 left-0 w-1/2 z-50 pointer-events-auto touch-none"
+        className="absolute top-0 bottom-16 landscape:bottom-24 left-0 w-1/2 z-50 pointer-events-auto touch-none"
         onPointerDown={startJoystick}
         onPointerMove={updateJoystick}
         onPointerUp={stopJoystick}

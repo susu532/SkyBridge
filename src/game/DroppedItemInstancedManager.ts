@@ -29,15 +29,41 @@ export class DroppedItemInstancedManager {
   instancedMeshes: Map<ItemType, THREE.InstancedMesh> = new Map();
   itemCounts: Map<ItemType, number> = new Map();
 
+  private _dropPool: DroppedItemData[] = [];
   private MAX_INSTANCES = 1000;
   private dummyMatrix = new THREE.Matrix4();
   private dummyQuaternion = new THREE.Quaternion();
   private _pullDirection = new THREE.Vector3();
+  private renderPos = new THREE.Vector3();
 
   constructor(scene: THREE.Scene, world: World, textureAtlas: THREE.Texture) {
     this.scene = scene;
     this.world = world;
     this.textureAtlas = textureAtlas;
+  }
+
+  private getDropItemData(): DroppedItemData {
+    const pooled = this._dropPool.pop();
+    if (pooled) return pooled;
+    return {
+      id: '',
+      type: ItemType.AIR,
+      position: new THREE.Vector3(),
+      rotation: new THREE.Euler(),
+      scale: new THREE.Vector3(1, 1, 1),
+      createdAt: 0,
+      pickupDelay: 2000,
+      velocity: new THREE.Vector3(),
+      isGrounded: false,
+      groundY: 0,
+      baseY: 0
+    };
+  }
+
+  private releaseDropItemData(data: DroppedItemData) {
+    if (this._dropPool.length < 500) {
+      this._dropPool.push(data);
+    }
   }
 
   addDroppedItem(id: string, type: ItemType, position: THREE.Vector3, initialVelocity?: THREE.Vector3) {
@@ -101,12 +127,6 @@ export class DroppedItemInstancedManager {
       this.instancedMeshes.set(type, mesh);
     }
 
-    const velocity = initialVelocity ? initialVelocity.clone() : new THREE.Vector3(
-      (Math.random() - 0.5) * 1.5,
-      2 + Math.random() * 2,
-      (Math.random() - 0.5) * 1.5
-    );
-
     let groundY = -64;
     for (let y = Math.floor(position.y); y > -64; y--) {
       const block = this.world.getBlock(Math.floor(position.x), y, Math.floor(position.z));
@@ -116,23 +136,38 @@ export class DroppedItemInstancedManager {
       }
     }
 
-    this.items.set(id, {
-      id,
-      type,
-      position: position.clone(),
-      rotation: new THREE.Euler(),
-      scale: new THREE.Vector3(1, 1, 1),
-      createdAt: Date.now(),
-      pickupDelay: 2000,
-      velocity,
-      isGrounded: false,
-      groundY,
-      baseY: position.y
-    });
+    const data = this.getDropItemData();
+    data.id = id;
+    data.type = type;
+    data.position.copy(position);
+    data.rotation.set(0, 0, 0);
+    data.scale.set(1, 1, 1);
+    data.createdAt = Date.now();
+    data.pickupDelay = 2000;
+    
+    if (initialVelocity) {
+      data.velocity.copy(initialVelocity);
+    } else {
+      data.velocity.set(
+        (Math.random() - 0.5) * 1.5,
+        2 + Math.random() * 2,
+        (Math.random() - 0.5) * 1.5
+      );
+    }
+    
+    data.isGrounded = false;
+    data.groundY = groundY;
+    data.baseY = position.y;
+
+    this.items.set(id, data);
   }
 
   removeDroppedItem(id: string) {
-    this.items.delete(id);
+    const item = this.items.get(id);
+    if (item) {
+      this.releaseDropItemData(item);
+      this.items.delete(id);
+    }
   }
 
   update(playerPos: THREE.Vector3, delta: number, isPerformanceMode: boolean) {
@@ -215,12 +250,12 @@ export class DroppedItemInstancedManager {
         const mesh = this.instancedMeshes.get(item.type)!;
         this.dummyQuaternion.setFromEuler(item.rotation);
         
-        let renderPos = item.position.clone();
+        this.renderPos.copy(item.position);
         if (item.isGrounded && !isPerformanceMode) {
-          renderPos.y += Math.sin(time * 2 + item.position.x) * 0.1;
+          this.renderPos.y += Math.sin(time * 2 + item.position.x) * 0.1;
         }
 
-        this.dummyMatrix.compose(renderPos, this.dummyQuaternion, item.scale);
+        this.dummyMatrix.compose(this.renderPos, this.dummyQuaternion, item.scale);
         mesh.setMatrixAt(count, this.dummyMatrix);
         this.itemCounts.set(item.type, count + 1);
       }
@@ -253,6 +288,9 @@ export class DroppedItemInstancedManager {
       }
     });
     this.instancedMeshes.clear();
+    for (const item of this.items.values()) {
+      this.releaseDropItemData(item);
+    }
     this.items.clear();
   }
 }

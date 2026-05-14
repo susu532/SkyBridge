@@ -5,6 +5,9 @@ import { settingsManager } from './Settings';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const gltfLoader = new GLTFLoader();
+const _hitMin = new THREE.Vector3();
+const _hitMax = new THREE.Vector3();
+const _hitBox = new THREE.Box3();
 
 export interface ShopItem {
   type: ItemType;
@@ -167,18 +170,18 @@ export class NPC {
     const height = 1.95;
     const pos = this.group.position;
     
-    const min = new THREE.Vector3(
+    _hitMin.set(
       pos.x - width / 2,
       pos.y,
       pos.z - width / 2
     );
-    const max = new THREE.Vector3(
+    _hitMax.set(
       pos.x + width / 2,
       pos.y + height,
       pos.z + width / 2
     );
     
-    return new THREE.Box3(min, max);
+    return _hitBox.set(_hitMin, _hitMax);
   }
 
   private createModel() {

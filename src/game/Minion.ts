@@ -4,6 +4,10 @@ import { ItemType } from './Inventory';
 import { networkManager } from './NetworkManager';
 import { settingsManager } from './Settings';
 
+const _hitMin = new THREE.Vector3();
+const _hitMax = new THREE.Vector3();
+const _hitBox = new THREE.Box3();
+
 export class Minion {
   id: string;
   type: ItemType;
@@ -27,18 +31,18 @@ export class Minion {
     const width = 0.8;
     const pos = this.mesh.position;
     
-    const min = new THREE.Vector3(
+    _hitMin.set(
       pos.x - width / 2,
       pos.y - 0.5,
       pos.z - width / 2
     );
-    const max = new THREE.Vector3(
+    _hitMax.set(
       pos.x + width / 2,
       pos.y + 0.5,
       pos.z + width / 2
     );
     
-    return new THREE.Box3(min, max);
+    return _hitBox.set(_hitMin, _hitMax);
   }
 
   private createMesh(): THREE.Group {

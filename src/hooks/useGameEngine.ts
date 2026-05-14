@@ -1,100 +1,62 @@
 import { useEffect, useRef, useState } from 'react';
 import { Game } from '../game/Game';
-import { useUI } from '../store/UIStore';
+import { useUIStore } from '../store/UIStore';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../game/NetworkManager';
 import { audioManager } from '../game/AudioManager';
 import { settingsManager } from '../game/Settings';
 import { ITEM_NAMES } from '../game/Constants';
 
+import { PointerLockStateMachine } from '../game/PointerLockStateMachine';
+
 export function useGameEngine() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const {
-    isInventoryOpen, setInventoryOpen,
-    isShopOpen, setShopOpen,
-    isSettingsOpen, setSettingsOpen,
-    isPauseMenuOpen, setPauseMenuOpen,
-    isServerJoinOpen, setServerJoinOpen,
-    isLaunchMenuOpen, setLaunchMenuOpen,
-    isChestOpen, setChestOpen,
-    isTyping, setTyping,
-    isLocked, setLocked,
-    isHUDVisible, setHUDVisible,
-    currentNPC, setCurrentNPC
-  } = useUI();
-  const [isUnderwater, setIsUnderwater] = useState(false);
-  const [isUnderLava, setIsUnderLava] = useState(false);
   const [targetServer, setTargetServer] = useState<string>('skybridge');
   const currentMode = useGameStore(state => state.currentMode);
-
-  // Refs for event listeners to avoid stale closures
-  const stateRef = useRef({
-    isInventoryOpen,
-    isShopOpen,
-    isSettingsOpen,
-    isPauseMenuOpen,
-    isServerJoinOpen,
-    isLaunchMenuOpen,
-    isChestOpen,
-    isTyping,
-    isLocked,
-    isUnderwater,
-    isUnderLava,
-    isHUDVisible
-  });
 
   useEffect(() => {
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  useEffect(() => {
-    stateRef.current = {
-      isInventoryOpen,
-      isShopOpen,
-      isSettingsOpen,
-      isPauseMenuOpen,
-      isServerJoinOpen,
-      isLaunchMenuOpen,
-      isChestOpen,
-      isTyping,
-      isLocked,
-      isUnderwater,
-      isUnderLava,
-      isHUDVisible
-    };
-  }, [isInventoryOpen, isShopOpen, isSettingsOpen, isPauseMenuOpen, isServerJoinOpen, isLaunchMenuOpen, isChestOpen, isTyping, isLocked, isUnderwater, isUnderLava, isHUDVisible]);
-
   const [showDebug, setShowDebug] = useState(false);
-  const [targetInfo, setTargetInfo] = useState<{ type: 'block' | 'npc' | null, name: string | null, id?: string }>({ type: null, name: null });
-  const lastUnlockTime = useRef(0);
+  const pointerLockSM = useRef(new PointerLockStateMachine());
   const suppressPauseMenu = useRef(false);
 
   const [gameKey, setGameKey] = useState(0);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!containerRef.current) return;
 
-    const newGame = new Game(canvasRef.current);
+    const canvas = document.createElement('canvas');
+    canvas.className = "absolute inset-0 w-full h-full";
+    containerRef.current.appendChild(canvas);
+
+    const newGame = new Game(canvas);
     setGame(newGame);
     newGame.start();
-    newGame.player.renderer.setHandVisible(stateRef.current.isHUDVisible);
+    newGame.player.renderer.setHandVisible(useUIStore.getState().isHUDVisible);
+
+    const resizeObserver = new ResizeObserver(() => {
+      newGame.onWindowResize();
+    });
+    resizeObserver.observe(containerRef.current);
 
     const handleLockChange = () => {
       const locked = document.pointerLockElement === document.body;
-      setLocked(locked);
+      useUIStore.getState().setLocked(locked);
       if (!locked) {
-        lastUnlockTime.current = Date.now();
         // Open pause menu when unlocking if not in other specific menus and not suppressed
         setTimeout(() => {
+          const state = useUIStore.getState();
           if (!suppressPauseMenu.current && 
-              !stateRef.current.isInventoryOpen && 
-              !stateRef.current.isShopOpen && 
-              !stateRef.current.isSettingsOpen && 
-              !stateRef.current.isChestOpen && 
-              !stateRef.current.isTyping) {
-            setPauseMenuOpen(true);
+              !state.isInventoryOpen && 
+              !state.isShopOpen && 
+              !state.isSettingsOpen && 
+              !state.isChestOpen && 
+              !state.isTyping) {
+            state.setPauseMenuOpen(true);
           }
           suppressPauseMenu.current = false;
         }, 50);
@@ -102,7 +64,8 @@ export function useGameEngine() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { isTyping: typing, isLocked: locked, isInventoryOpen: inv, isShopOpen: shop, isSettingsOpen: settings, isPauseMenuOpen: pause, isChestOpen: chest } = stateRef.current;
+      const state = useUIStore.getState();
+      const { isTyping: typing, isLocked: locked, isInventoryOpen: inv, isShopOpen: shop, isSettingsOpen: settings, isPauseMenuOpen: pause, isChestOpen: chest } = state;
 
       const isInputFocused = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
@@ -121,16 +84,16 @@ export function useGameEngine() {
       if (e.code === keybinds.inventory) {
         if (typing || newGame.world.isHub) return;
         if (chest) {
-          setChestOpen(false);
+          state.setChestOpen(false);
           handleStart(null);
           return;
         }
-        setInventoryOpen(!stateRef.current.isInventoryOpen);
-        if (!stateRef.current.isInventoryOpen) {
+        state.setInventoryOpen(!state.isInventoryOpen);
+        if (!state.isInventoryOpen) {
           suppressPauseMenu.current = true;
           newGame.controls.unlock();
-          setSettingsOpen(false);
-          setPauseMenuOpen(false);
+          state.setSettingsOpen(false);
+          state.setPauseMenuOpen(false);
         } else {
           handleStart(null);
         }
@@ -139,13 +102,13 @@ export function useGameEngine() {
       if (e.code === 'Enter') {
         if (locked && !isInputFocused) {
           // Do not unlock controls here to keep chat completely seamless
-          setTyping(true);
+          state.setTyping(true);
         }
       }
 
       if (e.code === keybinds.toggleHUD) {
-        const nextVisible = !stateRef.current.isHUDVisible;
-        setHUDVisible(nextVisible);
+        const nextVisible = !state.isHUDVisible;
+        state.setHUDVisible(nextVisible);
         newGame.player.renderer.setHandVisible(nextVisible);
       }
 
@@ -159,7 +122,7 @@ export function useGameEngine() {
           isChestOpen: chest,
           isServerJoinOpen: serverJoin,
           isLaunchMenuOpen: launchMenu
-        } = stateRef.current;
+        } = state;
 
         if (isInputFocused) {
           (e.target as HTMLElement).blur();
@@ -167,60 +130,61 @@ export function useGameEngine() {
         }
 
         if (inv || shop || settings || pause || typing || chest || serverJoin || launchMenu) {
-          setInventoryOpen(false);
-          setShopOpen(false);
-          setSettingsOpen(false);
-          setPauseMenuOpen(false);
-          setChestOpen(false);
-          setTyping(false);
-          setServerJoinOpen(false);
-          setLaunchMenuOpen(false);
+          state.setInventoryOpen(false);
+          state.setShopOpen(false);
+          state.setSettingsOpen(false);
+          state.setPauseMenuOpen(false);
+          state.setChestOpen(false);
+          state.setTyping(false);
+          state.setServerJoinOpen(false);
+          state.setLaunchMenuOpen(false);
           
           if (!isMobile) {
             trySafeLock(true);
           }
         } else {
           newGame.controls.unlock();
-          setPauseMenuOpen(true);
+          state.setPauseMenuOpen(true);
         }
       }
     };
 
     const handleOpenShop = (e: any) => {
-      setCurrentNPC(e.detail.npc);
+      useUIStore.getState().setCurrentNPC(e.detail.npc);
       suppressPauseMenu.current = true;
-      setShopOpen(true);
+      useUIStore.getState().setShopOpen(true);
       newGame.controls.unlock();
     };
 
     const handleOpenServerJoin = (e: any) => {
       const server = e.detail?.server || 'skybridge';
       setTargetServer(server);
-      setCurrentNPC(e.detail?.npc || null);
+      useUIStore.getState().setCurrentNPC(e.detail?.npc || null);
       suppressPauseMenu.current = true;
-      setServerJoinOpen(true);
+      useUIStore.getState().setServerJoinOpen(true);
       newGame.controls.unlock();
     };
 
     const handleOpenLaunchMenu = () => {
       suppressPauseMenu.current = true;
-      setLaunchMenuOpen(true);
+      useUIStore.getState().setLaunchMenuOpen(true);
       newGame.controls.unlock();
     };
 
     const handleOpenChest = () => {
       suppressPauseMenu.current = true;
-      setChestOpen(true);
+      useUIStore.getState().setChestOpen(true);
       newGame.controls.unlock();
     };
 
     const handleForceCloseMenus = () => {
-      setInventoryOpen(false);
-      setShopOpen(false);
-      setSettingsOpen(false);
-      setPauseMenuOpen(false);
-      setChestOpen(false);
-      setTyping(false);
+      const state = useUIStore.getState();
+      state.setInventoryOpen(false);
+      state.setShopOpen(false);
+      state.setSettingsOpen(false);
+      state.setPauseMenuOpen(false);
+      state.setChestOpen(false);
+      state.setTyping(false);
       suppressPauseMenu.current = true;
       if (!isMobile) {
         trySafeLock();
@@ -230,15 +194,8 @@ export function useGameEngine() {
     const trySafeLock = (isEscapeKey = false) => {
       if (document.pointerLockElement === document.body) return;
       if (isMobile) return;
-      
-      const now = Date.now();
-      const hasCooldown = now - lastUnlockTime.current < 1250;
-      
-      const hasActivation = ('userActivation' in navigator) 
-        ? (navigator as any).userActivation.isActive 
-        : true;
         
-      if (hasCooldown || !hasActivation || isEscapeKey) {
+      if (!pointerLockSM.current.canLock() || isEscapeKey) {
         return;
       }
       
@@ -255,20 +212,34 @@ export function useGameEngine() {
     const updateFastUI = (time: number) => {
       // Throttle crosshair/raycast updates to 10Hz (every 100ms) instead of 60fps
       if (time - lastRaycastTime > 100) {
-        setIsUnderwater(prev => prev === newGame.player.isUnderwater ? prev : newGame.player.isUnderwater);
-        setIsUnderLava(prev => prev === newGame.player.isUnderLava ? prev : newGame.player.isUnderLava);
+        const store = useGameStore.getState();
+        if (store.isUnderwater !== newGame.player.isUnderwater) {
+          store.setIsUnderwater(newGame.player.isUnderwater);
+        }
+        if (store.isUnderLava !== newGame.player.isUnderLava) {
+          store.setIsUnderLava(newGame.player.isUnderLava);
+        }
         
         // Update target info for crosshair
         if (newGame.lastRaycast) {
           if (newGame.lastRaycast.npc) {
             const npc = newGame.lastRaycast.npc;
-            setTargetInfo(prev => prev.id === npc.id ? prev : { type: 'npc', name: npc.name, id: npc.id });
+            const current = useGameStore.getState().targetInfo;
+            if (current?.id !== npc?.id) {
+              useGameStore.getState().setTargetInfo({ type: 'npc', name: npc.name, id: npc.id });
+            }
           } else if (newGame.lastRaycast.block) {
             const block = newGame.lastRaycast.block;
             const newName = ITEM_NAMES[block.blockType] || 'Block';
-            setTargetInfo(prev => prev.type === 'block' && prev.name === newName ? prev : { type: 'block', name: newName });
+            const current = useGameStore.getState().targetInfo;
+            if (current?.type !== 'block' || current?.name !== newName) {
+              useGameStore.getState().setTargetInfo({ type: 'block', name: newName });
+            }
           } else {
-            setTargetInfo(prev => prev.type === null ? prev : { type: null, name: null });
+            const current = useGameStore.getState().targetInfo;
+            if (current?.type !== null) {
+              useGameStore.getState().setTargetInfo({ type: null, name: null });
+            }
           }
         }
         lastRaycastTime = time;
@@ -301,10 +272,11 @@ export function useGameEngine() {
     };
 
     const handleRequestGameRestart = () => {
-      setPauseMenuOpen(false);
-      setServerJoinOpen(false);
-      setShopOpen(false);
-      setInventoryOpen(false);
+      const state = useUIStore.getState();
+      state.setPauseMenuOpen(false);
+      state.setServerJoinOpen(false);
+      state.setShopOpen(false);
+      state.setInventoryOpen(false);
       setGameKey(k => k + 1);
     };
 
@@ -315,7 +287,7 @@ export function useGameEngine() {
     const handlePointerLockError = () => {
       console.warn('Pointer lock failed, restoring pause menu.');
       if (!newGame.world.isHub) {
-        setPauseMenuOpen(true);
+        useUIStore.getState().setPauseMenuOpen(true);
       }
     };
 
@@ -357,7 +329,12 @@ export function useGameEngine() {
     }
 
     return () => {
+      pointerLockSM.current.dispose();
+      resizeObserver.disconnect();
       newGame.stop();
+      if (containerRef.current && canvas.parentNode === containerRef.current) {
+        containerRef.current.removeChild(canvas);
+      }
       cancelAnimationFrame(fastUIAF);
       document.removeEventListener('pointerlockchange', handleLockChange);
       document.removeEventListener('pointerlockerror', handlePointerLockError);
@@ -400,7 +377,8 @@ export function useGameEngine() {
       }
     }
 
-    if (game && !game.controls.isLocked && !isInventoryOpen && !isShopOpen && !isSettingsOpen && !isPauseMenuOpen && !isServerJoinOpen) {
+    const uiState = useUIStore.getState();
+    if (game && !game.controls.isLocked && !uiState.isInventoryOpen && !uiState.isShopOpen && !uiState.isSettingsOpen && !uiState.isPauseMenuOpen && !uiState.isServerJoinOpen) {
       const isTouch = e && e.pointerType === 'touch';
       if (isTouch) {
         try {
@@ -409,14 +387,7 @@ export function useGameEngine() {
         return;
       }
 
-      const now = Date.now();
-      const hasCooldown = now - lastUnlockTime.current < 1250;
-      
-      const hasActivation = ('userActivation' in navigator) 
-        ? (navigator as any).userActivation.isActive 
-        : true;
-
-      if (hasCooldown || !hasActivation) {
+      if (!pointerLockSM.current.canLock()) {
         return;
       }
 
@@ -430,15 +401,13 @@ export function useGameEngine() {
   };
 
   return {
-    canvasRef,
+    containerRef,
     game,
     isMobile,
-    isUnderwater,
-    isUnderLava,
     targetServer,
-    targetInfo,
     showDebug,
     handleStart,
-    setGameKey
+    setGameKey,
+    gameKey
   };
 }

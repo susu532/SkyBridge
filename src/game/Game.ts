@@ -1,8 +1,14 @@
 import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { VerticalTiltShiftShader } from 'three/examples/jsm/shaders/VerticalTiltShiftShader.js';
+import { HorizontalTiltShiftShader } from 'three/examples/jsm/shaders/HorizontalTiltShiftShader.js';
 import { World } from './World';
-import { Chunk } from './Chunk';
+import { Chunk, CHUNK_SIZE } from './Chunk';
 import { Player } from './Player';
 import { Mob } from './Mob';
 import { EntityManager } from './EntityManager';
@@ -13,8 +19,19 @@ import { audioManager } from './AudioManager';
 import { isTransparent, BLOCK, isAnyTorch } from './TextureAtlas';
 import { EnvironmentManager } from './EnvironmentManager';
 import { Inventory, ItemType } from './Inventory';
+import { ParticleSystem } from './ParticleSystem';
+import { GameController } from './GameController';
+import { IMobState, IPlayerUpdate, ISpawnParams, IGameStateData } from '../types/shared';
+import { PostProcessingManager } from './PostProcessingManager';
+import { InteractionSystem } from './InteractionSystem';
+import { EntityTagsSystem } from './EntityTagsSystem';
 
 export class Game {
+  static _upVec = new THREE.Vector3(0, 1, 0);
+  static _smallScaleVec = new THREE.Vector3();
+  static _tempVec = new THREE.Vector3();
+  static _tempVec2 = new THREE.Vector3();
+
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
@@ -23,95 +40,30 @@ export class Game {
   player: Player;
   entityManager: EntityManager;
   clock: THREE.Clock;
-  selectionBox: THREE.LineSegments | null = null;
   animationFrameId: number | null = null;
   environmentManager: EnvironmentManager;
+  particleSystem: ParticleSystem;
+  postProcessing: PostProcessingManager | null = null;
+  interactionSystem: InteractionSystem | null = null;
+  entityTagsSystem: EntityTagsSystem | null = null;
+  gameController: GameController;
 
-  particles: { mesh: THREE.InstancedMesh, life: number, velocities: THREE.Vector3[], positions: THREE.Vector3[], active: boolean }[] = [];
   meshesToAdd: { chunk: Chunk, mesh: THREE.Mesh | null, transparentMesh: THREE.Mesh | null }[] = [];
 
   lastRaycast: any = null;
   lastPerformanceMode: boolean = false;
   lastPremiumShaders: boolean = true;
   private settingsUnsubscribe: (() => void) | null = null;
-  
-  private _cachedTags: any[] = [];
-  private _lastTagsUpdate: number = 0;
-
-  private _tempCameraDir = new THREE.Vector3();
-  private _tempRaycastDir = new THREE.Vector3();
-  private _tagTempVec = new THREE.Vector3();
-  private _tagToEntity = new THREE.Vector3();
-  
-  private _particleTempVec = new THREE.Vector3();
-  private _particleMatrix = new THREE.Matrix4();
-  private _particleEuler = new THREE.Euler();
-  private _particleQuat = new THREE.Quaternion();
-  private _particleColorTemp = new THREE.Color();
-  private _wasNight: boolean = false;
-  private _autoEquippedTorchFromHotbarSlot: number = -1;
 
   get currentMode() {
     return useGameStore.getState().currentMode;
   }
 
   getEntityTags() {
-    const now = performance.now();
-    const isPerformanceMode = settingsManager.getSettings().performanceMode;
-    
-    if (isPerformanceMode) {
-      const throttleTime = 33; // ~30fps update rate for name tags in performance mode
-      if (now - this._lastTagsUpdate < throttleTime) {
-        return this._cachedTags;
-      }
-    }
-    
-    this._lastTagsUpdate = now;
-
-    const tags: any[] = [];
-    const widthHalf = window.innerWidth / 2;
-    const heightHalf = window.innerHeight / 2;
-    this.camera.getWorldDirection(this._tempCameraDir);
-
-    const projectEntity = (id: string, pos: THREE.Vector3, type: string, health: number, maxHealth: number, level: number, name?: string, isPassive: boolean = false, heightOffset?: number, team?: string) => {
-      // Distance check
-      const distSq = pos.distanceToSquared(this.camera.position);
-      if (isNaN(distSq) || distSq > 2500) return; // 50 blocks for players
-
-      this._tagTempVec.copy(pos);
-      this._tagTempVec.y += heightOffset !== undefined ? heightOffset : ((type === 'Slime') ? 1.0 : 2.2);
-      
-      this._tagToEntity.subVectors(this._tagTempVec, this.camera.position).normalize();
-      if (this._tempCameraDir.dot(this._tagToEntity) < 0) return;
-
-      this._tagTempVec.project(this.camera);
-
-      let x = (this._tagTempVec.x * widthHalf) + widthHalf;
-      let y = -(this._tagTempVec.y * heightHalf) + heightHalf;
-      
-      // Guard against NaN/Infinity values which can crash CSS styles
-      if (!isFinite(x) || !isFinite(y)) return;
-
-      const distance = Math.sqrt(distSq);
-      if (distance > 40) return;
-
-      tags.push({ id, x, y, level, type, health, maxHealth, distance, name, isPassive, team });
-    };
-
-    this.entityManager.mobs.forEach((mob) => {
-      projectEntity(mob.id, mob.position, mob.type, mob.health, mob.maxHealth, mob.level, undefined, mob.isPassive);
-    });
-
-    this.entityManager.remotePlayers.forEach((player) => {
-      const combatLevel = player.skills?.Combat?.level || 1;
-      const heightOffset = player.isCrouching ? 1.8 : 2.2;
-      projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset, player.team);
-    });
-
-    this._cachedTags = tags;
-    return tags;
+    if (!this.entityTagsSystem) return [];
+    return this.entityTagsSystem.getEntityTags();
   }
-  
+
   private getResolvedDpr(perfMode: boolean) {
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (perfMode) {
@@ -150,6 +102,9 @@ export class Game {
     this.controls.enabled = false;
     
     this.world = new World(this.scene);
+    
+    this.postProcessing = new PostProcessingManager(this);
+
     this.entityManager = new EntityManager(this.scene, this.world, this.camera);
     this.entityManager.setTextureAtlas(this.world.opaqueMaterial.map!);
     this.player = new Player(this.camera, this.controls, this.world, this.entityManager);
@@ -163,43 +118,22 @@ export class Game {
     // Initialize audio
     audioManager.init(this.camera);
 
-    // Pre-allocate particle pool to prevent GC spikes
-    const particleGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
-    for (const count of [4, 12]) {
-      for (let i = 0; i < 25; i++) {
-        const material = new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 1.0 });
-        const mesh = new THREE.InstancedMesh(particleGeometry, material, count);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        mesh.visible = false;
-        const velocities: THREE.Vector3[] = [];
-        const positions: THREE.Vector3[] = [];
-        for (let j = 0; j < count; j++) {
-          velocities.push(new THREE.Vector3());
-          positions.push(new THREE.Vector3());
-          mesh.setMatrixAt(j, new THREE.Matrix4());
-        }
-        this.scene.add(mesh);
-        this.particles.push({ mesh, life: 0, velocities, positions, active: false });
-      }
-    }
+    this.particleSystem = new ParticleSystem(this.scene, this.camera, this.world.isVoidtrail);
     
-    // Selection box
-    const boxGeo = new THREE.BoxGeometry(1.01, 1.01, 1.01);
-    const edges = new THREE.EdgesGeometry(boxGeo);
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
-    this.selectionBox = new THREE.LineSegments(edges, lineMat);
-    this.scene.add(this.selectionBox);
+    this.interactionSystem = new InteractionSystem(this);
+    this.entityTagsSystem = new EntityTagsSystem(this);
     
     // Initial world generation around player
     this.world.update(this.player.position);
     
+    this.gameController = new GameController(this);
+    
     this.clock = new THREE.Clock();
     
     window.addEventListener('resize', this.onWindowResize);
-    window.addEventListener('spawnParticles', this.onSpawnParticles as EventListener);
 
     // Network setup
-    networkManager.onInit = (data) => {
+    networkManager.onInit = (data: IGameStateData) => {
       const urlParams = new URLSearchParams(window.location.search);
       const serverName = urlParams.get('server') || 'hub';
 
@@ -246,7 +180,7 @@ export class Game {
         
         if (savedSkills) {
           skyBridgeManager.setSkills(JSON.parse(savedSkills));
-        } else if (networkManager.id && data.players[networkManager.id]?.skills) {
+        } else if (networkManager.id && data.players?.[networkManager.id]?.skills) {
           skyBridgeManager.setSkills(data.players[networkManager.id].skills);
         }
       } else {
@@ -255,9 +189,10 @@ export class Game {
       }
 
       // Add existing players
-      for (const id in data.players) {
+      const playersMap = data?.players || {};
+      for (const id in playersMap) {
         if (id === networkManager.id) {
-            const myData = data.players[id];
+            const myData = playersMap[id];
             this.player.team = myData.team || null;
             this.player.renderer.updateTeam(this.player.team);
             
@@ -269,12 +204,12 @@ export class Game {
                this.player.isFlying = false;
             }
         } else {
-          this.entityManager.addRemotePlayer(id, data.players[id].skinSeed, data.players[id].name, data.players[id].team);
-          this.entityManager.updateRemotePlayer(id, data.players[id]);
+          this.entityManager.addRemotePlayer(id, playersMap[id].skinSeed || '', playersMap[id].name || 'Player', playersMap[id].team);
+          this.entityManager.updateRemotePlayer(id, playersMap[id] as any);
           const rp = this.entityManager.remotePlayers.get(id);
           if (rp) {
-             rp.isDead = data.players[id].isDead;
-             rp.isSpectator = data.players[id].isSpectator;
+             rp.isDead = playersMap[id].isDead || false;
+             rp.isSpectator = playersMap[id].isSpectator || false;
           }
         }
       }
@@ -283,8 +218,8 @@ export class Game {
         for (const id in data.mobs) {
           const mobData = data.mobs[id];
           if (mobData.type === 'Sheep' && false) continue; // Sample placeholder or just remove if cleanup
-          const pos = new THREE.Vector3(mobData.position.x, mobData.position.y, mobData.position.z);
-          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas, mobData.team);
+          const pos = Game._tempVec.set(mobData.position.x, mobData.position.y, mobData.position.z);
+          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type as any, this.entityManager.textureAtlas, mobData.team);
           if (mobData.health !== undefined) mob.health = mobData.health;
           if (mobData.maxHealth !== undefined) mob.maxHealth = mobData.maxHealth;
           if (mobData.scale) {
@@ -297,7 +232,7 @@ export class Game {
       if (data.minions) {
         for (const id in data.minions) {
           const minionData = data.minions[id];
-          const pos = new THREE.Vector3(minionData.position.x, minionData.position.y, minionData.position.z);
+          const pos = Game._tempVec.set(minionData.position.x, minionData.position.y, minionData.position.z);
           this.entityManager.addMinionLocally(minionData.id, minionData.type, pos);
         }
       }
@@ -305,8 +240,8 @@ export class Game {
       if (data.droppedItems) {
         for (const id in data.droppedItems) {
           const itemData = data.droppedItems[id];
-          const pos = new THREE.Vector3(itemData.position.x, itemData.position.y, itemData.position.z);
-          const vel = itemData.velocity ? new THREE.Vector3(itemData.velocity.x, itemData.velocity.y, itemData.velocity.z) : undefined;
+          const pos = Game._tempVec.set(itemData.position.x, itemData.position.y, itemData.position.z);
+          const vel = itemData.velocity ? Game._tempVec2.set(itemData.velocity.x, itemData.velocity.y, itemData.velocity.z) : undefined;
           this.entityManager.addDroppedItem(itemData.id, itemData.type, pos, vel);
         }
       }
@@ -340,7 +275,7 @@ export class Game {
         if (!mySkinSeed) mySkinSeed = 'player_' + Math.random().toString(36).substring(7);
       }
   
-      const joinPos = new THREE.Vector3(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
+      const joinPos = Game._tempVec.set(this.player.position.x, this.player.position.y - 1.6, this.player.position.z);
       
       const myName = settingsManager.getSettings().username || ('Player_' + Math.floor(Math.random() * 1000));
       
@@ -350,35 +285,35 @@ export class Game {
       this.player.updateSkin(mySkinSeed);
     };
 
-    networkManager.onPlayerJoined = (player) => {
+    networkManager.onPlayerJoined = (player: IPlayerUpdate) => {
       if (player.id !== networkManager.id) {
-        this.entityManager.addRemotePlayer(player.id, player.skinSeed, player.name, player.team);
+        this.entityManager.addRemotePlayer(player.id, player.skinSeed || '', player.name || 'Player', player.team);
         const rp = this.entityManager.remotePlayers.get(player.id);
         if (rp) {
-           rp.isDead = player.isDead;
-           rp.isSpectator = player.isSpectator;
-           rp.health = player.health;
+           rp.isDead = player.isDead || false;
+           rp.isSpectator = player.isSpectator || false;
+           rp.health = player.health || 100;
         }
       }
     };
 
-    networkManager.onPlayerMoved = (player) => {
+    networkManager.onPlayerMoved = (player: IPlayerUpdate) => {
       if (player.id !== networkManager.id) {
         this.entityManager.updateRemotePlayer(player.id, player);
       }
     };
 
-    networkManager.onPlayerLeft = (id) => {
+    networkManager.onPlayerLeft = (id: string) => {
       this.entityManager.removeRemotePlayer(id);
     };
 
     networkManager.onBlockChanged = (data) => {
       this.world.setBlock(data.x, data.y, data.z, data.type, false);
-      const pos = new THREE.Vector3(data.x + 0.5, data.y + 0.5, data.z + 0.5);
+      const pos = Game._tempVec.set(data.x + 0.5, data.y + 0.5, data.z + 0.5);
       if (data.type === 0) {
         audioManager.playPositional('break', pos, 0.4, 0.8 + Math.random() * 0.4, 20);
         window.dispatchEvent(new CustomEvent('spawnParticles', { 
-          detail: { pos: pos, type: 1 } // Use a generic block type for remote break particles right now
+          detail: { pos: pos.clone(), type: 1 } // Use a generic block type for remote break particles right now
         }));
       } else {
         audioManager.playPositional('place', pos, 0.6, 0.9 + Math.random() * 0.2, 20);
@@ -386,8 +321,8 @@ export class Game {
     };
 
     networkManager.onItemSpawned = (data) => {
-      const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
-      const vel = data.velocity ? new THREE.Vector3(data.velocity.x, data.velocity.y, data.velocity.z) : undefined;
+      const pos = Game._tempVec.set(data.position.x, data.position.y, data.position.z);
+      const vel = data.velocity ? Game._tempVec2.set(data.velocity.x, data.velocity.y, data.velocity.z) : undefined;
       this.entityManager.addDroppedItem(data.id, data.type, pos, vel);
     };
 
@@ -395,7 +330,7 @@ export class Game {
       this.entityManager.removeDroppedItem(id);
     };
 
-    networkManager.onRequestSpawnCheck = (data) => {
+    networkManager.onRequestSpawnCheck = (data: ISpawnParams) => {
       const isNight = Math.sin(this.environmentManager.dayTime * Math.PI * 2) <= 0;
       
       // 1. Check for player placed/natural light sources nearby (sphere radius 7)
@@ -453,7 +388,7 @@ export class Game {
       this.environmentManager.dayTime = data.dayTime;
     };
 
-    networkManager.onEntitiesReset = (data) => {
+    networkManager.onEntitiesReset = (data: { mobs: Record<string, any>; droppedItems: Record<string, any>; gameStartTime?: number }) => {
       window.dispatchEvent(new CustomEvent('forceCloseMenus'));
       this.entityManager.clearEntities();
       this.world.reset(this.currentMode);
@@ -472,8 +407,8 @@ export class Game {
         for (const id in data.mobs) {
           const mobData = data.mobs[id];
           // mobData.type check removed
-          const pos = new THREE.Vector3(mobData.position.x, mobData.position.y, mobData.position.z);
-          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type, this.entityManager.textureAtlas, mobData.team);
+          const pos = Game._tempVec.set(mobData.position.x, mobData.position.y, mobData.position.z);
+          const mob = new Mob(mobData.id, pos, mobData.level || 1, mobData.type as any, this.entityManager.textureAtlas, mobData.team);
           if (mobData.health !== undefined) mob.health = mobData.health;
           if (mobData.maxHealth !== undefined) mob.maxHealth = mobData.maxHealth;
           if (mobData.scale) mob.group.scale.set(mobData.scale, mobData.scale, mobData.scale);
@@ -539,75 +474,25 @@ export class Game {
     }
   }
 
-  onSpawnParticles = (e: CustomEvent) => {
-    const { pos, type } = e.detail;
-    const isPerformanceMode = settingsManager.getSettings().performanceMode;
-    const particleCount = isPerformanceMode ? 4 : 12;
-    
-    const color = this._particleColorTemp.setHex(0x888888);
-    const blockColors: Record<number, number> = {
-      1: 0x5C4033, // DIRT
-      2: 0x41980a, // GRASS
-      3: 0x888888, // STONE
-      4: 0x6b4d29, // WOOD
-      5: 0x2d6a14, // LEAVES
-      6: 0xd2b48c, // SAND
-      8: 0xffffff, // GLASS
-      9: 0x2a52be, // BLUE_STONE
-      10: 0xbe2a2a, // RED_STONE
-      11: 0xa67b5b, // PLANKS
-      12: 0xb22222, // BRICK
-      14: 0xffffff, // SNOW
-      15: 0x888888, // SLAB_STONE
-      16: 0x2a52be, // SLAB_BLUE
-      17: 0xbe2a2a, // SLAB_RED
-      18: 0x6b4d29, // SLAB_WOOD
-    };
-    if (blockColors[type]) color.setHex(blockColors[type]);
-
-    let p = this.particles.find(p => !p.active && p.mesh.count === particleCount);
-    
-    if (!p) {
-      // Fallback: forcefully reuse the oldest active particle of correct count
-      p = this.particles.find(p => p.mesh.count === particleCount);
-      if (!p) return; // Should not happen
-    }
-    
-    p.active = true;
-    p.life = 1.0;
-    p.mesh.visible = true;
-    (p.mesh.material as THREE.MeshLambertMaterial).color.copy(color);
-    (p.mesh.material as THREE.MeshLambertMaterial).opacity = 1.0;
-    
-    const matrix = this._particleMatrix;
-    for (let i = 0; i < particleCount; i++) {
-      const pPos = p.positions[i];
-      pPos.set(
-        pos.x + (Math.random() - 0.5) * 0.4,
-        pos.y + (Math.random() - 0.5) * 0.4,
-        pos.z + (Math.random() - 0.5) * 0.4
-      );
-      
-      p.velocities[i].set(
-        (Math.random() - 0.5) * 4,
-        Math.random() * 4 + 2,
-        (Math.random() - 0.5) * 4
-      );
-      
-      matrix.setPosition(pPos);
-      p.mesh.setMatrixAt(i, matrix);
-    }
-    p.mesh.instanceMatrix.needsUpdate = true;
-  };
-
   onWindowResize = () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    
+    // Leverage the canvas's container if available for Resizer compatibility
+    const parent = this.renderer.domElement.parentElement;
+    if (parent) {
+      width = parent.clientWidth;
+      height = parent.clientHeight;
+    }
+
     if (height === 0 || width === 0) return;
     
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    if (this.postProcessing) {
+      this.postProcessing.setSize(width, height);
+    }
   };
 
   start() {
@@ -635,10 +520,13 @@ export class Game {
     if (this.player) {
       this.player.destroy();
     }
+    
+    if (this.particleSystem) {
+      this.particleSystem.destroy();
+    }
 
     // Remove window listeners
     window.removeEventListener('resize', this.onWindowResize);
-    window.removeEventListener('spawnParticles', this.onSpawnParticles as EventListener);
 
     // Dispose Three.js resources
     this.scene.traverse((object) => {
@@ -670,7 +558,20 @@ export class Game {
       }
     });
 
+    this.world.meshesToAdd = [];
+    
+    if (this.interactionSystem) {
+      this.interactionSystem.dispose();
+    }
+
+    if (this.postProcessing) {
+      this.postProcessing.dispose();
+    }
+
     this.renderer.dispose();
+    const gl = this.renderer.getContext();
+    const ext = gl.getExtension('WEBGL_lose_context');
+    if (ext) ext.loseContext();
   }
 
   loop = () => {
@@ -681,11 +582,7 @@ export class Game {
     
     if (!this.renderer || !this.scene || !this.camera) return;
     
-    const delta = Math.min(this.clock.getDelta(), 0.1); // Cap delta to prevent huge jumps and clipping through floors during lag
-    
-    // Adaptive render distance is now handled by settings, but we can keep a soft version
-    // if settings allow it. For now, let's just use the setting directly.
-    // this.world.renderDistance = settingsManager.getSettings().renderDistance;
+    const delta = Math.min(this.clock.getDelta(), 0.1); 
 
     if (!this.world.isHub) {
       skyBridgeManager.tick(delta, this.player.inventory, this.player.hotbarIndex);
@@ -697,59 +594,54 @@ export class Game {
     this.world.update(this.player.position, this.camera);
     this.environmentManager.update(delta);
 
-    // Auto-equip torch logic for SkyCastles
     const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
-    if (serverName.startsWith('skycastles')) {
-      const isNightOrRain = Math.sin(this.environmentManager.dayTime * Math.PI * 2) <= 0 || this.environmentManager.weatherType === 'rain';
-      if (isNightOrRain !== this._wasNight) {
-         this._wasNight = isNightOrRain;
-         if (isNightOrRain) {
-            // Find a torch in hotbar
-            const inv = this.player.inventory;
-            if (!inv.slots[Inventory.OFF_HAND_SLOT]) { // Only if off-hand is empty
-               for (let i = 0; i < 9; i++) {
-                 if (inv.slots[i] && inv.slots[i]!.type === ItemType.TORCH) {
-                   inv.slots[Inventory.OFF_HAND_SLOT] = inv.slots[i];
-                   inv.slots[i] = null;
-                   this._autoEquippedTorchFromHotbarSlot = i;
-                   useGameStore.getState().incrementInventoryVersion();
-                   // If player was holding this slot, update visually
-                   window.dispatchEvent(new CustomEvent('updateHotbar'));
-                   break;
-                 }
-               }
-            }
-         } else {
-            // It just turned day, return torch if we auto-equipped it
-            const inv = this.player.inventory;
-            const offhand = inv.slots[Inventory.OFF_HAND_SLOT];
-            if (this._autoEquippedTorchFromHotbarSlot !== -1 && offhand && offhand.type === ItemType.TORCH) {
-               if (!inv.slots[this._autoEquippedTorchFromHotbarSlot]) {
-                   inv.slots[this._autoEquippedTorchFromHotbarSlot] = offhand;
-                   inv.slots[Inventory.OFF_HAND_SLOT] = null;
-                   useGameStore.getState().incrementInventoryVersion();
-                   window.dispatchEvent(new CustomEvent('updateHotbar'));
-               } else {
-                   // Fallback to add back properly
-                   inv.slots[Inventory.OFF_HAND_SLOT] = null;
-                   inv.addItem(ItemType.TORCH, offhand.count);
-                   useGameStore.getState().incrementInventoryVersion();
-                   window.dispatchEvent(new CustomEvent('updateHotbar'));
-               }
-            }
-            this._autoEquippedTorchFromHotbarSlot = -1;
-         }
-      }
-    }
+    this.gameController.tick(delta, serverName);
     
+    // Check loading state
+    if (useGameStore.getState().isMapLoading && this.player.hasReceivedInitialRespawn) {
+       const pcx = Math.floor(this.player.worldPosition.x / CHUNK_SIZE);
+       const pcz = Math.floor(this.player.worldPosition.z / CHUNK_SIZE);
+       
+       let loadedCount = 0;
+       let meshedCount = 0;
+       const radius = 2; // 5x5 chunks
+       const TOTAL_CHUNKS = Math.pow(radius * 2 + 1, 2);
+       
+       for (let x = -radius; x <= radius; x++) {
+          for (let z = -radius; z <= radius; z++) {
+             const chunk = this.world.getChunk(pcx + x, pcz + z);
+             if (chunk) {
+                loadedCount++;
+                if (chunk.mesh) meshedCount++;
+             }
+          }
+       }
+       
+       const progress = (loadedCount + meshedCount) / (TOTAL_CHUNKS * 2);
+       let msg = "Awaiting Server Data";
+       if (loadedCount < TOTAL_CHUNKS) msg = `Generating Terrain (${loadedCount}/${TOTAL_CHUNKS})`;
+       else if (meshedCount < TOTAL_CHUNKS) msg = `Building Geometry (${meshedCount}/${TOTAL_CHUNKS})`;
+       else msg = "Spawning Entities";
+
+       useGameStore.getState().setLoadingProgress(progress, msg);
+       
+       if (meshedCount >= TOTAL_CHUNKS && this.world.meshesToAdd.length === 0) {
+          useGameStore.getState().setIsMapLoading(false);
+       }
+    }
+
     // Process queued mobs from world generation
     if (this.world.queuedMobs.length > 0) {
       const mob = this.world.queuedMobs.shift()!;
-      networkManager.spawnMob(mob.type, { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z }, undefined, mob.team);
+      networkManager.spawnMob(mob.type as any, { x: mob.pos.x, y: mob.pos.y, z: mob.pos.z }, undefined, mob.team);
     }
     
-    // Process one mesh addition per frame to prevent GPU upload stutter
-    if (this.world.meshesToAdd.length > 0) {
+    // Process chunk meshes within a tight time budget (< 3ms) to prevent GPU upload stutter
+    const startMeshTime = performance.now();
+    while (this.world.meshesToAdd.length > 0) {
+      if (performance.now() - startMeshTime > 3) {
+        break; // Exceeded budget, finish the rest in subsequent frames
+      }
       const { chunk, mesh, transparentMesh } = this.world.meshesToAdd.shift()!;
       if (mesh && !this.scene.children.includes(mesh)) {
         this.scene.add(mesh);
@@ -762,64 +654,22 @@ export class Game {
     this.entityManager.update(this.player.position, delta);
 
     // Update particles
-    for (let i = 0; i < this.particles.length; i++) {
-      const p = this.particles[i];
-      if (!p.active) continue;
-
-      p.life -= delta * 1.5;
-      if (p.life <= 0) {
-        p.active = false;
-        p.mesh.visible = false;
-        continue;
-      }
-      
-      for (let j = 0; j < p.velocities.length; j++) {
-        const v = p.velocities[j];
-        const pos = p.positions[j];
-        
-        v.y -= 20 * delta; // Gravity
-        this._particleTempVec.copy(v).multiplyScalar(delta);
-        pos.add(this._particleTempVec);
-        
-        // Add some rotation
-        this._particleEuler.set(p.life * 5, p.life * 3, 0);
-        this._particleQuat.setFromEuler(this._particleEuler);
-        this._particleMatrix.makeRotationFromQuaternion(this._particleQuat);
-        this._particleMatrix.setPosition(pos);
-        
-        p.mesh.setMatrixAt(j, this._particleMatrix);
-      }
-      p.mesh.instanceMatrix.needsUpdate = true;
-      (p.mesh.material as THREE.MeshLambertMaterial).opacity = p.life;
-    }
+    this.particleSystem.update(delta);
 
     // Update water animation time
     if ((this.world.transparentMaterial as any).userData?.uTime) {
       (this.world.transparentMaterial as any).userData.uTime.value = this.clock.getElapsedTime();
     }
 
-    // Update selection box
-    this.camera.getWorldDirection(this._tempRaycastDir);
-    const ray = this.world.raycast(this.player.playerHeadPos, this._tempRaycastDir, 5);
-    const npcRay = this.entityManager.raycastNPC(this.player.playerHeadPos, this._tempRaycastDir, 5, this.camera);
-    
-    this.lastRaycast = { block: ray.hit ? ray : null, npc: npcRay };
-
-    if (ray.hit && this.selectionBox) {
-      this.selectionBox.visible = true;
-      this.selectionBox.position.set(
-        ray.blockPos!.x + 0.5,
-        ray.blockPos!.y + 0.5,
-        ray.blockPos!.z + 0.5
-      );
-      // Subtle pulse effect
-      const isPerformanceMode = settingsManager.getSettings().performanceMode;
-      const pulse = isPerformanceMode ? 1.0 : 1.0 + Math.sin(this.clock.getElapsedTime() * 10) * 0.01;
-      this.selectionBox.scale.set(pulse, pulse, pulse);
-    } else if (this.selectionBox) {
-      this.selectionBox.visible = false;
+    if (this.interactionSystem) {
+      this.interactionSystem.update();
+      this.lastRaycast = this.interactionSystem.lastRaycast;
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.postProcessing) {
+      this.postProcessing.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 }

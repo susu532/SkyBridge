@@ -312,10 +312,36 @@ export class PlayerPhysics {
     currentPos.y += p.velocity.y * delta;
     if (!p.isFlying && this.checkCollision(currentPos)) {
       if (p.velocity.y <= 0) { // Include 0 to prevent sinking while standing
+        const blockBelow = p.world.getBlock(Math.floor(currentPos.x), Math.floor(currentPos.y - p.playerHeight - 0.1), Math.floor(currentPos.z));
+
+        if (blockBelow === BLOCK.SLIME_BLOCK) {
+          // Bounce effect!
+          p.velocity.y = Math.min(Math.abs(p.velocity.y) * 1.5, 35);
+          if (p.velocity.y < 10) p.velocity.y = 10;
+          p.wasInAir = true;
+          audioManager.playStep('stone'); // Or slime if added
+          return; // Skip normal landing
+        }
+
+        if (blockBelow === BLOCK.LAUNCHER || 
+            blockBelow === BLOCK.LAUNCHER_WALL_X_NEG || blockBelow === BLOCK.LAUNCHER_WALL_X_POS ||
+            blockBelow === BLOCK.LAUNCHER_WALL_Z_NEG || blockBelow === BLOCK.LAUNCHER_WALL_Z_POS) {
+          // Launch the player High and far!
+          p.velocity.y = 40; // High bounce
+          
+          if (blockBelow === BLOCK.LAUNCHER_WALL_Z_POS) p.knockbackVelocity.z = 1500;
+          if (blockBelow === BLOCK.LAUNCHER_WALL_Z_NEG) p.knockbackVelocity.z = -1500;
+          if (blockBelow === BLOCK.LAUNCHER_WALL_X_POS) p.knockbackVelocity.x = 1500;
+          if (blockBelow === BLOCK.LAUNCHER_WALL_X_NEG) p.knockbackVelocity.x = -1500;
+          
+          p.wasInAir = true;
+          audioManager.playStep('stone'); 
+          return; // Skip normal landing
+        }
+
         // Landing detection
         if (p.wasInAir && Math.abs(p.velocity.y) > 5) {
           p.landingTimer = 1.0;
-          const blockBelow = p.world.getBlock(Math.floor(currentPos.x), Math.floor(currentPos.y - p.playerHeight - 0.1), Math.floor(currentPos.z));
           let surface = 'stone';
           if (blockBelow === BLOCK.GRASS || blockBelow === BLOCK.DIRT) surface = 'grass';
           else if (blockBelow === BLOCK.SAND) surface = 'sand';

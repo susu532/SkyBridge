@@ -537,6 +537,23 @@
       },
       "shopItems": [
         {
+          "type": 461,
+          "price": 400,
+          "currency": 501,
+          "metadata": {
+            "rarity": "Uncommon",
+            "stats": {
+              "damage": 50
+            }
+          }
+        },
+        {
+          "type": 462,
+          "price": 8,
+          "currency": 501,
+          "outputAmount": 16
+        },
+        {
           "type": 92,
           "price": 200,
           "currency": 501,
@@ -625,6 +642,23 @@
       },
       "rotation": 3.14159,
       "shopItems": [
+        {
+          "type": 461,
+          "price": 400,
+          "currency": 501,
+          "metadata": {
+            "rarity": "Uncommon",
+            "stats": {
+              "damage": 50
+            }
+          }
+        },
+        {
+          "type": 462,
+          "price": 8,
+          "currency": 501,
+          "outputAmount": 16
+        },
         {
           "type": 89,
           "price": 200,

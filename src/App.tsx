@@ -8,52 +8,39 @@ import { GameHUD } from './components/GameHUD';
 import { GameMenus } from './components/GameMenus';
 import { MapLoadingScreen } from './components/MapLoadingScreen';
 import { StatsPanel } from './components/StatsPanel';
+import { EnvironmentOverlays } from './components/EnvironmentOverlays';
 import { useUI } from './store/UIStore';
 
 export default function App() {
   const {
-    canvasRef,
+    containerRef,
     game,
     isMobile,
-    isUnderwater,
-    isUnderLava,
     targetServer,
-    targetInfo,
     showDebug,
     handleStart,
-    setGameKey
+    setGameKey,
+    gameKey
   } = useGameEngine();
 
-  const { setPauseMenuOpen } = useUI();
+  const setPauseMenuOpen = useUI(state => state.setPauseMenuOpen);
 
   return (
     <div 
       className="relative w-full h-screen overflow-hidden bg-black font-sans cursor-crosshair"
       onPointerDown={handleStart}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      <div key={gameKey} ref={containerRef} className="absolute inset-0 w-full h-full" />
       
       {/* Vignette Effect */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle,transparent_50%,rgba(0,0,0,0.4)_100%)]" />
 
-      {/* Underwater Overlay */}
-      {isUnderwater && !isUnderLava && (
-        <div className="absolute inset-0 pointer-events-none bg-blue-600/30 md:backdrop-blur-[2px] animate-pulse" />
-      )}
-
-      {/* Lava Overlay */}
-      {isUnderLava && (
-        <>
-          <div className="absolute inset-0 pointer-events-none bg-orange-600/60 md:backdrop-blur-[4px] animate-pulse" />
-          <div className="absolute inset-0 pointer-events-none bg-red-900/40" />
-        </>
-      )}
+      <EnvironmentOverlays />
 
       <GameHUD 
         game={game} 
         isMobile={isMobile} 
         showDebug={showDebug} 
-        targetInfo={targetInfo} 
         handleStart={handleStart} 
         setPauseMenuOpen={setPauseMenuOpen} 
       />

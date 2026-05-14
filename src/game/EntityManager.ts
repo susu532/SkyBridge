@@ -15,6 +15,7 @@ import {
 } from "./DroppedItemInstancedManager";
 import npcsData from "./data/npcs.json";
 import { audioManager } from "./AudioManager";
+import { IPlayerUpdate, IMobState, IMinionState } from "../types/shared";
 
 export class EntityManager {
   npcs: Map<string, NPC> = new Map();
@@ -89,7 +90,7 @@ export class EntityManager {
     this.spawnInitialNPCs();
 
     // Connect network events
-    networkManager.onMobSpawned = (data) => {
+    networkManager.onMobSpawned = (data: IMobState) => {
       const pos = new THREE.Vector3(
         data.position.x,
         data.position.y,
@@ -99,7 +100,7 @@ export class EntityManager {
         data.id,
         pos,
         data.level || 1,
-        data.type,
+        data.type as any,
         this.textureAtlas,
         data.team,
       );
@@ -138,7 +139,7 @@ export class EntityManager {
       this.removeMob(id);
     };
 
-    networkManager.onMinionSpawned = (data) => {
+    networkManager.onMinionSpawned = (data: IMinionState) => {
       const pos = new THREE.Vector3(
         data.position.x,
         data.position.y,
@@ -189,7 +190,7 @@ export class EntityManager {
       }
     });
 
-    networkManager.onPlayerRespawn = (data) => {
+    networkManager.onPlayerRespawn = (data: IPlayerUpdate & { position: { x: number, y: number, z: number }, yaw?: number }) => {
       const player = this.remotePlayers.get(data.id);
       if (player) {
         player.isDead = false;
@@ -389,7 +390,7 @@ export class EntityManager {
     }
   }
 
-  updateRemotePlayer(id: string, data: any) {
+  updateRemotePlayer(id: string, data: Partial<IPlayerUpdate> & { position?: { x: number, y: number, z: number }, rotation?: { x: number, y: number, z: number }, isFlying?: boolean, isSwimming?: boolean, isCrouching?: boolean, isSprinting?: boolean, isSwinging?: boolean, isGliding?: boolean, isInvulnerable?: boolean, swingSpeed?: number, isGrounded?: boolean, heldItem?: number, offHandItem?: number, isBlocking?: boolean }) {
     const player = this.remotePlayers.get(id);
     if (player) {
       player.lastNetPos.copy(player.currentPos);
@@ -398,6 +399,14 @@ export class EntityManager {
         data.position.y,
         data.position.z,
       );
+      
+      const rotEuler = new THREE.Euler(
+        data.rotation!.x,
+        data.rotation!.y,
+        data.rotation!.z,
+      );
+      player.addSnapshot(player.targetPosition, rotEuler);
+
       player.interpolationTimer = 0;
 
       player.targetRotation.set(

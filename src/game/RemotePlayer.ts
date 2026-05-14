@@ -2,9 +2,61 @@ import * as THREE from 'three';
 import { generateSkin, applySkinUVs } from './SkinManager';
 import { createItemModel } from './ItemModels';
 import { getBlockUVs, createTextureAtlas, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting } from './TextureAtlas';
+import { createVoidtrailTextureAtlas } from './VoidTrailTextureAtlas';
 import { settingsManager } from './Settings';
 import { ItemType } from './Inventory';
 import { audioManager } from './AudioManager';
+
+const _zeroVec = new THREE.Vector3(0, 0, 0);
+
+const _hitMin = new THREE.Vector3();
+const _hitMax = new THREE.Vector3();
+const _hitBox = new THREE.Box3();
+
+const SHARED_GEOS = {
+  body: new THREE.BoxGeometry(0.4, 0.6, 0.2),
+  bodyOuter: new THREE.BoxGeometry(0.42, 0.62, 0.22),
+  pack: new THREE.BoxGeometry(0.3, 0.4, 0.15),
+  head: new THREE.BoxGeometry(0.4, 0.4, 0.4),
+  headOuter: new THREE.BoxGeometry(0.42, 0.42, 0.42),
+  armL: new THREE.BoxGeometry(0.2, 0.6, 0.2),
+  armOuterL: new THREE.BoxGeometry(0.22, 0.62, 0.22),
+  armR: new THREE.BoxGeometry(0.2, 0.6, 0.2),
+  armOuterR: new THREE.BoxGeometry(0.22, 0.62, 0.22),
+  legL: new THREE.BoxGeometry(0.2, 0.6, 0.2),
+  legOuterL: new THREE.BoxGeometry(0.22, 0.62, 0.22),
+  legR: new THREE.BoxGeometry(0.2, 0.6, 0.2),
+  legOuterR: new THREE.BoxGeometry(0.22, 0.62, 0.22),
+  cape: new THREE.BoxGeometry(0.4, 1.0, 0.05),
+  armorBody: new THREE.BoxGeometry(0.44, 0.54, 0.24),
+  armorHead: new THREE.BoxGeometry(0.44, 0.24, 0.44),
+  armorLeg: new THREE.BoxGeometry(0.24, 0.44, 0.24),
+};
+
+// Pre-apply UVs to shared geometries
+applySkinUVs(SHARED_GEOS.body, 'body');
+applySkinUVs(SHARED_GEOS.bodyOuter, 'body', true);
+applySkinUVs(SHARED_GEOS.head, 'head');
+applySkinUVs(SHARED_GEOS.headOuter, 'head', true);
+applySkinUVs(SHARED_GEOS.armL, 'armL');
+SHARED_GEOS.armL.translate(0, -0.3, 0);
+applySkinUVs(SHARED_GEOS.armOuterL, 'armL', true);
+applySkinUVs(SHARED_GEOS.armR, 'armR');
+SHARED_GEOS.armR.translate(0, -0.3, 0);
+applySkinUVs(SHARED_GEOS.armOuterR, 'armR', true);
+applySkinUVs(SHARED_GEOS.legL, 'legL');
+SHARED_GEOS.legL.translate(0, -0.3, 0);
+applySkinUVs(SHARED_GEOS.legOuterL, 'legL', true);
+applySkinUVs(SHARED_GEOS.legR, 'legR');
+SHARED_GEOS.legR.translate(0, -0.3, 0);
+applySkinUVs(SHARED_GEOS.legOuterR, 'legR', true);
+SHARED_GEOS.cape.translate(0, -0.5, 0.025);
+
+export interface PlayerSnapshot {
+  time: number;
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
+}
 
 export class RemotePlayer {
   id: string;
@@ -32,6 +84,7 @@ export class RemotePlayer {
   targetPosition: THREE.Vector3;
   targetRotation: THREE.Euler;
   lastNetPos: THREE.Vector3;
+  snapshots: PlayerSnapshot[] = [];
   interpolationTimer: number = 0;
   
   isFlying = false;
@@ -103,23 +156,37 @@ export class RemotePlayer {
     scene.add(this.group);
   }
 
+  addSnapshot(position: THREE.Vector3, rotation: THREE.Euler) {
+    this.targetPosition.copy(position);
+    this.targetRotation.copy(rotation);
+    this.snapshots.push({
+      time: Date.now(),
+      position: position.clone(),
+      rotation: rotation.clone()
+    });
+    // Keep only last 4 snapshots
+    if (this.snapshots.length > 4) {
+      this.snapshots.shift();
+    }
+  }
+
   getHitbox(): THREE.Box3 {
     const width = 0.6;
     const height = 1.8;
     const pos = this.group.position;
     
-    const min = new THREE.Vector3(
+    _hitMin.set(
       pos.x - width / 2,
       pos.y,
       pos.z - width / 2
     );
-    const max = new THREE.Vector3(
+    _hitMax.set(
       pos.x + width / 2,
       pos.y + height,
       pos.z + width / 2
     );
     
-    return new THREE.Box3(min, max);
+    return _hitBox.set(_hitMin, _hitMax);
   }
 
   updateSkin(newSkinSeed: string) {
@@ -164,114 +231,83 @@ export class RemotePlayer {
       });
 
     // Body (The central pivot for the upper body)
-    const bodyGeo = new THREE.BoxGeometry(0.4, 0.6, 0.2);
-    applySkinUVs(bodyGeo, 'body');
-    this.bodyMesh = new THREE.Mesh(bodyGeo, skinMaterial);
+    this.bodyMesh = new THREE.Mesh(SHARED_GEOS.body, skinMaterial);
     this.bodyMesh.position.y = 0.9;
     this.bodyMesh.castShadow = true;
     this.bodyMesh.receiveShadow = true;
     this.group.add(this.bodyMesh);
 
-    const bodyOuterGeo = new THREE.BoxGeometry(0.42, 0.62, 0.22);
-    applySkinUVs(bodyOuterGeo, 'body', true);
-    const bodyOuter = new THREE.Mesh(bodyOuterGeo, outerMaterial);
+    const bodyOuter = new THREE.Mesh(SHARED_GEOS.bodyOuter, outerMaterial);
     this.bodyMesh.add(bodyOuter);
     
     // Backpack
-    const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.15);
     const packMat = isPerformance ?
       new THREE.MeshBasicMaterial({ color: 0x5c4033 }) :
       new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
-    const backpack = new THREE.Mesh(packGeo, packMat);
+    const backpack = new THREE.Mesh(SHARED_GEOS.pack, packMat);
     backpack.position.set(0, 0, 0.18);
     backpack.castShadow = true;
     this.bodyMesh.add(backpack);
 
     // Head (Child of Body)
-    const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-    applySkinUVs(headGeo, 'head');
-    this.headMesh = new THREE.Mesh(headGeo, skinMaterial);
+    this.headMesh = new THREE.Mesh(SHARED_GEOS.head, skinMaterial);
     this.headMesh.position.y = 0.5; // Relative to body center (0.9 + 0.5 = 1.4)
     this.headMesh.castShadow = true;
     this.headMesh.receiveShadow = true;
     this.bodyMesh.add(this.headMesh);
     
-    const headOuterGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
-    applySkinUVs(headOuterGeo, 'head', true);
-    const headOuter = new THREE.Mesh(headOuterGeo, outerMaterial);
+    const headOuter = new THREE.Mesh(SHARED_GEOS.headOuter, outerMaterial);
     this.headMesh.add(headOuter);
 
     // Arms (Children of Body)
-    const armGeoL = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    applySkinUVs(armGeoL, 'armL');
-    this.leftArmMesh = new THREE.Mesh(armGeoL, skinMaterial);
+    this.leftArmMesh = new THREE.Mesh(SHARED_GEOS.armL, skinMaterial);
     this.leftArmMesh.position.set(-0.3, 0.3, 0); // Relative to body center
-    this.leftArmMesh.geometry.translate(0, -0.3, 0);
     this.leftArmMesh.castShadow = true;
     this.leftArmMesh.receiveShadow = true;
     this.bodyMesh.add(this.leftArmMesh);
 
-    const armOuterGeoL = new THREE.BoxGeometry(0.22, 0.62, 0.22);
-    applySkinUVs(armOuterGeoL, 'armL', true);
-    const armOuterL = new THREE.Mesh(armOuterGeoL, outerMaterial);
+    const armOuterL = new THREE.Mesh(SHARED_GEOS.armOuterL, outerMaterial);
     armOuterL.position.y = -0.3;
     this.leftArmMesh.add(armOuterL);
 
-    const armGeoR = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    applySkinUVs(armGeoR, 'armR');
-    this.rightArmMesh = new THREE.Mesh(armGeoR, skinMaterial);
+    this.rightArmMesh = new THREE.Mesh(SHARED_GEOS.armR, skinMaterial);
     this.rightArmMesh.position.set(0.3, 0.3, 0); // Relative to body center
-    this.rightArmMesh.geometry.translate(0, -0.3, 0);
     this.rightArmMesh.castShadow = true;
     this.rightArmMesh.receiveShadow = true;
     this.bodyMesh.add(this.rightArmMesh);
 
-    const armOuterGeoR = new THREE.BoxGeometry(0.22, 0.62, 0.22);
-    applySkinUVs(armOuterGeoR, 'armR', true);
-    const armOuterR = new THREE.Mesh(armOuterGeoR, outerMaterial);
+    const armOuterR = new THREE.Mesh(SHARED_GEOS.armOuterR, outerMaterial);
     armOuterR.position.y = -0.3;
     this.rightArmMesh.add(armOuterR);
 
     // Legs (Children of Group)
-    const legGeoL = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    applySkinUVs(legGeoL, 'legL');
-    this.leftLegMesh = new THREE.Mesh(legGeoL, skinMaterial);
+    this.leftLegMesh = new THREE.Mesh(SHARED_GEOS.legL, skinMaterial);
     this.leftLegMesh.position.set(-0.1, 0.6, 0);
-    this.leftLegMesh.geometry.translate(0, -0.3, 0);
     this.leftLegMesh.castShadow = true;
     this.leftLegMesh.receiveShadow = true;
     this.group.add(this.leftLegMesh);
     
-    const legOuterGeoL = new THREE.BoxGeometry(0.22, 0.62, 0.22);
-    applySkinUVs(legOuterGeoL, 'legL', true);
-    const legOuterL = new THREE.Mesh(legOuterGeoL, outerMaterial);
+    const legOuterL = new THREE.Mesh(SHARED_GEOS.legOuterL, outerMaterial);
     legOuterL.position.y = -0.3;
     this.leftLegMesh.add(legOuterL);
 
-    const legGeoR = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    applySkinUVs(legGeoR, 'legR');
-    this.rightLegMesh = new THREE.Mesh(legGeoR, skinMaterial);
+    this.rightLegMesh = new THREE.Mesh(SHARED_GEOS.legR, skinMaterial);
     this.rightLegMesh.position.set(0.1, 0.6, 0);
-    this.rightLegMesh.geometry.translate(0, -0.3, 0);
     this.rightLegMesh.castShadow = true;
     this.rightLegMesh.receiveShadow = true;
     this.group.add(this.rightLegMesh);
 
-    const legOuterGeoR = new THREE.BoxGeometry(0.22, 0.62, 0.22);
-    applySkinUVs(legOuterGeoR, 'legR', true);
-    const legOuterR = new THREE.Mesh(legOuterGeoR, outerMaterial);
+    const legOuterR = new THREE.Mesh(SHARED_GEOS.legOuterR, outerMaterial);
     legOuterR.position.y = -0.3;
     this.rightLegMesh.add(legOuterR);
 
     // Cape (Child of Body)
-    const capeGeo = new THREE.BoxGeometry(0.4, 1.0, 0.05);
     const capeColor = team === 'blue' ? 0x3366cc : (team === 'red' ? 0xcc3333 : 0xcc3333);
     const capeMat = isPerformance ?
       new THREE.MeshBasicMaterial({ color: capeColor }) :
       new THREE.MeshStandardMaterial({ color: capeColor, roughness: 0.7 });
-    this.capeMesh = new THREE.Mesh(capeGeo, capeMat);
+    this.capeMesh = new THREE.Mesh(SHARED_GEOS.cape, capeMat);
     this.capeMesh.position.set(0, 0.3, 0.1); // Relative to body center
-    this.capeMesh.geometry.translate(0, -0.5, 0);
     this.capeMesh.castShadow = true;
     this.capeMesh.receiveShadow = true;
     this.bodyMesh.add(this.capeMesh);
@@ -517,8 +553,7 @@ export class RemotePlayer {
   private createArmor() {
     const armorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide });
 
-    const createArmorMesh = (w: number, h: number, d: number) => {
-      const geo = new THREE.BoxGeometry(w, h, d);
+    const createArmorMesh = (geo: THREE.BufferGeometry) => {
       const mesh = new THREE.Mesh(geo, armorMat);
       mesh.visible = false;
       this.armorMeshes.push(mesh);
@@ -526,23 +561,23 @@ export class RemotePlayer {
     };
 
     if (this.bodyMesh) {
-      const bodyArmor = createArmorMesh(0.44, 0.54, 0.24);
+      const bodyArmor = createArmorMesh(SHARED_GEOS.armorBody);
       bodyArmor.position.y = -0.27;
       this.bodyMesh.add(bodyArmor);
     }
     if (this.headMesh) {
-      const headArmor = createArmorMesh(0.44, 0.24, 0.44);
+      const headArmor = createArmorMesh(SHARED_GEOS.armorHead);
       headArmor.position.y = 0.11;
       this.headMesh.add(headArmor);
     }
     // Shoulders (arm armor) intentionally hidden
     if (this.leftLegMesh) {
-      const leftLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      const leftLegArmor = createArmorMesh(SHARED_GEOS.armorLeg);
       leftLegArmor.position.y = -0.22;
       this.leftLegMesh.add(leftLegArmor);
     }
     if (this.rightLegMesh) {
-      const rightLegArmor = createArmorMesh(0.24, 0.44, 0.24);
+      const rightLegArmor = createArmorMesh(SHARED_GEOS.armorLeg);
       rightLegArmor.position.y = -0.22;
       this.rightLegMesh.add(rightLegArmor);
     }
@@ -670,7 +705,8 @@ export class RemotePlayer {
         uvAttribute.needsUpdate = true;
         
         if (!(mesh.material as THREE.MeshStandardMaterial).map) {
-          (mesh.material as THREE.MeshStandardMaterial).map = createTextureAtlas();
+          const isVoidtrail = new URLSearchParams(window.location.search).get("server")?.startsWith("voidtrail");
+          (mesh.material as THREE.MeshStandardMaterial).map = isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
         }
       }
     }
@@ -759,16 +795,44 @@ export class RemotePlayer {
     }
 
     // Networked movement interpolation
-    const dist = this.currentPos.distanceTo(this.targetPosition);
-    if (dist > 10) {
-      this.currentPos.copy(this.targetPosition);
+    const renderTime = Date.now() - 50; // 50ms artificial delay
+    
+    let snapA = null;
+    let snapB = null;
+    
+    for (let i = 0; i < this.snapshots.length - 1; i++) {
+       if (this.snapshots[i].time <= renderTime && this.snapshots[i+1].time >= renderTime) {
+          snapA = this.snapshots[i];
+          snapB = this.snapshots[i+1];
+          break;
+       }
+    }
+    
+    if (snapA && snapB) {
+       const duration = snapB.time - snapA.time;
+       const t = duration > 0 ? Math.max(0, Math.min(1, (renderTime - snapA.time) / duration)) : 1;
+       this.currentPos.lerpVectors(snapA.position, snapB.position, t);
+    } else if (this.snapshots.length > 0) {
+       const latest = this.snapshots[this.snapshots.length - 1];
+       const dist = this.currentPos.distanceTo(latest.position);
+       if (dist > 10) {
+          this.currentPos.copy(latest.position);
+       } else {
+          const moveFactor = 1.0 - Math.exp(-20 * delta);
+          this.currentPos.lerp(latest.position, moveFactor);
+       }
     } else {
-      const moveFactor = 1.0 - Math.exp(-20 * delta);
-      this.currentPos.lerp(this.targetPosition, moveFactor);
+       const dist = this.currentPos.distanceTo(this.targetPosition);
+       if (dist > 10) {
+         this.currentPos.copy(this.targetPosition);
+       } else {
+         const moveFactor = 1.0 - Math.exp(-20 * delta);
+         this.currentPos.lerp(this.targetPosition, moveFactor);
+       }
     }
 
     const decay = 1.0 - Math.exp(-15 * delta); // Snappy exponential decay
-    this.visualOffset.lerp(new THREE.Vector3(0, 0, 0), decay);
+    this.visualOffset.lerp(_zeroVec, decay);
     this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, 0, decay);
     
     this.group.position.copy(this.currentPos).add(this.visualOffset);

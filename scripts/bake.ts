@@ -2,43 +2,134 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 
-const dbPath = path.join(process.cwd(), 'skybridge.db');
-const db = new Database(dbPath);
+// Constants
+const CHUNK_SIZE = 16;
+const CHUNK_HEIGHT = 256;
+const WORLD_Y_OFFSET = -60;
 
-const getChunks = db.prepare(`SELECT world, chunk_id, data FROM chunk_data`);
-const allData = getChunks.all() as any[];
-console.log(`Found ${allData.length} total chunk rows.`);
+const cwd = process.cwd();
 
-const outPathRaw = path.join(process.cwd(), 'data', 'skycastlesBakedBlocks.json');
-let existingBlocks: Record<string, number> = {};
-if (fs.existsSync(outPathRaw)) {
-  try {
-    existingBlocks = JSON.parse(fs.readFileSync(outPathRaw, 'utf-8'));
-    console.log(`Loaded ${Object.keys(existingBlocks).length} existing baked blocks.`);
-  } catch (err) {}
-}
+async function bakeSkycastles() {
+  const dbPath = path.join(cwd, 'db_skycastles_1.db');
+  
+  if (!fs.existsSync(dbPath)) {
+    console.error("No skycastles database found at", dbPath);
+    return;
+  }
 
-const skycastlesBlocks: Record<string, number> = { ...existingBlocks };
-
-for (const row of allData) {
-  if (!row.world.includes('skycastles')) continue;
-  try {
-    const chunkBlocks = JSON.parse(row.data);
-    for (const key of Object.keys(chunkBlocks)) {
-      skycastlesBlocks[key] = chunkBlocks[key];
+  const db = new Database(dbPath);
+  
+  // Read all existing baked blocks from JSON
+  const mapPath = path.join(cwd, 'data', 'skycastlesBakedBlocks.json');
+  let bakedBlocks: Record<string, number> = {};
+  if (fs.existsSync(mapPath)) {
+    try {
+      bakedBlocks = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+    } catch (e) {
+      console.error('Error parsing skycastlesBakedBlocks.json:', e);
     }
-  } catch (err) { }
+  }
+
+  const rows = db.prepare(`SELECT chunk_id, data FROM chunk_data WHERE world = 'skycastles_1'`).all() as any[];
+  
+  let newlyAdded = 0;
+  
+  for (const row of rows) {
+    if (!row.data) continue;
+    
+    if (typeof row.data === 'string' && row.data.startsWith('{')) {
+      const chunkBlocks = JSON.parse(row.data);
+      for (const k of Object.keys(chunkBlocks)) {
+        if (chunkBlocks[k] !== 0) {
+          bakedBlocks[k] = chunkBlocks[k];
+          newlyAdded++;
+        }
+      }
+    } else {
+      const arr = new Uint16Array(
+        row.data.buffer,
+        row.data.byteOffset,
+        row.data.byteLength / 2
+      );
+      
+      const [cx, cz] = row.chunk_id.split(',').map(Number);
+      
+      for (let ly = 0; ly < CHUNK_HEIGHT; ly++) {
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+             const idx = lx | (lz << 4) | (ly << 8);
+             const type = arr[idx];
+             if (type !== 0 && type !== 65535) {
+               const wx = cx * CHUNK_SIZE + lx;
+               const wz = cz * CHUNK_SIZE + lz;
+               const wy = ly + WORLD_Y_OFFSET;
+               const key = `${wx},${wy},${wz}`;
+               bakedBlocks[key] = type;
+               newlyAdded++;
+             }
+          }
+        }
+      }
+    }
+  }
+
+  // Also remove air blocks if user manually deleted a baked block!
+  // Actually, wait, if type === 0, it means the user deleted it.
+  for (const row of rows) {
+    if (!row.data) continue;
+    if (typeof row.data === 'string' && row.data.startsWith('{')) {
+      const chunkBlocks = JSON.parse(row.data);
+      for (const k of Object.keys(chunkBlocks)) {
+        if (chunkBlocks[k] === 0 && bakedBlocks[k]) {
+          delete bakedBlocks[k];
+        }
+      }
+    } else {
+      const arr = new Uint16Array(
+        row.data.buffer,
+        row.data.byteOffset,
+        row.data.byteLength / 2
+      );
+      const [cx, cz] = row.chunk_id.split(',').map(Number);
+      for (let ly = 0; ly < CHUNK_HEIGHT; ly++) {
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+             const idx = lx | (lz << 4) | (ly << 8);
+             const type = arr[idx];
+             if (type === 0) {
+               const wx = cx * CHUNK_SIZE + lx;
+               const wz = cz * CHUNK_SIZE + lz;
+               const wy = ly + WORLD_Y_OFFSET;
+               const key = `${wx},${wy},${wz}`;
+               if (bakedBlocks[key] !== undefined) {
+                 delete bakedBlocks[key];
+               }
+             }
+          }
+        }
+      }
+    }
+  }
+  
+  // Write updated blocks back to JSON
+  fs.writeFileSync(mapPath, JSON.stringify(bakedBlocks, null, 2), 'utf8');
+
+  // Next, we also need to write to `src/game/SkycastlesBakedBlocks.ts` so it gets bundled
+  let tsContent = 'export const skycastlesBakedBlocks = new Map<string, number>([\n';
+  const entries = Object.entries(bakedBlocks);
+  for (let i = 0; i < entries.length; i++) {
+    const [k, v] = entries[i];
+    tsContent += `  ["${k}", ${v}]${i < entries.length - 1 ? ',' : ''}\n`;
+  }
+  tsContent += ']);\n';
+  
+  const tsPath = path.join(cwd, 'src', 'game', 'SkycastlesBakedBlocks.ts');
+  fs.writeFileSync(tsPath, tsContent, 'utf8');
+  
+  // Finally, wipe the SQLite database chunk_data for skycastles so we don't double load
+  db.prepare(`DELETE FROM chunk_data WHERE world = 'skycastles_1'`).run();
+  
+  console.log(`Baking complete! Added/Updated ${newlyAdded} blocks into SkycastlesBakedBlocks.ts! DB chunk_data cleared.`);
 }
 
-fs.writeFileSync(outPathRaw, JSON.stringify(skycastlesBlocks, null, 2));
-
-const numBlocks = Object.keys(skycastlesBlocks).length;
-console.log(`Saved ${numBlocks} baked blocks to ${outPathRaw}`);
-
-if (numBlocks > 0) {
-  const tsContent = `export const skycastlesBakedBlocks = new Map<string, number>([\n` +
-    Object.entries(skycastlesBlocks).map(([k, v]) => `  ["${k}", ${v}]`).join(',\n') +
-    `\n]);\n`;
-  fs.writeFileSync(path.join(process.cwd(), 'src', 'game', 'SkycastlesBakedBlocks.ts'), tsContent);
-  console.log(`Saved ${numBlocks} baked blocks to src/game/SkycastlesBakedBlocks.ts`);
-}
+bakeSkycastles().catch(console.error);

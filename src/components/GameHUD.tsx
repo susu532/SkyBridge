@@ -19,8 +19,24 @@ import { HotbarUI } from './HotbarUI';
 import { Game } from '../game/Game';
 import { Maximize, Settings as SettingsIcon } from 'lucide-react';
 
-export function GameHUD({ game, isMobile, showDebug, targetInfo, setPauseMenuOpen }: any) {
-  const { isHUDVisible, isLocked, isTyping, setTyping } = useUI();
+function CrosshairTargetInfo({ currentMode }: { currentMode: string }) {
+  const targetInfo = useGameStore(state => state.targetInfo);
+  if (!targetInfo.type || currentMode === 'voidtrail') return null;
+
+  return (
+    <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
+      {targetInfo.name}
+      {targetInfo.type === 'npc' && targetInfo.id?.startsWith('hub_npc_') && currentMode === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
+      {targetInfo.type === 'npc' && !targetInfo.id?.startsWith('hub_npc_') && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
+    </div>
+  );
+}
+
+export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
+  const isHUDVisible = useUI(state => state.isHUDVisible);
+  const isLocked = useUI(state => state.isLocked);
+  const isTyping = useUI(state => state.isTyping);
+  const setTyping = useUI(state => state.setTyping);
   const currentMode = useGameStore(state => state.currentMode);
 
   return (
@@ -74,13 +90,7 @@ export function GameHUD({ game, isMobile, showDebug, targetInfo, setPauseMenuOpe
         <div className="absolute top-1/2 left-1/2 w-4 h-4 -mt-2 -ml-2 pointer-events-none flex items-center justify-center">
           <div className="w-full h-[2px] bg-white mix-blend-difference" />
           <div className="h-full w-[2px] bg-white mix-blend-difference absolute" />
-          {targetInfo.type && (
-            <div className="absolute top-6 px-2 py-1 bg-black/80 text-[12px] text-white font-sans drop-shadow-[1px_1px_0_rgba(0,0,0,1)] whitespace-nowrap">
-              {targetInfo.name}
-              {targetInfo.type === 'npc' && targetInfo.id?.startsWith('hub_npc_') && currentMode === 'hub' && <span className="ml-2 text-[#FFFF55]">[Right Click to Join]</span>}
-              {targetInfo.type === 'npc' && !targetInfo.id?.startsWith('hub_npc_') && <span className="ml-2 text-[#FFFF55]">[Right Click to Talk]</span>}
-            </div>
-          )}
+          <CrosshairTargetInfo currentMode={currentMode} />
         </div>
       )}
 

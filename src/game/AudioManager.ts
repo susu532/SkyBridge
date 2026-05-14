@@ -14,6 +14,7 @@ class AudioManager {
   private musicVolume: number = 0.4;
 
   private positionalPool: THREE.PositionalAudio[] = [];
+  private audioPool: THREE.Audio[] = [];
 
   constructor() {
     this.audioLoader = new THREE.AudioLoader();
@@ -30,13 +31,16 @@ class AudioManager {
       const initialVolume = settingsManager.getSettings().volume;
       if (this.listener) this.listener.setMasterVolume(initialVolume);
 
-      // Initialize pool
-      for (let i = 0; i < 20; i++) {
+      // Initialize pools
+      for (let i = 0; i < 30; i++) {
         const pAudio = new THREE.PositionalAudio(this.listener);
         pAudio.setRefDistance(5);
         pAudio.setMaxDistance(50);
         pAudio.setRolloffFactor(1);
         this.positionalPool.push(pAudio);
+      }
+      for (let i = 0; i < 20; i++) {
+        this.audioPool.push(new THREE.Audio(this.listener));
       }
 
       // Unbreakable brute-force unlocking to guarantee audio context resumes
@@ -185,17 +189,23 @@ class AudioManager {
 
   public play(name: string, volume: number = 0.5, pitch: number = 1.0) {
     this.resume();
-    const sound = this.sounds.get(name);
-    if (sound && sound.buffer) {
-      if (sound.isPlaying) {
-        sound.stop();
-      }
-      sound.setVolume(volume);
-      if (sound.setPlaybackRate) {
-        sound.setPlaybackRate(pitch);
-      }
-      sound.play();
+    const baseSound = this.sounds.get(name);
+    if (!baseSound || !baseSound.buffer) return;
+
+    let audio = this.audioPool.find(a => !a.isPlaying);
+    if (!audio) {
+      audio = this.audioPool[0];
+      if (audio.isPlaying) audio.stop();
     }
+
+    audio.setBuffer(baseSound.buffer);
+    audio.setVolume(volume);
+    
+    if (audio.setPlaybackRate) {
+      audio.setPlaybackRate(pitch);
+    }
+    
+    audio.play();
   }
 
   public playPositional(name: string, position: THREE.Vector3, volume: number = 0.5, pitch: number = 1.0, distance: number = 20) {

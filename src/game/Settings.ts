@@ -93,11 +93,13 @@ class SettingsManager {
     }
 
     try {
-      const saved = localStorage.getItem('game_settings_v2');
-      if (saved) {
-        // Deep merge to ensure all defaults are present (like keybinds)
-        const parsed = JSON.parse(saved);
-        this.settings = { ...this.settings, ...parsed };
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('game_settings_v2');
+        if (saved) {
+          // Deep merge to ensure all defaults are present (like keybinds)
+          const parsed = JSON.parse(saved);
+          this.settings = { ...this.settings, ...parsed };
+        }
       }
     } catch (e) {
       console.error('Failed to access or parse localStorage settings', e);
@@ -111,7 +113,9 @@ class SettingsManager {
   updateSettings(newSettings: Partial<GameSettings>) {
     this.settings = { ...this.settings, ...newSettings };
     try {
-      localStorage.setItem('game_settings_v2', JSON.stringify(this.settings));
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.setItem('game_settings_v2', JSON.stringify(this.settings));
+      }
     } catch (e) {
       console.error('Failed to save settings to localStorage', e);
     }
