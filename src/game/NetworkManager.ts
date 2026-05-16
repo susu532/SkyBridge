@@ -665,12 +665,14 @@ export class NetworkManager {
   }
 
   async requestChunkChanges(cx: number, cz: number): Promise<Uint16Array | null> {
+    if (!this.socket) return null;
     return new Promise((resolve) => {
       const handler = (data: any) => {
         if (data.cx === cx && data.cz === cz) {
           this.socket.off("chunkData", handler);
           if (data.patch) {
              const out = new Uint16Array(16*256*16);
+             out.fill(65535);
              for(let i=0; i<data.patch.length; i+=2) {
                  out[data.patch[i]] = data.patch[i+1];
              }

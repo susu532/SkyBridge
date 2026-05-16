@@ -2,7 +2,7 @@ import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { Player } from './Player';
 import { BLOCK, isPlant, ATLAS_TILES, isFlatItem, isSolidBlock } from './TextureAtlas';
-import { ItemType } from './Inventory';
+import { ItemType, Inventory } from './Inventory';
 import { audioManager } from './AudioManager';
 import { networkManager } from './NetworkManager';
 import { skyBridgeManager, SkillType, Rarity } from './SkyBridgeManager';
@@ -279,8 +279,10 @@ export class PlayerInputController {
       case keybinds.slot8: if (!this.player.world.isHub) this.player.hotbarIndex = 7; break;
       case keybinds.slot9: if (!this.player.world.isHub) this.player.hotbarIndex = 8; break;
       case keybinds.fly: 
-        this.player.isFlying = !this.player.isFlying;
-        this.player.velocity.set(0, 0, 0);
+       
+          this.player.isFlying = !this.player.isFlying;
+          this.player.velocity.set(0, 0, 0);
+       
         break;
       case keybinds.jump: 
         this.moveUp = true;
@@ -439,6 +441,10 @@ export class PlayerInputController {
           if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
           }
+        } else if (npc.id === 'hub_npc_island') {
+          if (networkManager.serverName.startsWith('hub')) {
+            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skyisland' } }));
+          }
         } else if (npc.id.startsWith('bren')) {
           window.dispatchEvent(new CustomEvent('openLaunchMenu'));
         } else {
@@ -523,7 +529,12 @@ export class PlayerInputController {
         
         const isCombative = event.button === 0 && !this.player.isMining;
         const kbForce = isCombative ? (this.isSprinting ? 12 : 8) : 0;
-        const kbDir = direction.clone().setY(0).normalize().multiplyScalar(kbForce);
+        const attackerYaw = this.player.cameraYaw;
+        const kbDir = new THREE.Vector3(
+          -Math.sin(attackerYaw) * kbForce,
+          0,
+          -Math.cos(attackerYaw) * kbForce
+        );
         
         networkManager.attack(player.id, false, kbDir, this.isSprinting, damage, isCrit);
         
@@ -557,7 +568,12 @@ export class PlayerInputController {
         
         const isCombative = true;
         const kbForce = this.isSprinting ? 12 : 8;
-        const kbDir = direction.clone().setY(0).normalize().multiplyScalar(kbForce);
+        const attackerYaw = this.player.cameraYaw;
+        const kbDir = new THREE.Vector3(
+          -Math.sin(attackerYaw) * kbForce,
+          0,
+          -Math.cos(attackerYaw) * kbForce
+        );
         networkManager.attack(mob.id, true, kbDir, this.isSprinting, damage, isCrit);
         // We now rely on the network to dictate our damage loop output (or we can predict it locally)
         // Predicting locally for immediate feedback, but the server has the real state:
@@ -573,8 +589,6 @@ export class PlayerInputController {
           }
         }
         
-        mob.knockback(direction.clone().setY(0).normalize(), kbForce);
-
         // Also note: we are just predicting the visual hit here.
         // Mobs update their actual death logic from the server loop via 'mobDespawned' and 'mobsUpdate' events.
 
@@ -646,6 +660,19 @@ export class PlayerInputController {
         const blockType = this.player.world.getBlock(hitResult.blockPos.x, hitResult.blockPos.y, hitResult.blockPos.z);
         
         if (blockType === ItemType.CHEST || blockType === ItemType.ENDER_CHEST || blockType === ItemType.CHEST_REVERSED) {
+          const chestId = `${hitResult.blockPos.x},${hitResult.blockPos.y},${hitResult.blockPos.z}`;
+          if (blockType !== ItemType.ENDER_CHEST) {
+            if (!this.player.chestInventories.has(chestId)) {
+                this.player.chestInventories.set(chestId, new Inventory(27));
+            }
+            this.player.chestInventory = this.player.chestInventories.get(chestId)!;
+          } else {
+            if (!this.player.chestInventories.has('ender_chest')) {
+                this.player.chestInventories.set('ender_chest', new Inventory(27));
+            }
+            this.player.chestInventory = this.player.chestInventories.get('ender_chest')!;
+          }
+
           if (hitResult.blockPos.y === 16 && hitResult.blockPos.x === 0 && Math.abs(hitResult.blockPos.z) <= 12) {
             const hasLootedKey = `looted_mid_chest_${hitResult.blockPos.z > 0 ? 'blue' : 'red'}`;
             if (!(window as any)[hasLootedKey]) {

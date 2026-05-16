@@ -190,10 +190,10 @@ export class NPC {
     const skinTexture = generateSkin(this.id);
     const skinMaterial = isPerformance ?
       new THREE.MeshBasicMaterial({ map: skinTexture }) :
-      new THREE.MeshLambertMaterial({ map: skinTexture });
+      new THREE.MeshStandardMaterial({ map: skinTexture, roughness: 0.9, metalness: 0.1 });
     const outerMaterial = isPerformance ?
       new THREE.MeshBasicMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide }) :
-      new THREE.MeshLambertMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
+      new THREE.MeshStandardMaterial({ map: skinTexture, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide, roughness: 0.9, metalness: 0.1 });
 
     // Head
     const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
@@ -216,7 +216,7 @@ export class NPC {
       const hatGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 8);
       const hatMat = isPerformance ?
         new THREE.MeshBasicMaterial({ color: 0x222222 }) :
-        new THREE.MeshLambertMaterial({ color: 0x222222 });
+        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
       const hat = new THREE.Mesh(hatGeo, hatMat);
       hat.position.y = 0.25;
       hat.castShadow = true;
@@ -244,7 +244,7 @@ export class NPC {
       const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.15);
       const packMat = isPerformance ?
         new THREE.MeshBasicMaterial({ color: 0x8b4513 }) :
-        new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.9 });
       const backpack = new THREE.Mesh(packGeo, packMat);
       backpack.position.set(0, 0, 0.18);
       backpack.castShadow = true;

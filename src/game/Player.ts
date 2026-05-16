@@ -49,7 +49,10 @@ export class Player {
   inputController: PlayerInputController;
   physics: PlayerPhysics;
   inventory = new Inventory(37);
-  chestInventory = new Inventory(27);
+  chestInventories = new Map<string, Inventory>();
+  _chestInventory = new Inventory(27);
+  get chestInventory() { return this._chestInventory; }
+  set chestInventory(inv: Inventory) { this._chestInventory = inv; }
   private _hotbarIndex = 0;
   get hotbarIndex() {
     return this._hotbarIndex;
@@ -152,6 +155,9 @@ export class Player {
 
   get headMesh() {
     return this.renderer.headMesh;
+  }
+  get neckMesh() {
+    return this.renderer.neckMesh;
   }
   get bodyMesh() {
     return this.renderer.bodyMesh;
@@ -304,6 +310,7 @@ export class Player {
       if (e.detail.team !== undefined) {
         this.team = e.detail.team;
         this.renderer.updateTeam(this.team);
+        useGameStore.getState().setPlayerTeam(this.team || null);
       }
 
       const wasDead = this.isDead || this.isSpectator;
@@ -418,7 +425,8 @@ export class Player {
 
   setupSkyCastlesInventory() {
     this.inventory.clear();
-    this.chestInventory.clear();
+    this.chestInventories.clear();
+    this.chestInventory = new Inventory(27);
     this.inventory.addItem(ItemType.WOODEN_SWORD, 1);
     this.inventory.addItem(ItemType.TORCH, 1);
     this.inventory.addItem(ItemType.PLANKS, 10);
@@ -428,7 +436,8 @@ export class Player {
 
   setupDungeonDelverInventory() {
     this.inventory.clear();
-    this.chestInventory.clear();
+    this.chestInventories.clear();
+    this.chestInventory = new Inventory(27);
     
     // Core starter gear for Delver
     this.inventory.addItem(ItemType.STONE_SWORD, 1);
@@ -509,15 +518,15 @@ export class Player {
 
     if (knockbackDir) {
       // Normalize and apply a consistent, powerful knockback
+      const force = Math.max(8.0, knockbackDir.length());
       const dir = knockbackDir.clone().normalize();
-      const force = 8.0;
 
       this.knockbackVelocity.x = dir.x * force;
       this.knockbackVelocity.z = dir.z * force;
 
       // Add vertical lift to make knockback feel more impactful
       if (this.canJump || this.isSwimming) {
-        this.velocity.y = 5.5;
+        this.velocity.y = Math.min(8.0, 5.5 + (force - 8.0) * 0.5);
       }
     }
   }

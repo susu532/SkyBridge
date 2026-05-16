@@ -15,7 +15,8 @@ export const Slot: React.FC<{
   dragButton?: number
 }> = memo(({ item, onClick, onDoubleClick, isResult, onHover, isDragging, dragButton }) => (
   <div 
-    onMouseDown={(e) => {
+    onPointerDown={(e) => {
+      e.stopPropagation();
       e.preventDefault();
       onClick(item, e.button, e.shiftKey, false);
     }}
@@ -163,17 +164,22 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
   const face = uvs ? uvs[4] : [0, 0];
   const [x, y] = face;
   
+  const isWeaponOrToolOrBow = item?.type && (
+    (item.type >= 436 && item.type <= 455) || // tools and swords
+    item.type === 461 || item.type === 54     // bow, AOTE
+  );
+  
   return (
     <div className="relative w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center select-none">
       <motion.div 
-        whileHover={{ scale: 1.15, rotate: 5 }}
-        className="w-5 h-5 sm:w-7 sm:h-7" 
+        whileHover={{ scale: isWeaponOrToolOrBow ? 1.25 : 1.15, rotate: 5 }}
+        className={`w-5 h-5 sm:w-7 sm:h-7 ${isWeaponOrToolOrBow ? 'scale-125 origin-center' : ''}`} 
         style={{ 
           backgroundImage: `url(${atlasUrl})`,
           backgroundSize: '3200% 3200%',
           backgroundPosition: `${(x / 31) * 100}% ${(y / 31) * 100}%`,
           imageRendering: 'pixelated',
-          filter: 'drop-shadow(2px 2px 0px rgba(0,0,0,0.3))'
+          filter: 'drop-shadow(1.5px 1.5px 0px rgba(0,0,0,0.4))'
         }} 
         title={ITEM_NAMES[item.type]}
       />

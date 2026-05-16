@@ -2,6 +2,35 @@ import * as THREE from 'three';
 import { ItemType } from './Inventory';
 import { ITEM_COLORS } from './Constants';
 
+export const animatedItems: { mesh: THREE.Object3D, update: (time: number) => void }[] = [];
+
+export function updateAnimatedItems(time: number) {
+  for (let i = animatedItems.length - 1; i >= 0; i--) {
+    const item = animatedItems[i];
+    
+    // Check if item is in the scene graph
+    let inScene = false;
+    let node: THREE.Object3D | null = item.mesh;
+    while (node) {
+      if (node.type === 'Scene') {
+        inScene = true;
+        break;
+      }
+      node = node.parent;
+    }
+    
+    // If not in scene and has no parent at all, it might be orphaned.
+    // But we allow it to exist if it has a parent (maybe temporarily off-screen).
+    if (inScene) {
+      item.update(time);
+    } else if (!item.mesh.parent) {
+       // If it has no parent, it's likely been disposed/cleared.
+       // E.g. PlayerRenderer.ts model.clear() removes children and sets parent to null.
+       animatedItems.splice(i, 1);
+    }
+  }
+}
+
 export function createItemModel(type: ItemType): THREE.Group {
   const group = new THREE.Group();
   
@@ -542,12 +571,41 @@ export function createItemModel(type: ItemType): THREE.Group {
     group.add(inner);
   } else if (isAOTE) {
     // Special Magic Sword - Aspect of the End
-    const aoteMaterial = new THREE.MeshStandardMaterial({
-      color: '#55FFFF',
-      emissive: '#00AAAA',
-      emissiveIntensity: 0.8,
-      metalness: 0.9,
-      roughness: 0.1
+    const aoteMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        baseColor: { value: new THREE.Color('#55FFFF') },
+        glowColor: { value: new THREE.Color('#FFFFFF') }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        void main() {
+          vUv = uv;
+          vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        uniform float time;
+        uniform vec3 baseColor;
+        uniform vec3 glowColor;
+        
+        void main() {
+          // Magical scrolling energy effect
+          float pulse = sin(vPosition.y * 15.0 - time * 4.0) * 0.5 + 0.5;
+          float pulse2 = sin(vPosition.x * 20.0 + time * 3.0) * 0.5 + 0.5;
+          
+          float energy = max(pow(pulse, 3.0), pow(pulse2, 3.0));
+          vec3 finalColor = mix(baseColor, glowColor, energy * 0.8);
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide
     });
     
     const bladeGeo = new THREE.BoxGeometry(0.12, 1.2, 0.04);
@@ -574,14 +632,48 @@ export function createItemModel(type: ItemType): THREE.Group {
     group.add(grip);
     
     // Floating "energy" bits
+    const spikes: THREE.Mesh[] = [];
     for(let i=0; i<4; i++) {
         const spikeGeo = new THREE.ConeGeometry(0.02, 0.15, 4);
         const spike = new THREE.Mesh(spikeGeo, aoteMaterial);
         const angle = (i / 4) * Math.PI * 2;
         spike.position.set(Math.cos(angle)*0.18, 0.4 + i*0.2, Math.sin(angle)*0.18);
         spike.rotation.x = Math.PI / 2;
+        spikes.push(spike);
         group.add(spike);
     }
+
+    const updateFn = (time: number) => {
+        aoteMaterial.uniforms.time.value = time;
+        
+        // Intense Heartbeat pulse for the crystal
+        const heartbeat = Math.sin(time * 8) * 0.5 + 0.5;
+        const crystalScale = 1.0 + heartbeat * 0.6;
+        crystal.scale.set(crystalScale, crystalScale, crystalScale);
+        crystal.rotation.y = time * 5;
+        crystal.rotation.x = Math.sin(time * 2) * 1.5;
+        
+        // Spikes orbit with varying speeds and distances, creating a chaotic energy field
+        spikes.forEach((spike, i) => {
+            const speed = 3.0 + i;
+            const angle = (i / 4) * Math.PI * 2 + time * speed;
+            const radius = 0.15 + Math.sin(time * 4 + i) * 0.08;
+            const yOffset = Math.cos(time * 6 + i) * 0.3;
+            
+            spike.position.set(Math.cos(angle) * radius, 0.5 + yOffset, Math.sin(angle) * radius);
+            
+            // Rapid chaotic spinning
+            spike.rotation.y = time * 10;
+            spike.rotation.z = Math.cos(time * 5 + i) * 2.0;
+            spike.rotation.x = Math.sin(time * 8 + i) * 1.5;
+        });
+        
+        // Blade pulsating energy scale effect
+        const bladeEnergy = Math.sin(time * 12) * 0.05 + 1.0;
+        blade.scale.set(bladeEnergy, 1.0, bladeEnergy);
+    };
+    group.userData.update = updateFn;
+    animatedItems.push({ mesh: group, update: updateFn });
   } else if (isMinion) {
     // 3D Minion Model
     const minionGroup = new THREE.Group();

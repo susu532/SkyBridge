@@ -320,11 +320,11 @@ export function useGameEngine() {
     const serverName = urlParams.get('server') || 'hub';
     if (serverName.startsWith('hub')) {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server battleroyale to join the game.');
+        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server skyisland to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('battleroyale') ? 'Battle Royale' : 'SkyBridge'}!`);
+        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('battleroyale') ? 'Battle Royale' : serverName.startsWith('skyisland') ? 'Sky Island' : 'SkyBridge'}!`);
       }, 2000);
     }
 

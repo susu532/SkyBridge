@@ -424,6 +424,8 @@ class LayerData {
           return (v[1] > y) ? 1.0 : 0.0;
         } else if (isWater(blockType)) {
           return 2.0;
+        } else if (blockType === BLOCK.LAVA) {
+          return 3.0; // 3.0 triggers vertical displacement in fragment shader
         }
         return 0.0;
       };

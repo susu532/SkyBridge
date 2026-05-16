@@ -47,15 +47,20 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40"
-        onClick={onClose}
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 pointer-events-auto"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (e.target === e.currentTarget) {
+             onClose();
+          }
+        }}
       >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
           className="bg-[#C6C6C6] border-t-4 border-l-4 border-white border-b-4 border-r-4 border-[#555555] w-full max-w-xs shadow-2xl overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="bg-[#8B8B8B] p-4 flex items-center justify-between border-b-4 border-[#555555]">

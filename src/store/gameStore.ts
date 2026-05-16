@@ -38,6 +38,8 @@ export interface CoreGameSlice {
   isMapLoading: boolean;
   loadingProgress: number;
   loadingMessage: string;
+  playerTeam: string | null;
+  setPlayerTeam: (team: string | null) => void;
   setIsMapLoading: (isLoading: boolean) => void;
   setLoadingProgress: (progress: number, message: string) => void;
   targetInfo: { type: 'block' | 'npc' | null, name: string | null, id?: string };
@@ -127,6 +129,8 @@ const createCoreGameSlice: StateCreator<GameState, [], [], CoreGameSlice> = (set
   setCurrentMode: (mode) => set({ currentMode: mode }),
   serverId: '',
   setServerId: (id) => set({ serverId: id }),
+  playerTeam: null,
+  setPlayerTeam: (team) => set({ playerTeam: team }),
   gameStartTime: 0,
   setGameStartTime: (time) => set({ gameStartTime: time }),
   isMapLoading: true,

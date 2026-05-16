@@ -12,13 +12,17 @@ export const LaunchMenuUI: React.FC<LaunchMenuUIProps> = ({ isOpen, onClose, onL
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 pointer-events-auto"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 "
+            className="absolute inset-0 bg-black/60 pointer-events-none"
           />
           
           <motion.div
@@ -27,6 +31,7 @@ export const LaunchMenuUI: React.FC<LaunchMenuUIProps> = ({ isOpen, onClose, onL
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             className="relative w-full max-w-sm bg-gradient-to-b from-[#1e1e24] to-[#141418] border border-purple-500/30 rounded-3xl shadow-2xl p-8 flex flex-col items-center text-center overflow-hidden"
+            onPointerDown={(e) => e.stopPropagation()}
           >
             {/* Background glow */}
             <div className="absolute -top-24 -translate-x-1/2 left-1/2 w-48 h-48 bg-purple-500/20 rounded-full blur-[50px] pointer-events-none" />

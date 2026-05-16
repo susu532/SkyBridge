@@ -216,9 +216,14 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 mc-font">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 mc-font pointer-events-auto"
+          onPointerDown={(e) => {
+             e.stopPropagation();
+             if (e.target === e.currentTarget) onClose();
+          }}
+        >
           <div className="transform scale-[0.6] sm:scale-[0.8] md:scale-100 landscape:scale-[0.55] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center pointer-events-none w-full h-full flex items-center justify-center">
-            <div className="pointer-events-auto flex items-center justify-center w-full" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="pointer-events-auto flex items-center justify-center w-full" onPointerDown={(e) => e.stopPropagation()}>
           <motion.div
             initial={{ scale: 0.8, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}

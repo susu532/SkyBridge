@@ -218,6 +218,17 @@
       },
       "rotation": 0,
       "shopItems": []
+    },
+    {
+      "id": "hub_npc_island",
+      "name": "Sky Island",
+      "position": {
+        "x": 18,
+        "y": 1,
+        "z": 20
+      },
+      "rotation": 0,
+      "shopItems": []
     }
   ],
   "skybridge": [
@@ -739,5 +750,24 @@
       ]
     }
   ],
-  "battleroyale": []
+  "battleroyale": [],
+  "skyisland": [
+    {
+      "id": "island_guide",
+      "name": "Island Guide",
+      "position": {
+        "x": 0,
+        "y": 66,
+        "z": -10
+      },
+      "rotation": 0,
+      "shopItems": [
+        {
+          "type": 461,
+          "price": 200,
+          "currency": 501
+        }
+      ]
+    }
+  ]
 }

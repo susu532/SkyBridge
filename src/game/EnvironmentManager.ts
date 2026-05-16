@@ -12,6 +12,7 @@ export class EnvironmentManager {
   
   // Sky elements
   sunMesh: THREE.Mesh | null = null;
+  sunRaysMesh: THREE.Mesh | null = null;
   moonMesh: THREE.Mesh | null = null;
   clouds: THREE.Group | null = null;
 
@@ -21,6 +22,7 @@ export class EnvironmentManager {
   globalWeatherIntensity: number = 0;
   rainPoints: THREE.Points | null = null;
   snowPoints: THREE.Points | null = null;
+  envTexture: THREE.DataTexture | null = null;
   
   constructor(game: Game) {
     this.game = game;
@@ -65,10 +67,184 @@ export class EnvironmentManager {
 
   setupSky() {
     // Sun
-    const sunGeo = new THREE.BoxGeometry(40, 40, 40);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+    const sunGeo = new THREE.PlaneGeometry(200, 200);
+    const sunMat = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        color: { value: new THREE.Color(0xffffee) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform float time;
+        uniform vec3 color;
+
+        // Random function
+        float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        }
+
+        // Noise function
+        float noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+
+            float a = random(i);
+            float b = random(i + vec2(1.0, 0.0));
+            float c = random(i + vec2(0.0, 1.0));
+            float d = random(i + vec2(1.0, 1.0));
+
+            vec2 u = f * f * (3.0 - 2.0 * f);
+
+            return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        // FBM 
+        float fbm(vec2 st) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            float frequency = 0.0;
+            for (int i = 0; i < 5; i++) {
+                value += amplitude * noise(st);
+                st *= 2.0;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+        
+        void main() {
+          vec2 p = vUv - 0.5;
+          float dist = length(p);
+          
+          // Corona distortion using FBM
+          float angle = atan(p.y, p.x);
+          float n1 = fbm(vec2(angle * 3.0 + time * 0.1, dist * 8.0 - time * 0.5));
+          float n2 = fbm(vec2(angle * 5.0 - time * 0.2, dist * 10.0 + time * 0.3));
+          float distortion = (n1 + n2) * 0.05;
+
+          dist += distortion;
+
+          // Realistic bright core with steep falloff
+          float core = 1.0 - smoothstep(0.08, 0.1, dist);
+          
+          // Inner glow
+          float innerGlow = 1.0 - smoothstep(0.08, 0.2, dist);
+          innerGlow = pow(innerGlow, 2.0);
+
+          // Outer halo/corona with noise
+          float haloDist = length(vUv - 0.5); // base distance for smooth falloff
+          float outerGlow = 1.0 - smoothstep(0.1, 0.5, haloDist);
+          outerGlow = pow(outerGlow, 3.0);
+          
+          // Star surface texture
+          float surfaceNoise = fbm(p * 20.0 + time * 0.2);
+          vec3 surfaceColor = mix(vec3(1.0, 0.9, 0.6), vec3(1.0, 1.0, 0.9), surfaceNoise);
+          
+          float alpha = clamp(core + innerGlow + outerGlow, 0.0, 1.0);
+          if (alpha < 0.01) discard;
+          
+          // Animate the global brightness slightly
+          float pulse = sin(time * 1.5) * 0.05 + 0.95;
+          
+          // Colors
+          vec3 tintColor = color * vec3(1.0, 0.9, 0.5) * pulse; // Warmer glow
+          vec3 finalColor = mix(tintColor * (innerGlow + outerGlow), surfaceColor, core);
+          
+          gl_FragColor = vec4(finalColor, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
     this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
     this.game.scene.add(this.sunMesh);
+
+    // Sun Rays (Sky Castles)
+    if (this.game.world.isSkyCastles) {
+      const rayGeo = new THREE.PlaneGeometry(500, 500);
+      const rayMat = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            color: { value: new THREE.Color(0xffffaa) },
+            sunIntensity: { value: 1.0 }
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float time;
+            uniform vec3 color;
+            uniform float sunIntensity;
+            varying vec2 vUv;
+            
+            // Random function
+            float random(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+            }
+
+            // Noise function
+            float noise(vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+
+                // Four corners in 2D of a tile
+                float a = random(i);
+                float b = random(i + vec2(1.0, 0.0));
+                float c = random(i + vec2(0.0, 1.0));
+                float d = random(i + vec2(1.0, 1.0));
+
+                vec2 u = f * f * (3.0 - 2.0 * f);
+
+                return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+            }
+            
+            void main() {
+                vec2 centeredUv = vUv - 0.5;
+                float dist = length(centeredUv);
+                
+                // Shorter sun rays limit
+                if (dist > 0.2) {
+                    discard;
+                }
+                
+                float angle = atan(centeredUv.y, centeredUv.x);
+                
+                // Construct animated rays using angle and time
+                float ray1 = noise(vec2(angle * 7.0 + time * 0.4, dist * 3.0 - time * 0.7));
+                float ray2 = noise(vec2(angle * 14.0 - time * 0.5, dist * 6.0 - time * 1.0));
+                
+                // Combine overlapping rays
+                float rays = max(ray1, ray2);
+                
+                // Soft gradient from center
+                float alpha = smoothstep(0.2, 0.05, dist) * smoothstep(0.0, 0.05, dist);
+                
+                // Sparkle effect
+                float sparkle = pow(rays, 3.0) * alpha * sunIntensity * 0.5;
+                
+                gl_FragColor = vec4(color, sparkle);
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      this.sunRaysMesh = new THREE.Mesh(rayGeo, rayMat);
+      this.game.scene.add(this.sunRaysMesh);
+    }
 
     // Moon
     const moonGeo = new THREE.BoxGeometry(30, 30, 30);
@@ -322,16 +498,47 @@ export class EnvironmentManager {
     const sunY = Math.sin(sunAngle);
     const sunX = Math.cos(sunAngle);
     const isDay = sunY > 0;
+    const isPremium = settingsManager.getSettings().premiumShaders;
     
     // Update Sun and Moon positions
     if (this.sunMesh) {
-      this.sunMesh.position.set(sunX * 250, sunY * 250, 0);
-      this.sunMesh.lookAt(0, 0, 0);
+      this.sunMesh.position.set(
+          this.game.player.position.x + sunX * 250, 
+          this.game.player.position.y + sunY * 250, 
+          this.game.player.position.z
+      );
+      this.sunMesh.lookAt(this.game.player.position);
       this.sunMesh.visible = !isPerformance && !this.game.world.isDungeonDelver;
+      
+      if (this.sunMesh.material instanceof THREE.ShaderMaterial) {
+          this.sunMesh.material.uniforms.time.value = this.game.clock.getElapsedTime();
+      }
+      
+      if (this.sunRaysMesh) {
+          const sunIntensityRays = Math.max(0, sunY) * 2.5; // Scale with sun position
+          // Add player world pos offset to sunRaysMesh to keep it relative
+          this.sunRaysMesh.position.set(
+              this.game.player.position.x + sunX * 240, 
+              this.game.player.position.y + sunY * 240, 
+              this.game.player.position.z
+          );
+          
+          this.sunRaysMesh.lookAt(this.game.player.position);
+          this.sunRaysMesh.visible = this.sunMesh.visible && sunIntensityRays > 0;
+          
+          if (this.sunRaysMesh.material instanceof THREE.ShaderMaterial) {
+              this.sunRaysMesh.material.uniforms.time.value = this.game.clock.getElapsedTime();
+              this.sunRaysMesh.material.uniforms.sunIntensity.value = sunIntensityRays;
+          }
+      }
     }
     if (this.moonMesh) {
-      this.moonMesh.position.set(-sunX * 250, -sunY * 250, 0);
-      this.moonMesh.lookAt(0, 0, 0);
+      this.moonMesh.position.set(
+          this.game.player.position.x - sunX * 250, 
+          this.game.player.position.y - sunY * 250, 
+          this.game.player.position.z
+      );
+      this.moonMesh.lookAt(this.game.player.position);
       this.moonMesh.visible = !isPerformance && !this.game.world.isDungeonDelver;
     }
 
@@ -384,10 +591,27 @@ export class EnvironmentManager {
     }
     
     this.game.scene.background = skyColor;
+    
+    // Create an environment map for PBR reflections (for RTX mode)
+    if (!this.envTexture) {
+      this.envTexture = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat);
+      this.envTexture.needsUpdate = true;
+      this.game.scene.environment = this.envTexture;
+    }
+    const envData = this.envTexture.image.data;
+    const r = Math.floor(skyColor.r * 255);
+    const g = Math.floor(skyColor.g * 255);
+    const b = Math.floor(skyColor.b * 255);
+    if (envData[0] !== r || envData[1] !== g || envData[2] !== b) {
+      envData[0] = r;
+      envData[1] = g;
+      envData[2] = b;
+      envData[3] = 255;
+      this.envTexture.needsUpdate = true;
+    }
 
     if (this.game.scene.fog instanceof THREE.FogExp2) {
       this.game.scene.fog.color.copy(skyColor);
-      const isPremium = settingsManager.getSettings().premiumShaders;
       if (this.game.player.isUnderLava) {
         this.game.scene.fog.density = 0.45;
       } else if (this.game.player.isUnderwater) {
@@ -449,6 +673,9 @@ export class EnvironmentManager {
       let targetIntensity = isDay ? Math.max(0, sunY) * 2.5 + 0.5 : Math.max(0, Math.abs(sunY)) * 0.8;
       if (this.game.world.isVoidtrail) {
        targetIntensity = isDay ? targetIntensity * 0.1 : targetIntensity * 0.2;
+      } else if (isPremium) {
+       // RTX Style: much brighter direct sunlight
+       targetIntensity = isDay ? targetIntensity * 1.5 : targetIntensity * 1.2;
       }
       
       if (this.globalWeatherIntensity > 0) {
@@ -470,6 +697,10 @@ export class EnvironmentManager {
             hemiLight.color.copy(skyColor).lerp(upBlend, 0.5);
             hemiLight.groundColor.copy(downBlend).lerp(new THREE.Color(0x111111), isDay ? 0.0 : 0.8);
             hemiLight.intensity = isDay ? (this.game.world.isVoidtrail ? 1.0 : 0.8) : (this.game.world.isVoidtrail ? 0.5 : 0.3);
+            if (isPremium && !this.game.world.isVoidtrail) {
+                // Stronger GI bounce feel
+                hemiLight.intensity *= 1.4;
+            }
           }
       }
     }
@@ -479,6 +710,10 @@ export class EnvironmentManager {
       if (this.game.world.isVoidtrail) ambientIntensity *= 1.3;
       if (this.globalWeatherIntensity > 0) {
         ambientIntensity = THREE.MathUtils.lerp(ambientIntensity, ambientIntensity * 0.6, this.globalWeatherIntensity);
+      }
+      if (isPremium) {
+         // RTX style: lower flat ambient, rely on directional + hemi + reflections
+         ambientIntensity *= 0.3;
       }
       ambientLight.intensity = ambientIntensity;
       if (this.game.world.isVoidtrail) {

@@ -22,6 +22,7 @@ export const HotbarUI: React.FC<{ game: Game | null }> = ({ game }) => {
   return (
       <div 
         className="absolute bottom-0 md:bottom-4 landscape:bottom-0 xl:landscape:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 md:gap-0 p-1 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] shadow-2xl pointer-events-auto max-w-[100vw] overflow-x-auto custom-scrollbar rounded-sm safe-mb transform scale-[0.75] sm:scale-100 landscape:scale-[0.6] md:landscape:scale-[0.7] xl:landscape:scale-100 origin-bottom"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {hotbarItems.map((item, i) => {
@@ -29,6 +30,7 @@ export const HotbarUI: React.FC<{ game: Game | null }> = ({ game }) => {
           return (
             <button
               key={i}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (game) {

@@ -47,6 +47,9 @@ export class EntityManager {
           kbDir = new THREE.Vector3(dir.x, dir.y, dir.z);
         }
         player.takeDamage(kbDir);
+        if (kbDir) {
+           player.knockback(kbDir.clone().normalize(), kbDir.length());
+        }
       }
     }
   };
@@ -70,6 +73,9 @@ export class EntityManager {
           kbDir = new THREE.Vector3(dir.x, dir.y, dir.z);
         }
         mob.takeDamage(0, kbDir, false);
+        if (kbDir) {
+           mob.knockback(kbDir.clone().normalize(), kbDir.length());
+        }
         // visual only, health updated via tick
       }
     }
@@ -118,8 +124,14 @@ export class EntityManager {
         const mob = this.mobs.get(id);
         if (mob) {
           const data = updates[id]; // [x, y, z, health]
+          
           mob.lastNetPos.copy(mob.group.position);
-          mob.targetPosition.set(data[0], data[1], data[2]);
+          if (mob.updatePositionFromServer) {
+            mob.updatePositionFromServer(data[0], data[1], data[2]);
+          } else {
+            // Fallback if missing
+            if(mob.targetPosition) mob.targetPosition.set(data[0], data[1], data[2]);
+          }
           mob.interpolationTimer = 0;
           mob.lastNetworkUpdate = now;
           mob.hasInitialPosition = true;
@@ -406,7 +418,6 @@ export class EntityManager {
         data.rotation!.z,
       );
       player.addSnapshot(player.targetPosition, rotEuler);
-
       player.interpolationTimer = 0;
 
       player.targetRotation.set(
@@ -479,7 +490,7 @@ export class EntityManager {
       npc.update(playerPos, delta);
     }
     for (const player of this.remotePlayers.values()) {
-      player.update(delta, playerPos);
+      player.update(delta, playerPos, this.world);
     }
     for (const minion of this.minions.values()) {
       minion.update(Date.now());

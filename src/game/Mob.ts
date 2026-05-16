@@ -69,6 +69,9 @@ export class Mob {
   tailWagCycle: number = 0;
   alertTimer: number = 0;
   knockbackTimer: number = 0;
+  lastKnockbackTime: number = 0;
+  predictionOffset = new THREE.Vector3();
+  knockbackVelocity = new THREE.Vector3();
 
   visualOffset = new THREE.Vector3();
   damageRotate = 0;
@@ -242,11 +245,23 @@ export class Mob {
         this.position.lerp(this.targetPosition, moveFactor);
       }
 
-      const decay = 1.0 - Math.exp(-15 * delta);
+      // Apply knockback to prediction offset instead of modifying real state
+      if (this.knockbackVelocity.lengthSq() > 0.01) {
+        const step = this.knockbackVelocity.clone().multiplyScalar(delta);
+        this.predictionOffset.add(step);
+        this.knockbackVelocity.multiplyScalar(1.0 - 8.0 * delta); // friction
+      }
+
+      // Decay the prediction offset as server syncs up
+      const predDecay = 1.0 - Math.exp(-2.5 * delta); // Slower natural decay
+      this.predictionOffset.lerp(_zeroVec, predDecay);
+      if (this.predictionOffset.lengthSq() < 0.01) this.predictionOffset.set(0, 0, 0);
+
+      const decay = 1.0 - Math.exp(-10 * delta); // Slower snap-back so knockback prediction feels good
       this.visualOffset.lerp(_zeroVec, decay);
       this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, 0, decay);
 
-      this.group.position.copy(this.position).add(this.visualOffset);
+      this.group.position.copy(this.position).add(this.visualOffset).add(this.predictionOffset);
 
       // Face movement direction
       const moveDir = _tempVec1.subVectors(this.targetPosition, this.lastNetPos);
@@ -767,11 +782,36 @@ export class Mob {
     }
   }
 
+  updatePositionFromServer(x: number, y: number, z: number) {
+    if (this.targetPosition) {
+      if (this.predictionOffset.lengthSq() > 0.001) {
+        const deltaPos = new THREE.Vector3(x - this.targetPosition.x, y - this.targetPosition.y, z - this.targetPosition.z);
+        const dot = deltaPos.dot(this.predictionOffset);
+        if (dot > 0) {
+          const matchLen = deltaPos.length() * (dot / (deltaPos.length() * this.predictionOffset.length()));
+          if (!isNaN(matchLen)) {
+            const matchedVec = this.predictionOffset.clone().normalize().multiplyScalar(matchLen);
+            this.predictionOffset.sub(matchedVec);
+            if (this.predictionOffset.dot(matchedVec) < 0) {
+              this.predictionOffset.set(0, 0, 0);
+            }
+          }
+        }
+      }
+      this.targetPosition.set(x, y, z);
+    }
+  }
+
   knockback(dir: THREE.Vector3, force: number) {
     this.velocity.x = dir.x * force;
     this.velocity.z = dir.z * force;
     this.velocity.y = 6; // Upward pop (lift)
     this.knockbackTimer = 0.5; // 500ms of knockback where AI movement is disabled
+    this.lastKnockbackTime = Date.now();
+    
+    // Client-side visual knockback prediction
+    this.knockbackVelocity.copy(dir).multiplyScalar(force * 1.5);
+    this.knockbackVelocity.y = Math.min(force, 12);
   }
 
   takeDamage(
@@ -791,6 +831,8 @@ export class Mob {
       this.visualOffset.addScaledVector(kDir, 0.4);
       this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
       this.damageRotate = 0.4;
+      
+      this.knockback(kDir, knockbackDir.length());
     } else {
       this._recoilDir
         .set(0, 0, 1)

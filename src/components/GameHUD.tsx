@@ -54,6 +54,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       {isHUDVisible && !isMobile && (
         <div className="absolute top-4 right-4 flex gap-2">
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               if (!document.fullscreenElement) {
@@ -72,6 +73,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
             <Maximize className="w-6 h-6" />
           </button>
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               if (game) game.controls.unlock();

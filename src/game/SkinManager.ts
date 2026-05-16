@@ -70,7 +70,7 @@ const UV_MAP_OUTER = {
   }
 };
 
-export function applySkinUVs(geometry: THREE.BufferGeometry, part: keyof typeof UV_MAP, isOuter: boolean = false, crop?: 'top' | 'bottom') {
+export function applySkinUVs(geometry: THREE.BufferGeometry, part: keyof typeof UV_MAP, isOuter: boolean = false, crop?: 'top' | 'bottom' | 'neck') {
   const uvs = geometry.attributes.uv;
   const map = isOuter ? UV_MAP_OUTER[part] : UV_MAP[part];
   
@@ -82,7 +82,14 @@ export function applySkinUVs(geometry: THREE.BufferGeometry, part: keyof typeof 
     const faceName = faces[i];
     let [x, y, w, h] = map[faceName];
     
-    if (crop === 'bottom') {
+    if (crop === 'neck') {
+       // use bottom of head for all faces to ensure skin color
+       const bottomFace = map['bottom'];
+       x = bottomFace[0];
+       y = bottomFace[1];
+       w = 4; // use smaller portion to avoid edges
+       h = 4;
+    } else if (crop === 'bottom') {
       if (faceName !== 'top' && faceName !== 'bottom') {
         y += h / 2;
         h /= 2;

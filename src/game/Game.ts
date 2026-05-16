@@ -16,6 +16,7 @@ import { networkManager } from './NetworkManager';
 import { settingsManager, GameSettings } from './Settings';
 import { skyBridgeManager } from './SkyBridgeManager';
 import { audioManager } from './AudioManager';
+import { updateAnimatedItems } from './ItemModels';
 import { isTransparent, BLOCK, isAnyTorch } from './TextureAtlas';
 import { EnvironmentManager } from './EnvironmentManager';
 import { Inventory, ItemType } from './Inventory';
@@ -47,6 +48,7 @@ export class Game {
   interactionSystem: InteractionSystem | null = null;
   entityTagsSystem: EntityTagsSystem | null = null;
   gameController: GameController;
+  tickWorker: Worker | null = null;
 
   meshesToAdd: { chunk: Chunk, mesh: THREE.Mesh | null, transparentMesh: THREE.Mesh | null }[] = [];
 
@@ -195,6 +197,7 @@ export class Game {
             const myData = playersMap[id];
             this.player.team = myData.team || null;
             this.player.renderer.updateTeam(this.player.team);
+            useGameStore.getState().setPlayerTeam(this.player.team);
             
             this.player.isSpectator = myData.isSpectator || false;
             this.player.isDead = myData.isDead || false;
@@ -390,6 +393,8 @@ export class Game {
 
     networkManager.onEntitiesReset = (data: { mobs: Record<string, any>; droppedItems: Record<string, any>; gameStartTime?: number }) => {
       window.dispatchEvent(new CustomEvent('forceCloseMenus'));
+      useGameStore.getState().setIsMapLoading(true);
+      this.player.hasReceivedInitialRespawn = false;
       this.entityManager.clearEntities();
       this.world.reset(this.currentMode);
       useGameStore.getState().clearChatMessages();
@@ -457,6 +462,12 @@ export class Game {
 
       // Rebuild chunks to apply AO/shadow changes
       this.world.rebuildAllChunks();
+
+      // Refresh post-processing for Ray Tracing effects
+      if (this.postProcessing) {
+        this.postProcessing.dispose();
+      }
+      this.postProcessing = new PostProcessingManager(this);
     }
 
     // Performance Mode optimizations (Extra cuts for speed)
@@ -497,12 +508,38 @@ export class Game {
 
   start() {
     this.loop();
+    
+    // Background worker to keep the game ticking when the browser tab is hidden
+    const workerCode = `
+      let interval;
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          interval = setInterval(() => self.postMessage('tick'), 1000 / 20); // 20 TPS fallback
+        } else if (e.data === 'stop') {
+          clearInterval(interval);
+        }
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    this.tickWorker = new Worker(URL.createObjectURL(blob));
+    this.tickWorker.onmessage = () => {
+      if (document.hidden) {
+        this.loop(true);
+      }
+    };
+    this.tickWorker.postMessage('start');
   }
 
   stop() {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+
+    if (this.tickWorker) {
+      this.tickWorker.postMessage('stop');
+      this.tickWorker.terminate();
+      this.tickWorker = null;
     }
 
     // Clear singleton listeners
@@ -574,15 +611,23 @@ export class Game {
     if (ext) ext.loseContext();
   }
 
-  loop = () => {
+  loop = (isBackgroundTick?: boolean | number | Event) => {
     if (this.animationFrameId === null && this.clock.getElapsedTime() > 0) {
       return; // Already stopped
     }
-    this.animationFrameId = requestAnimationFrame(this.loop);
+    
+    // Only schedule next animation frame if this isn't a worker tick
+    if (isBackgroundTick !== true) {
+      if (this.animationFrameId !== null) {
+        cancelAnimationFrame(this.animationFrameId);
+      }
+      this.animationFrameId = requestAnimationFrame(this.loop);
+    }
     
     if (!this.renderer || !this.scene || !this.camera) return;
     
     const delta = Math.min(this.clock.getDelta(), 0.1); 
+    if (delta <= 0) return;
 
     if (!this.world.isHub) {
       skyBridgeManager.tick(delta, this.player.inventory, this.player.hotbarIndex);
@@ -593,6 +638,8 @@ export class Game {
     this.world.updateMaterials(delta);
     this.world.update(this.player.position, this.camera);
     this.environmentManager.update(delta);
+    
+    updateAnimatedItems(this.clock.getElapsedTime());
 
     const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
     this.gameController.tick(delta, serverName);
@@ -664,6 +711,10 @@ export class Game {
     if (this.interactionSystem) {
       this.interactionSystem.update();
       this.lastRaycast = this.interactionSystem.lastRaycast;
+    }
+
+    if (document.hidden) {
+      return; // Skip rendering
     }
 
     if (this.postProcessing) {

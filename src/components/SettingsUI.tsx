@@ -52,12 +52,18 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-        onClick={() => {
-          if (!rebindingKey) onClose();
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 pointer-events-auto"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (e.target === e.currentTarget && !rebindingKey) {
+             onClose();
+          }
         }}
       >
-        <div className="w-full max-w-2xl transform landscape:scale-[0.55] sm:landscape:scale-[0.6] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center">
+        <div 
+           className="w-full max-w-2xl transform landscape:scale-[0.55] sm:landscape:scale-[0.6] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center"
+           onPointerDown={(e) => e.stopPropagation()}
+        >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}

@@ -60,6 +60,7 @@ export class World {
   isVoidtrail: boolean = false;
   isDungeonDelver: boolean = false;
   isBattleRoyale: boolean = false;
+  isSkyIsland: boolean = false;
 
   skycastlesBakedChunkMap: Map<
     string,
@@ -89,6 +90,7 @@ export class World {
     this.isVoidtrail = serverName.startsWith("voidtrail");
     this.isDungeonDelver = serverName.startsWith("dungeondelver");
     this.isBattleRoyale = serverName.startsWith("battleroyale");
+    this.isSkyIsland = serverName.startsWith("skyisland");
     this.lightingManager = new LightingManager(this);
     this.physics = new WorldPhysics(this);
     this.updater = new WorldUpdater(this);
@@ -160,6 +162,7 @@ export class World {
 
       shader.fragmentShader = `
         varying vec2 vTileBase;
+        uniform float uTime;
         uniform float uShaders;
         uniform float uPerformanceMode;
         uniform float uIsVoidtrail;
@@ -183,9 +186,18 @@ export class World {
           if (uShaders > 0.5 && uPerformanceMode < 0.5) {
              vec3 viewDir = normalize(vViewPosition); 
              float height = dot(texture2D(map, animatedUv).rgb, vec3(0.299, 0.587, 0.114));
-             vec2 offset = (viewDir.xy) * (height * 0.005 - 0.0025);
+             // Deepen the parallax for RTX mode
+             vec2 offset = (viewDir.xy) * (height * 0.012 - 0.006);
              animatedUv += offset;
              animatedUv = clamp(animatedUv, vTileBase + margin, vTileBase + 0.03125 - margin);
+          }
+
+          // Lava Animation (UV 4, 7 -> u=0.125, v=0.750)
+          if (abs(vTileBase.x - 0.125) < 0.01 && abs(vTileBase.y - 0.750) < 0.01) {
+             float moveX = -uTime * 0.002;
+             float moveY = uTime * 0.004;
+             animatedUv.x = vTileBase.x + margin + mod(localUv.x + moveX, 0.03125 - 2.0 * margin);
+             animatedUv.y = vTileBase.y + margin + mod(localUv.y + moveY, 0.03125 - 2.0 * margin);
           }
 
           vec4 texelColor = texture2D( map, animatedUv );
@@ -195,32 +207,49 @@ export class World {
              float lum = dot(texelColor.rgb, vec3(0.299, 0.587, 0.114));
              float saturation = length(texelColor.rgb - vec3(lum));
              
-             // Base Roughness
-             customRoughness = clamp(1.0 - lum + saturation * 1.5, 0.3, 1.0); // Kept quite rough so things don't look artificial
-             customMetalness = clamp((1.0 - saturation * 2.5) * lum, 0.0, 0.2); // Usually very slightly metallic 
+             // Base Roughness (RTX style: starker contrast, higher gloss for bright/saturated blocks)
+             customRoughness = clamp(0.8 - lum * 0.4 - saturation * 0.4, 0.1, 0.9);
+             customMetalness = clamp((1.0 - saturation) * lum * 1.5, 0.0, 0.8);
              
              // Specific block handling (rough approximation based on tile UV)
-             // Leaves (y == 2 or 3 in atlas approx)
-             if (vTileBase.y > 0.06 && vTileBase.y < 0.1) {
-                 customRoughness = 0.9; 
+             // Lava
+             if (abs(vTileBase.x - 0.125) < 0.01 && abs(vTileBase.y - 0.750) < 0.01) {
+                 customRoughness = 0.0;
                  customMetalness = 0.0;
              }
-             // Stone variants (usually grey, low sat)
-             else if (saturation < 0.1) {
-                 customRoughness = clamp(0.7 - lum*0.3, 0.4, 0.9);
-                 customMetalness = 0.15;
+             // Dirt, Grass, Wood, Leaves, Planks (Earthy/Matte Materials)
+             else if (
+                 (vTileBase.y > 0.85) || // Rows 0-4: Dirt, Wood, Grass, Stone, Leaves, Sand, Planks
+                 (saturation < 0.35 && lum < 0.55 && texelColor.r >= texelColor.b) // Other wood/plank textures
+             ) {
+                 // Exceptions in Rows 0-4: Stone (saturation < 0.1 usually)
+                 if (saturation < 0.05 && lum > 0.3 && vTileBase.y > 0.85) {
+                     // Stone: keep slightly reflective
+                     customRoughness = clamp(0.7 - lum*0.3, 0.2, 0.8);
+                     customMetalness = 0.2;
+                 } else {
+                     // Dirt, Wood, Planks, Leaves: NO REFLECTION
+                     customRoughness = 1.0;
+                     customMetalness = 0.0;
+                 }
+             }
+             // Stone/Ores variants outside top rows (usually grey, low sat)
+             else if (saturation < 0.1 && lum > 0.3) {
+                 // Polished stone look
+                 customRoughness = clamp(0.6 - lum*0.4, 0.1, 0.8);
+                 customMetalness = 0.3;
+             }
+             // Metallic / Ores (very high luminance or specific colored specs in grey rock)
+             // If local pixel is much brighter/more saturated than the average block luminance
+             if (saturation > 0.3 && lum > 0.5) {
+                 customRoughness = 0.1;
+                 customMetalness = 0.8;
              }
              
-             // Toy/Plastic Override (detect by checking if uniform has voidtrail flag or we just apply low roughness if texture is vibrant?)
-             // Actually, since we're using a specific toy texture atlas, we can make the overall customRoughness lower by checking if it's toy mode.
-             // But we don't have a uniform for toy mode. Let's just make colorful blocks shinier!
              if (uIsVoidtrail > 0.5) {
                  // Reduce excessive light reflection for all blocks in voidtrail
-                 customRoughness = 0.8;
-                 customMetalness = 0.05;
-             } else if (saturation > 0.2) {
-                 customRoughness = mix(customRoughness, 0.3, saturation);
-                 customMetalness = mix(customMetalness, 0.1, saturation);
+                 customRoughness = 0.6;
+                 customMetalness = 0.1;
              }
              
              // Wetness and Puddles Effect
@@ -1087,6 +1116,7 @@ export class World {
     this.isVoidtrail = serverName.startsWith("voidtrail");
     this.isDungeonDelver = serverName.startsWith("dungeondelver");
     this.isBattleRoyale = serverName.startsWith("battleroyale");
+    this.isSkyIsland = serverName.startsWith("skyisland");
 
     this.chunks.forEach((chunk) => {
       if (chunk.mesh) {

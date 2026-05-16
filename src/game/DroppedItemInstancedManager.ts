@@ -111,11 +111,13 @@ export class DroppedItemInstancedManager {
           opacity: isWaterTypes ? 0.6 : 1.0,
           alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0
         }) :
-        new THREE.MeshLambertMaterial({ 
+        new THREE.MeshStandardMaterial({ 
           map: this.textureAtlas,
           transparent: isGlass || isWaterTypes || isAlphaFlat,
           opacity: isWaterTypes ? 0.6 : 1.0,
-          alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0
+          alphaTest: (isGlass || isAlphaFlat) ? 0.5 : 0,
+          roughness: 0.8,
+          metalness: 0.1
         });
 
       const mesh = new THREE.InstancedMesh(geometry, material, this.MAX_INSTANCES);

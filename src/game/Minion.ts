@@ -50,28 +50,28 @@ export class Minion {
     
     // Base/Platform
     const baseGeo = new THREE.BoxGeometry(0.8, 0.1, 0.8);
-    const baseMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
     const base = new THREE.Mesh(baseGeo, baseMat);
     base.position.y = -0.45;
     group.add(base);
 
     // Body (Small armor stand like)
     const bodyGeo = new THREE.BoxGeometry(0.3, 0.5, 0.15);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = -0.15;
     group.add(body);
 
     // Head
     const headGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xAAAAAA });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xAAAAAA, roughness: 0.9 });
     const head = new THREE.Mesh(headGeo, headMat);
     head.position.y = 0.25;
     group.add(head);
 
     // Arms
     const armGeo = new THREE.BoxGeometry(0.1, 0.3, 0.1);
-    const armMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
     
     const leftArm = new THREE.Mesh(armGeo, armMat);
     leftArm.position.set(-0.2, -0.15, 0);
@@ -84,7 +84,7 @@ export class Minion {
 
     // Item they are "holding"
     const itemGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const itemMat = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Stone
+    const itemMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 }); // Stone
     const item = new THREE.Mesh(itemGeo, itemMat);
     item.position.set(0.2, -0.25, 0.25);
     group.add(item);

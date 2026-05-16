@@ -38,7 +38,7 @@ export function GameMenus({ game, targetServer, handleStart, setGameKey }: any) 
   return (
     <>
       {currentMode !== 'hub' && (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <InventoryUI 
             inventory={game.player.inventory} 
             isOpen={isInventoryOpen} 
@@ -76,7 +76,7 @@ export function GameMenus({ game, targetServer, handleStart, setGameKey }: any) 
           />
         </div>
       )}
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
         <Suspense fallback={null}>
           {isShopOpen && (
             <ShopUI

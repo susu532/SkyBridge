@@ -172,7 +172,13 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
     }
 
     // Initial click
-    setDragState({ isDragging: true, button, visitedSlots: new Set([`${type}-${isHotbar ? index : index + 9}`]) });
+    const actualIndex = isHotbar ? index : index + 9;
+    const target = type === 'inv' ? inventory.slots[actualIndex] : craftingGrid[index];
+    if (heldItem && (!target || target.type === heldItem.type)) {
+      setDragState({ isDragging: true, button, visitedSlots: new Set([`${type}-${actualIndex}`]) });
+    } else {
+      setDragState({ isDragging: false, button: -1, visitedSlots: new Set() });
+    }
 
     if (type === 'inv') {
       handleSlotClick(index, isHotbar, button === 2, isShift);
@@ -458,17 +464,20 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 pointer-events-auto" 
       onContextMenu={(e) => e.preventDefault()}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
+        e.stopPropagation();
         if (e.target === e.currentTarget && heldItem) {
           if (onDropItem) onDropItem(heldItem.type, heldItem.count);
           setHeldItem(null);
+        } else if (e.target === e.currentTarget) {
+          onClose();
         }
       }}
     >
       <div 
         className="transform scale-[0.6] sm:scale-[0.8] md:scale-100 landscape:scale-[0.4] sm:landscape:scale-[0.45] md:landscape:scale-[0.7] xl:landscape:scale-100 origin-center pointer-events-none"
       >
-        <div className="pointer-events-auto flex items-center justify-center" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="pointer-events-auto flex items-center justify-center" onPointerDown={(e) => e.stopPropagation()}>
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

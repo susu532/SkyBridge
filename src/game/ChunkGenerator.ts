@@ -8,6 +8,7 @@ import { getCastleBlock } from "./generation/SkyCastlesGenerator";
 import { getVillageBlock } from "./generation/SkyBridgeGenerator";
 import { getGiantMythicalShipBlock } from "./generation/ShipGenerator";
 import { getVoidTrailBlock } from "./generation/VoidTrailGenerator";
+import { generateSkyIslandTerrain } from "./generation/SkyIslandGenerator";
 import * as THREE from "three";
 import { skycastlesBakedBlocks } from "./SkycastlesBakedBlocks";
 
@@ -168,6 +169,11 @@ export async function generateChunkMethod(
         continue;
       }
 
+      if (world.isSkyIsland) {
+        generateSkyIslandTerrain(chunk, x, z, worldX, worldZ);
+        continue;
+      }
+
       const isBlueSide = world.isSkyCastles ? worldZ >= 70 : worldZ >= 0;
       const isRedSide = world.isSkyCastles ? worldZ <= -70 : worldZ < 0;
       const isVoid = !isBlueSide && !isRedSide;
@@ -224,6 +230,8 @@ export async function generateChunkMethod(
       const isProtected = isVillageOrCastle || isBridgeArea || isAreaProtected;
       if (world.isHub) {
         generateHubTerrain(chunk, x, z, worldX, worldZ);
+      } else if (world.isSkyIsland) {
+        generateSkyIslandTerrain(chunk, x, z, worldX, worldZ);
       } else if (isBlueSide || isRedSide) {
         const hasCaves =
           !world.isSkyCastles &&
@@ -1153,6 +1161,18 @@ export async function generateChunkMethod(
         for (let iz = 0; iz < CHUNK_SIZE; iz++) {
           const worldX = cx * CHUNK_SIZE + ix;
           const worldZ = cz * CHUNK_SIZE + iz;
+
+          // Explicit Chests near tree
+          if ((worldX === 75 || worldX === -75) && worldZ === 1) {
+            if (5 - WORLD_Y_OFFSET >= 0 && 5 - WORLD_Y_OFFSET < CHUNK_HEIGHT) {
+              chunk.setBlockFast(
+                ix,
+                5 - WORLD_Y_OFFSET,
+                iz,
+                BLOCK.CHEST
+              );
+            }
+          }
 
           // Mid void chests
           if (worldX === 0 && (worldZ === 10 || worldZ === -9)) {

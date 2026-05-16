@@ -17,6 +17,7 @@ export class PlayerRenderer {
   armorMeshes: THREE.Mesh[] = [];
 
   headMesh: THREE.Mesh | null = null;
+  neckMesh: THREE.Mesh | null = null;
   bodyMesh: THREE.Mesh | null = null;
   leftLegMesh: THREE.Mesh | null = null;
   rightLegMesh: THREE.Mesh | null = null;
@@ -188,6 +189,9 @@ export class PlayerRenderer {
       this.headMesh.material = skinMaterial;
       (this.headMesh.children[0] as THREE.Mesh).material = outerMaterial;
     }
+    if (this.neckMesh) {
+      this.neckMesh.material = skinMaterial;
+    }
     if (this.bodyMesh) {
       this.bodyMesh.material = skinMaterial;
       (this.bodyMesh.children[0] as THREE.Mesh).material = outerMaterial;
@@ -263,6 +267,14 @@ export class PlayerRenderer {
     backpack.position.set(0, 0, 0.18);
     backpack.castShadow = true;
     this.bodyMesh.add(backpack);
+
+    // Neck
+    const neckGeo = new THREE.BoxGeometry(0.25, 0.2, 0.15);
+    applySkinUVs(neckGeo, 'head', false, 'neck');
+    this.neckMesh = new THREE.Mesh(neckGeo, skinMaterial);
+    this.neckMesh.position.y = 0.4;
+    this.neckMesh.castShadow = true;
+    this.bodyMesh.add(this.neckMesh);
 
     // Head
     const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
@@ -620,7 +632,7 @@ export class PlayerRenderer {
     const texture = this.player.world.isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
     const blockMat = isPerformance ?
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
-      new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+      new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5, roughness: 1.0, metalness: 0.0 });
     this.fpBlockMesh = new THREE.Mesh(blockGeo, blockMat);
     this.fpBlockMesh.castShadow = !isPerformance;
     this.fpBlockMesh.receiveShadow = !isPerformance; // Disabled in performance mode
@@ -658,7 +670,7 @@ export class PlayerRenderer {
     const texture = this.player.world.isVoidtrail ? createVoidtrailTextureAtlas() : createTextureAtlas();
     const blockMat = isPerformance ?
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.5 }) :
-      new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+      new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5, roughness: 1.0, metalness: 0.0 });
     this.fpOffHandBlockMesh = new THREE.Mesh(blockGeo, blockMat);
     this.fpOffHandBlockMesh.castShadow = !isPerformance;
     this.fpOffHandBlockMesh.receiveShadow = !isPerformance; // Disabled in performance mode
@@ -970,6 +982,7 @@ export class PlayerRenderer {
       // Reset positions (relative to parents)
       this.player.bodyMesh.position.set(0, 0.9, 0);
       this.player.headMesh.position.set(0, 0.5, 0);
+      if (this.player.neckMesh) this.player.neckMesh.position.set(0, 0.4, 0);
       this.player.leftArmMesh.position.set(-0.3, 0.3, 0);
       this.player.rightArmMesh.position.set(0.3, 0.3, 0);
       this.player.leftLegMesh.position.set(-0.1, 0.6, 0);
@@ -977,6 +990,7 @@ export class PlayerRenderer {
       this.player.capeMesh.position.set(0, 0.3, 0.1);
       this.player.bodyMesh.scale.set(1, 1, 1);
       this.player.headMesh.scale.set(1, 1, 1);
+      if (this.player.neckMesh) this.player.neckMesh.scale.set(1, 1, 1);
       this.player.leftArmMesh.scale.set(1, 1, 1);
       this.player.rightArmMesh.scale.set(1, 1, 1);
 
@@ -1143,11 +1157,13 @@ export class PlayerRenderer {
         this.player.bodyMesh.scale.y = bodyScaleY;
         // Inverse scale children to keep them uniform
         this.player.headMesh.scale.y = 1.0 / bodyScaleY;
+        if (this.player.neckMesh) this.player.neckMesh.scale.y = 1.0 / bodyScaleY;
         this.player.leftArmMesh.scale.y = 1.0 / bodyScaleY;
         this.player.rightArmMesh.scale.y = 1.0 / bodyScaleY;
 
         // Elevate head and arms slightly on the torso
         this.player.headMesh.position.y += 0.05 * t;
+        if (this.player.neckMesh) this.player.neckMesh.position.y += 0.05 * t;
         this.player.leftArmMesh.position.y += 0.05 * t;
         this.player.rightArmMesh.position.y += 0.05 * t;
 

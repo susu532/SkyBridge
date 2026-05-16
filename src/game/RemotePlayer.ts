@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { generateSkin, applySkinUVs } from './SkinManager';
 import { createItemModel } from './ItemModels';
-import { getBlockUVs, createTextureAtlas, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting } from './TextureAtlas';
+import { getBlockUVs, createTextureAtlas, ATLAS_TILES, isPlant, isFlatItem, isLightEmitting, isSolidBlock, isSlab } from './TextureAtlas';
 import { createVoidtrailTextureAtlas } from './VoidTrailTextureAtlas';
 import { settingsManager } from './Settings';
 import { ItemType } from './Inventory';
@@ -17,6 +17,7 @@ const SHARED_GEOS = {
   body: new THREE.BoxGeometry(0.4, 0.6, 0.2),
   bodyOuter: new THREE.BoxGeometry(0.42, 0.62, 0.22),
   pack: new THREE.BoxGeometry(0.3, 0.4, 0.15),
+  neck: new THREE.BoxGeometry(0.25, 0.2, 0.15),
   head: new THREE.BoxGeometry(0.4, 0.4, 0.4),
   headOuter: new THREE.BoxGeometry(0.42, 0.42, 0.42),
   armL: new THREE.BoxGeometry(0.2, 0.6, 0.2),
@@ -36,6 +37,7 @@ const SHARED_GEOS = {
 // Pre-apply UVs to shared geometries
 applySkinUVs(SHARED_GEOS.body, 'body');
 applySkinUVs(SHARED_GEOS.bodyOuter, 'body', true);
+applySkinUVs(SHARED_GEOS.neck, 'head', false, 'neck');
 applySkinUVs(SHARED_GEOS.head, 'head');
 applySkinUVs(SHARED_GEOS.headOuter, 'head', true);
 applySkinUVs(SHARED_GEOS.armL, 'armL');
@@ -63,6 +65,7 @@ export class RemotePlayer {
   group: THREE.Group;
   
   headMesh!: THREE.Mesh;
+  neckMesh!: THREE.Mesh;
   bodyMesh!: THREE.Mesh;
   leftArmMesh!: THREE.Mesh;
   rightArmMesh!: THREE.Mesh;
@@ -86,6 +89,10 @@ export class RemotePlayer {
   lastNetPos: THREE.Vector3;
   snapshots: PlayerSnapshot[] = [];
   interpolationTimer: number = 0;
+  
+  lastKnockbackTime: number = 0;
+  predictionOffset = new THREE.Vector3();
+  knockbackCorrection = new THREE.Vector3();
   
   isFlying = false;
   isSwimming = false;
@@ -134,11 +141,16 @@ export class RemotePlayer {
   lastPos = new THREE.Vector3();
   groundedTimer = 0;
   
+  hitFlailTarget = 0;
+  hitFlailValue = 0;
+  
   // Pre-allocated vectors for math
   private _instantVelocity = new THREE.Vector3();
   private _recoilDir = new THREE.Vector3();
+  visualOffsetTarget = new THREE.Vector3();
   visualOffset = new THREE.Vector3();
   currentPos = new THREE.Vector3();
+  damageRotateTarget = 0;
   damageRotate = 0;
   damageRotateAxis = new THREE.Vector3(1, 0, 0);
   
@@ -248,6 +260,13 @@ export class RemotePlayer {
     backpack.position.set(0, 0, 0.18);
     backpack.castShadow = true;
     this.bodyMesh.add(backpack);
+
+    // Neck (Child of Body)
+    this.neckMesh = new THREE.Mesh(SHARED_GEOS.neck, skinMaterial);
+    this.neckMesh.position.y = 0.4;
+    this.neckMesh.castShadow = true;
+    this.neckMesh.receiveShadow = true;
+    this.bodyMesh.add(this.neckMesh);
 
     // Head (Child of Body)
     this.headMesh = new THREE.Mesh(SHARED_GEOS.head, skinMaterial);
@@ -713,11 +732,44 @@ export class RemotePlayer {
   }
 
   knockback(dir: THREE.Vector3, force: number) {
-    this.knockbackVelocity.copy(dir).multiplyScalar(force);
-    this.knockbackVelocity.y = 8; // Lift
+    // Client-side visual knockback prediction for instant response
+    this.knockbackVelocity.copy(dir).multiplyScalar(force * 1.5);
+    this.knockbackVelocity.y = Math.min(force, 12);
+    this.lastKnockbackTime = Date.now();
   }
 
-  update(delta: number, localPlayerPos?: THREE.Vector3) {
+  checkCollision(pos: THREE.Vector3, world: any): boolean {
+    const playerRadius = 0.3;
+    const playerHeight = 1.8;
+    const minX = Math.floor(pos.x - playerRadius);
+    const maxX = Math.floor(pos.x + playerRadius);
+    const minY = Math.floor(pos.y);
+    const maxY = Math.floor(pos.y + playerHeight);
+    const minZ = Math.floor(pos.z - playerRadius);
+    const maxZ = Math.floor(pos.z + playerRadius);
+
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          const block = world.getBlock(x, y, z);
+          if (isSolidBlock(block)) {
+            if (isSlab(block)) {
+              const playerBottom = pos.y;
+              const slabTop = y + 0.5;
+              if (playerBottom < slabTop && pos.y + playerHeight > y) {
+                return true;
+              }
+            } else {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  update(delta: number, localPlayerPos?: THREE.Vector3, world?: any) {
     if (localPlayerPos) {
       const distSq = this.targetPosition.distanceToSquared(localPlayerPos);
       const isPerformance = settingsManager.getSettings().performanceMode;
@@ -766,8 +818,9 @@ export class RemotePlayer {
       }
 
       if (this.torchLight) {
-        const isTorch = this.heldItemType === ItemType.TORCH;
-        this.torchLight.visible = isTorch && distSq < 900; // Only show other player torches within 30 blocks
+        const isPerformance = settingsManager.getSettings().performanceMode;
+        const isTorch = this.heldItemType === ItemType.TORCH || this.offHandItemType === ItemType.TORCH;
+        this.torchLight.visible = !isPerformance && isTorch && distSq < 900; // Only show other player torches within 30 blocks
       }
       
       // Toggle shadows based on distance to save rendering time (30 blocks)
@@ -788,11 +841,50 @@ export class RemotePlayer {
       }
     }
 
-    // Apply visual knockback decay
+    // Apply knockback to prediction offset instead of modifying interpolation tracks
     if (this.knockbackVelocity.lengthSq() > 0.01) {
-      this.visualOffset.addScaledVector(this.knockbackVelocity, delta);
-      this.knockbackVelocity.multiplyScalar(1.0 - 5.0 * delta);
+      const step = this.knockbackVelocity.clone().multiplyScalar(delta);
+
+      if (world) {
+        // X collision
+        const stepX = new THREE.Vector3(step.x, 0, 0);
+        const testPosX = this.currentPos.clone().add(this.visualOffset).add(this.predictionOffset).add(stepX);
+        if (!this.checkCollision(testPosX, world)) {
+          this.predictionOffset.x += step.x;
+        } else {
+          this.knockbackVelocity.x = 0;
+        }
+
+        // Y collision
+        const stepY = new THREE.Vector3(0, step.y, 0);
+        const testPosY = this.currentPos.clone().add(this.visualOffset).add(this.predictionOffset).add(stepY);
+        if (!this.checkCollision(testPosY, world)) {
+          this.predictionOffset.y += step.y;
+        } else {
+          this.knockbackVelocity.y = 0;
+        }
+
+        // Z collision
+        const stepZ = new THREE.Vector3(0, 0, step.z);
+        const testPosZ = this.currentPos.clone().add(this.visualOffset).add(this.predictionOffset).add(stepZ);
+        if (!this.checkCollision(testPosZ, world)) {
+          this.predictionOffset.z += step.z;
+        } else {
+          this.knockbackVelocity.z = 0;
+        }
+      } else {
+        this.predictionOffset.add(step);
+      }
+
+      this.knockbackVelocity.multiplyScalar(1.0 - 8.0 * delta); // Snappier friction for predictability
     }
+
+    // Decay the prediction offset slowly as fallback (in case server misses knockback)
+    const predDecay = 1.0 - Math.exp(-1.5 * delta);
+    this.predictionOffset.lerp(_zeroVec, predDecay);
+    if (this.predictionOffset.lengthSq() < 0.01) this.predictionOffset.set(0, 0, 0);
+
+    const oldCurrentPos = this.currentPos.clone();
 
     // Networked movement interpolation
     const renderTime = Date.now() - 50; // 50ms artificial delay
@@ -831,11 +923,32 @@ export class RemotePlayer {
        }
     }
 
-    const decay = 1.0 - Math.exp(-15 * delta); // Snappy exponential decay
-    this.visualOffset.lerp(_zeroVec, decay);
-    this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, 0, decay);
+    // Blend server movement into prediction offset to seamlessly match server ground-truth
+    const posDiff = new THREE.Vector3().subVectors(this.currentPos, oldCurrentPos);
+    if (this.predictionOffset.lengthSq() > 0.001 && posDiff.lengthSq() > 0.000001) {
+      const predDir = this.predictionOffset.clone().normalize();
+      const fulfilled = posDiff.dot(predDir);
+      if (fulfilled > 0) {
+        const consume = predDir.multiplyScalar(fulfilled);
+        if (consume.lengthSq() >= this.predictionOffset.lengthSq()) {
+          this.predictionOffset.set(0, 0, 0);
+        } else {
+          this.predictionOffset.sub(consume);
+        }
+      }
+    }
+
+    const corrDecay = 1.0 - Math.exp(-20 * delta); // Match snapshot buffer interpolation speed
+    this.knockbackCorrection.lerp(_zeroVec, corrDecay);
+    if (this.knockbackCorrection.lengthSq() < 0.001) this.knockbackCorrection.set(0, 0, 0);
     
-    this.group.position.copy(this.currentPos).add(this.visualOffset);
+    this.visualOffsetTarget.lerp(_zeroVec, delta * 8.0);
+    this.visualOffset.lerp(this.visualOffsetTarget, delta * 15.0);
+    
+    this.damageRotateTarget = THREE.MathUtils.lerp(this.damageRotateTarget, 0, delta * 8.0);
+    this.damageRotate = THREE.MathUtils.lerp(this.damageRotate, this.damageRotateTarget, delta * 15.0);
+    
+    this.group.position.copy(this.currentPos).add(this.visualOffset).add(this.predictionOffset).add(this.knockbackCorrection);
 
     const lerpFactor = 1.0 - Math.exp(-25 * delta);
     
@@ -862,7 +975,7 @@ export class RemotePlayer {
     // 2. Body yaw logic: body follows head but can lag behind
     // If moving, body faces look direction
     // If still, body only turns if head turns too far (> 50 degrees)
-    this._instantVelocity.copy(this.group.position).sub(this.lastPos).divideScalar(delta);
+    this._instantVelocity.copy(this.currentPos).sub(this.lastPos).divideScalar(delta);
     this.velocity.copy(this._instantVelocity);
     
     // Smoothed velocity for animations to prevent jitter
@@ -902,9 +1015,9 @@ export class RemotePlayer {
     this.group.rotation.set(0, this.bodyYaw, 0);
     
     // Add visual damage tilt (Minecraft red-flash flinch style)
-    if (this.damageRotate > 0.01) {
-      this.group.rotateOnWorldAxis(this.damageRotateAxis, this.damageRotate);
-    }
+    // if (this.damageRotate > 0.01) {
+    //   this.group.rotateOnWorldAxis(this.damageRotateAxis, this.damageRotate);
+    // }
     
     // Head Y rotation is relative to body
     let relativeHeadYaw = this.headYaw - this.bodyYaw;
@@ -913,7 +1026,7 @@ export class RemotePlayer {
     
     // We'll apply these in animateModel to avoid being overwritten
     
-    this.lastPos.copy(this.group.position);
+    this.lastPos.copy(this.currentPos);
 
     this.idleTime += delta;
     if (isMoving) {
@@ -945,6 +1058,9 @@ export class RemotePlayer {
     this.crouchTransition = THREE.MathUtils.lerp(this.crouchTransition, this.isCrouching ? 1 : 0, delta * 10);
     this.swimTransition = THREE.MathUtils.lerp(this.swimTransition, this.isSwimming ? 1 : 0, delta * 8);
     this.blockTransition = THREE.MathUtils.lerp(this.blockTransition, this.isBlocking ? 1 : 0, delta * 12);
+
+    this.hitFlailTarget = THREE.MathUtils.lerp(this.hitFlailTarget, 0, delta * 5.0);
+    this.hitFlailValue = THREE.MathUtils.lerp(this.hitFlailValue, this.hitFlailTarget, delta * 12.0);
 
     const isClimbing = isMoving && this.animVelocity.y > 0.5 && this.groundedTimer > 0.5;
     this.climbTransition = THREE.MathUtils.lerp(this.climbTransition, isClimbing ? 1 : 0, delta * 10);
@@ -1036,10 +1152,12 @@ export class RemotePlayer {
         this.bodyMesh.scale.y = bodyScaleY;
         // Inverse scale children to keep them uniform
         this.headMesh.scale.y = 1.0 / bodyScaleY;
+        this.neckMesh.scale.y = 1.0 / bodyScaleY;
         this.leftArmMesh.scale.y = 1.0 / bodyScaleY;
         this.rightArmMesh.scale.y = 1.0 / bodyScaleY;
 
         this.headMesh.position.y = 0.5 + 0.05 * t;
+        this.neckMesh.position.y = 0.4 + 0.05 * t;
         this.leftArmMesh.position.y = 0.3 + 0.05 * t;
         this.rightArmMesh.position.y = 0.3 + 0.05 * t;
         
@@ -1076,10 +1194,12 @@ export class RemotePlayer {
         this.bodyMesh.scale.y = 1.0;
         
         this.headMesh.scale.y = 1.0;
+        this.neckMesh.scale.y = 1.0;
         this.leftArmMesh.scale.y = 1.0;
         this.rightArmMesh.scale.y = 1.0;
         
         this.headMesh.position.y = 0.5;
+        this.neckMesh.position.y = 0.4;
         this.leftArmMesh.position.y = 0.3;
         this.rightArmMesh.position.y = 0.3;
       }
@@ -1099,6 +1219,7 @@ export class RemotePlayer {
 
     // Reset positions (relative to parents)
     this.bodyMesh.position.set(0, 0.9, 0);
+    this.neckMesh.position.set(0, 0.4, 0);
     this.headMesh.position.set(0, 0.5, 0);
     this.leftArmMesh.position.set(-0.3, 0.3, 0);
     this.rightArmMesh.position.set(0.3, 0.3, 0);
@@ -1107,6 +1228,7 @@ export class RemotePlayer {
     this.capeMesh.position.set(0, 0.3, 0.1);
     this.bodyMesh.scale.y = 1.0;
     this.headMesh.scale.y = 1.0;
+    this.neckMesh.scale.y = 1.0;
     this.leftArmMesh.scale.y = 1.0;
     this.rightArmMesh.scale.y = 1.0;
 
@@ -1150,41 +1272,6 @@ export class RemotePlayer {
       const kickAngle = Math.cos(this.walkCycle * 1.5) * 0.4;
       this.leftLegMesh.rotation.x = THREE.MathUtils.lerp(0, kickAngle, t);
       this.rightLegMesh.rotation.x = THREE.MathUtils.lerp(0, -kickAngle, t);
-    } else if (this.groundedTimer < 0.5) {
-      // Minecraft-style Jumping/Falling pose (Split limbs)
-      const jumpProgress = THREE.MathUtils.clamp(this.animVelocity.y / 10, -1, 1);
-      
-      // Subtle body tilt
-      this.bodyMesh.rotation.x = 0.15 * jumpProgress;
-      
-      if (jumpProgress > 0.1) {
-        // Ascending: Pronounced split
-        // Left arm forward/up, right arm back/up | Left leg back, right leg forward
-        const swing = 0.8 * jumpProgress;
-        this.leftArmMesh.rotation.x = -swing - 0.2;
-        this.rightArmMesh.rotation.x = swing - 0.2;
-        this.leftLegMesh.rotation.x = swing;
-        this.rightLegMesh.rotation.x = -swing;
-        
-        // Arms spread out for balance
-        this.leftArmMesh.rotation.z = 0.3 * jumpProgress;
-        this.rightArmMesh.rotation.z = -0.3 * jumpProgress;
-      } else if (jumpProgress < -0.1) {
-        // Descending: Wide flail
-        const fallFactor = Math.abs(jumpProgress);
-        const swing = 0.5 * fallFactor;
-        this.leftArmMesh.rotation.x = swing;
-        this.rightArmMesh.rotation.x = -swing;
-        this.leftLegMesh.rotation.x = -swing;
-        this.rightLegMesh.rotation.x = swing;
-        
-        // Arms flail out wide when falling
-        this.leftArmMesh.rotation.z = 0.6 * fallFactor;
-        this.rightArmMesh.rotation.z = -0.6 * fallFactor;
-        
-        // Head looks down to spot the landing
-        this.headMesh.rotation.x += 0.3 * fallFactor;
-      }
     } else if (isMoving) {
       this.leftLegMesh.rotation.x = swingAngle;
       this.rightLegMesh.rotation.x = -swingAngle;
@@ -1232,11 +1319,13 @@ export class RemotePlayer {
       this.bodyMesh.scale.y = bodyScaleY;
       // Inverse scale children to keep them uniform
       this.headMesh.scale.y = 1.0 / bodyScaleY;
+      this.neckMesh.scale.y = 1.0 / bodyScaleY;
       this.leftArmMesh.scale.y = 1.0 / bodyScaleY;
       this.rightArmMesh.scale.y = 1.0 / bodyScaleY;
 
       // Elevate head and arms slightly on the torso
       this.headMesh.position.y += 0.05 * t;
+      this.neckMesh.position.y += 0.05 * t;
       this.leftArmMesh.position.y += 0.05 * t;
       this.rightArmMesh.position.y += 0.05 * t;
       
@@ -1326,23 +1415,50 @@ export class RemotePlayer {
     // Apply the head rotation offset after clamp so crouch still looks right
     const headPitchOffset = this.crouchTransition > 0.01 ? (this.crouchTransition * 0.5) : 0;
     this.headMesh.rotation.x = Math.max(-limitDownHead, Math.min(limitUpHead, this.headMesh.rotation.x)) + headPitchOffset;
+
+    // Apply hit react flail
+    if (this.hitFlailValue > 0.001) {
+      const hitT = this.hitFlailValue; 
+
+      // Head snaps back (removed head tilt animation)
+      // this.headMesh.rotation.x -= hitT * 0.3;
+      
+      // Arms flail outward and back
+      this.leftArmMesh.rotation.x -= hitT * 0.4;
+      this.rightArmMesh.rotation.x -= hitT * 0.4;
+      this.leftArmMesh.rotation.z += hitT * 0.25;
+      this.rightArmMesh.rotation.z -= hitT * 0.25;
+      
+      // Body leans back slightly
+      // this.bodyMesh.rotation.x -= hitT * 0.15;
+      
+      // Legs splay slightly
+      this.leftLegMesh.rotation.x -= hitT * 0.15;
+      this.rightLegMesh.rotation.x -= hitT * 0.15;
+      this.leftLegMesh.rotation.z += hitT * 0.1;
+      this.rightLegMesh.rotation.z -= hitT * 0.1;
+    }
   }
 
   takeDamage(knockbackDir?: THREE.Vector3) {
+    this.hitFlailTarget = 1.0;
     // Visual feedback: red flash and recoil
     if (knockbackDir && knockbackDir.lengthSq() > 0) {
       const kDir = knockbackDir.clone().normalize();
-      this.visualOffset.addScaledVector(kDir, 0.4);
       // Tilt backwards relative to knockback
+      this.visualOffsetTarget.addScaledVector(kDir, 0.4);
       this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
-      this.damageRotate = 0.4;
+      this.damageRotateTarget = 0.4;
+      
+      // Perform local positional knockback prediction for instant response
+      this.knockback(kDir, knockbackDir.length());
     } else {
       this._recoilDir.set(0, 0, 1).applyQuaternion(this.group.quaternion).negate();
-      this.visualOffset.addScaledVector(this._recoilDir, 0.4);
+      this.visualOffsetTarget.addScaledVector(this._recoilDir, 0.4);
       this.damageRotateAxis.set(-this._recoilDir.z, 0, this._recoilDir.x).normalize();
-      this.damageRotate = 0.4;
+      this.damageRotateTarget = 0.4;
     }
-    this.visualOffset.y += 0.2;
+    this.visualOffsetTarget.y += 0.2;
 
     this.group.traverse((obj) => {
       if (obj instanceof THREE.Mesh && obj.material) {
