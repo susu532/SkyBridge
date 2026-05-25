@@ -237,6 +237,31 @@ export const ChestUI = React.memo<{
     }
   });
 
+  const [containerScale, setContainerScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const w = window.innerWidth;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      let scale = 1;
+      
+      if (isLandscape) {
+        if (w >= 1280) scale = 1;      // xl
+        else if (w >= 768) scale = 0.8; // md
+        else scale = 0.55;
+      } else {
+        if (w >= 768) scale = 1;       // md
+        else if (w >= 640) scale = 0.8; // sm
+        else scale = 0.6;
+      }
+      setContainerScale(scale);
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
   if (!isOpen) return null;
 
   const renderTooltip = () => {
@@ -273,7 +298,8 @@ export const ChestUI = React.memo<{
                initial={{ opacity: 0, scale: 0.9 }}
                animate={{ opacity: 1, scale: 1 }}
                exit={{ opacity: 0, scale: 0.9 }}
-               className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4 max-h-[95vh] overflow-y-auto custom-scrollbar"
+               className="mc-panel w-[95%] max-w-2xl flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar"
+               style={{ maxHeight: `calc(90vh / ${containerScale})` }}
             >
           {/* Title */}
           <div className="flex justify-between items-center mb-2">

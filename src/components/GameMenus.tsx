@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { useUI } from '../store/UIStore';
+import { useUI } from '../store/uiStore';
 import { useGameStore } from '../store/gameStore';
 import { InventoryUI } from './InventoryUI';
 import { ChestUI } from './ChestUI';

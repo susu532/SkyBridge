@@ -78,8 +78,31 @@ export function createItemModel(type: ItemType): THREE.Group {
   const isMushroom = type === ItemType.MUSHROOM_RED || type === ItemType.MUSHROOM_BROWN;
   const isTorch = type === ItemType.TORCH;
   const isChest = type === ItemType.CHEST || type === ItemType.ENDER_CHEST;
+  const isHose = type === ItemType.FLUID_CHOCOLATE_HOSE;
   
-  if (isPickaxe) {
+  if (isHose) {
+    // Hose model: A brown cylinder with a nozzle at the end
+    const hoseMat = new THREE.MeshStandardMaterial({
+      color: 0x4E2F1D, // dark brown
+      roughness: 0.8,
+      metalness: 0.2
+    });
+    const nozzleMat = new THREE.MeshStandardMaterial({
+      color: 0x777777, // grey metal
+      roughness: 0.5,
+      metalness: 0.8
+    });
+    const hoseGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
+    const hoseMesh = new THREE.Mesh(hoseGeo, hoseMat);
+    hoseMesh.position.y = 0.2;
+    group.add(hoseMesh);
+
+    const nozzleGeo = new THREE.CylinderGeometry(0.12, 0.08, 0.2, 8);
+    const nozzleMesh = new THREE.Mesh(nozzleGeo, nozzleMat);
+    nozzleMesh.position.y = 0.6;
+    nozzleMesh.name = 'hose_nozzle';
+    group.add(nozzleMesh);
+  } else if (isPickaxe) {
     // Handle (0.8 high, centered at origin)
     const handleGeo = new THREE.BoxGeometry(0.1, 0.8, 0.1);
     const handle = new THREE.Mesh(handleGeo, handleMaterial);
@@ -432,29 +455,68 @@ export function createItemModel(type: ItemType): THREE.Group {
     const voxelSize = 0.08;
     const vGeo = new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize);
     
-    // Voxel positions (x, y) relative to center
+    // Pixelated Minecraft Bow Shape
     const voxels = [
-        // Handle
-        [0, -1], [0, 0], [0, 1],
-        // Upper limb
-        [-1, 2], [-2, 3], [-3, 4],
-        // Lower limb
-        [-1, -2], [-2, -3], [-3, -4]
+      [1, 6], [1, 7], [1, 8],
+      [2, 4], [2, 5], [2, 9], [2, 10], // Curve
+      [3, 3], [3, 11],
+      [4, 2], [4, 12],
+      [5, 2], [5, 12],
+      [6, 1], [6, 13],
+      [7, 1], [7, 13]
     ];
     
     for (const pos of voxels) {
         const v = new THREE.Mesh(vGeo, handleMaterial);
-        v.position.set(pos[0] * voxelSize, pos[1] * voxelSize, 0);
+        // Center the bow vertically and horizontally based on 16x16
+        // x offset ~ -4, y offset ~ -7 to center handle roughly at (0,0)
+        v.position.set((pos[0] - 4) * voxelSize, (pos[1] - 7) * voxelSize, 0);
         bowGroup.add(v);
     }
     
     // String
-    const stringLength = 8 * voxelSize;
-    const stringGeo = new THREE.BoxGeometry(0.02, stringLength, 0.02);
+    const stringLength = 12 * voxelSize;
+    const stringGeo = new THREE.BoxGeometry(0.01, stringLength, 0.01);
     const stringMat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
     const string = new THREE.Mesh(stringGeo, stringMat);
-    string.position.set(-3 * voxelSize + 0.01, 0, 0);
+    string.position.set((7 - 4) * voxelSize, 0, 0);
+    string.name = 'bow_string'; // Helpful for animation
     bowGroup.add(string);
+    
+    // Add arrow model to bow (hidden by default)
+    const arrowGroup = new THREE.Group();
+    arrowGroup.name = 'bow_arrow';
+    arrowGroup.visible = false;
+    
+    const shaftGeo = new THREE.BoxGeometry(0.03, 0.9, 0.03);
+    const shaft = new THREE.Mesh(shaftGeo, handleMaterial);
+    arrowGroup.add(shaft);
+    
+    const tipGeo = new THREE.ConeGeometry(0.06, 0.2, 4);
+    const tipMat = new THREE.MeshStandardMaterial({ color: '#666666' });
+    const tip = new THREE.Mesh(tipGeo, tipMat);
+    tip.position.y = 0.45;
+    arrowGroup.add(tip);
+    
+    const fletchMat = new THREE.MeshStandardMaterial({ color: '#EEEEEE', side: THREE.DoubleSide });
+    for(let i=0; i<3; i++) {
+        const fletchGeo = new THREE.PlaneGeometry(0.12, 0.2);
+        const fletch = new THREE.Mesh(fletchGeo, fletchMat);
+        const angle = (i/3) * Math.PI * 2;
+        fletch.position.set(Math.cos(angle)*0.05, -0.35, Math.sin(angle)*0.05);
+        fletch.rotation.y = angle;
+        arrowGroup.add(fletch);
+    }
+    
+    // Position/rotate the arrow to seat in the bow
+    // Arrow normally points UP (+Y). The bow fires in the generic forward direction.
+    // The player's first-person hand has rotation applied.
+    // Let's point the arrow left (-X), so it points exactly away from the string (+X).
+    arrowGroup.rotation.z = Math.PI / 2;
+    // We will adjust arrow's position along X during charge animation.
+    arrowGroup.position.set(0.1, 0, 0);
+    
+    bowGroup.add(arrowGroup);
     
     group.add(bowGroup);
   } else if (isArrow) {

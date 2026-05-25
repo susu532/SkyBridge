@@ -58,11 +58,16 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
               if (tag.team === 'red') nameColor = "text-[#FF5555]";
               else if (tag.team === 'blue') nameColor = "text-[#5555FF]";
             }
-            nameSpan.className = `${nameColor} font-medium`;
-            nameSpan.innerText = isPlayer ? tag.name : tag.type;
+            if (tag.type === 'SpecialText') {
+              nameSpan.className = "text-[#FFCC00] font-bold text-center font-mono";
+            } else {
+              nameSpan.className = `${nameColor} font-medium`;
+            }
+            nameSpan.id = `entity-name-${tag.id}`;
+            nameSpan.innerText = (isPlayer || tag.type === 'SpecialText') ? tag.name : tag.type;
             innerDiv.appendChild(nameSpan);
             
-            if (!isPlayer) {
+            if (!isPlayer && tag.type !== 'SpecialText') {
               const hpSpan = document.createElement('span');
               hpSpan.className = `font-bold ${tag.isPassive ? 'text-[#55FF55]' : 'text-[#FF5555]'}`;
               hpSpan.id = `entity-hp-${tag.id}`;
@@ -73,9 +78,14 @@ export const EntityTags: React.FC<MobTagProps> = ({ game }) => {
             el.appendChild(innerDiv);
             container.appendChild(el);
           } else {
-            // Update health if it changed
+            // Update health or special text name if it changed
             const isPlayer = tag.type === 'Player';
-            if (!isPlayer) {
+            if (tag.type === 'SpecialText') {
+              const nameSpan = document.getElementById(`entity-name-${tag.id}`);
+              if (nameSpan && nameSpan.innerText !== tag.name) {
+                nameSpan.innerText = tag.name;
+              }
+            } else if (!isPlayer) {
               const hpSpan = document.getElementById(`entity-hp-${tag.id}`);
               if (hpSpan) {
                 const newHpText = `${Math.ceil(tag.health)}❤`;

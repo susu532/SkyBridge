@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { SSRPass } from 'three/examples/jsm/postprocessing/SSRPass.js';
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { Game } from './Game';
 import { settingsManager } from './Settings';
@@ -15,8 +14,11 @@ export class PostProcessingManager {
     this.game = game;
 
     const usePremiumShaders = settingsManager.getSettings().premiumShaders;
+    const isPerformanceMode = settingsManager.getSettings().performanceMode;
+    const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    const disableComposer = isPerformanceMode && isMobile;
     
-    if (this.game.world.isVoidtrail || usePremiumShaders) {
+    if (!disableComposer && (this.game.world.isVoidtrail || usePremiumShaders)) {
       if (usePremiumShaders) {
         this.game.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.game.renderer.toneMappingExposure = 1.0;
@@ -31,7 +33,7 @@ export class PostProcessingManager {
       const renderPass = new RenderPass(this.game.scene, this.game.camera);
       this.composer.addPass(renderPass);
       
-      // Ray Tracing setup via Screen Space Reflections and SSAO
+      // Ray Tracing AO setup
       if (usePremiumShaders) {
         // Soft ambient occlusion
         const ssaoPass = new SSAOPass(this.game.scene, this.game.camera, window.innerWidth, window.innerHeight);
@@ -39,22 +41,6 @@ export class PostProcessingManager {
         ssaoPass.minDistance = 0.005;
         ssaoPass.maxDistance = 0.1;
         this.composer.addPass(ssaoPass);
-
-        // Screen space reflections
-        const ssrPass = new SSRPass({
-          renderer: this.game.renderer,
-          scene: this.game.scene,
-          camera: this.game.camera,
-          width: window.innerWidth,
-          height: window.innerHeight,
-          groundReflector: null,
-          selects: null // Reflect all compatible meshes by default
-        });
-
-        ssrPass.maxDistance = 10;
-        ssrPass.opacity = 0.8;
-        ssrPass.thickness = 0.05;
-        this.composer.addPass(ssrPass);
       }
       
       // Subtle bloom
@@ -78,6 +64,12 @@ export class PostProcessingManager {
 
   render() {
     if (this.composer) {
+      const hideShininess = settingsManager.getSettings().hideShininess;
+      this.composer.passes.forEach(pass => {
+        if (pass instanceof UnrealBloomPass) {
+          pass.strength = hideShininess ? 0.0 : (this.game.world.isVoidtrail ? 0.35 : 0.25);
+        }
+      });
       this.composer.render();
     } else {
       this.game.renderer.render(this.game.scene, this.game.camera);

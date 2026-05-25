@@ -55,6 +55,19 @@ class AudioManager {
     }
   }
 
+  public setMuted(muted: boolean) {
+    if (this.listener) {
+      if (muted) {
+        this.listener.setMasterVolume(0);
+        if (this.currentMusic) this.currentMusic.volume = 0;
+      } else {
+        const volume = settingsManager.getSettings().volume;
+        this.listener.setMasterVolume(volume);
+        if (this.currentMusic) this.currentMusic.volume = volume * this.musicVolume;
+      }
+    }
+  }
+
   public init(camera: THREE.Camera) {
     if (this.listener.parent) {
       this.listener.parent.remove(this.listener);

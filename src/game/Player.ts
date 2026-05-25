@@ -58,6 +58,9 @@ export class Player {
     return this._hotbarIndex;
   }
   set hotbarIndex(val: number) {
+    if (this._hotbarIndex !== val) {
+      if (this.inputController) this.inputController.resetItemState();
+    }
     this._hotbarIndex = val;
     useGameStore.getState().setHotbarIndex(val);
   }
@@ -75,6 +78,7 @@ export class Player {
   isSpectator = false;
   isDeadThisFrame = false;
   isDead = false;
+  lastRespawnTime = 0;
   perspective: Perspective = Perspective.FIRST_PERSON;
   shakeIntensity = 0;
   shakeDecay = 5;
@@ -132,6 +136,7 @@ export class Player {
 
   // Mining state
   isLeftMouseDown = false;
+  isRightMouseDown = false;
   isMining = false;
   miningTarget: THREE.Vector3 | null = null;
   miningProgress = 0;
@@ -238,6 +243,8 @@ export class Player {
       this.hotbarIndex = 0;
     } else if (serverName.startsWith("skycastles")) {
       this.setupSkyCastlesInventory();
+    } else if (serverName.startsWith("voidtrail")) {
+      this.setupVoidTrailInventory();
     }
 
     const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -256,6 +263,7 @@ export class Player {
     this.physics = new PlayerPhysics(this);
     this.inputController.bindEvents();
 
+    window.addEventListener("syncHealth", this.onSyncHealth);
     window.addEventListener("networkPlayerHit", this.onNetworkPlayerHit);
     window.addEventListener(
       "networkPlayerRespawn",
@@ -263,6 +271,7 @@ export class Player {
     );
     window.addEventListener("networkPlayerDied", this.onNetworkPlayerDied);
     window.addEventListener("becomeSpectator", this.onBecomeSpectator);
+    window.addEventListener("networkShootArrow", this.onNetworkShootArrow as EventListener);
     window.addEventListener(
       "itemAcquired",
       this.onItemAcquired as EventListener,
@@ -271,6 +280,31 @@ export class Player {
 
   onItemAcquired = (e: any) => {
     this.inventory.addItem(e.detail.type, e.detail.count);
+  };
+
+  onNetworkShootArrow = (e: any) => {
+     const data = e.detail;
+     const isLocal = data.shooter === networkManager.id;
+     let startPos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
+     
+     if (isLocal) {
+       if (this.perspective !== 0 && this.renderer.heldItemModel) {
+         this.renderer.heldItemModel.getWorldPosition(startPos);
+       }
+     } else {
+       const remotePlayer = this.entityManager.remotePlayers.get(data.shooter);
+       if (remotePlayer && remotePlayer.heldItemModel) {
+         remotePlayer.heldItemModel.getWorldPosition(startPos);
+       }
+     }
+
+     this.entityManager.shootArrow(
+       data.shooter || "",
+       startPos,
+       new THREE.Vector3(data.velocity.x, data.velocity.y, data.velocity.z),
+       data.power,
+       isLocal
+     );
   };
 
   onNetworkPlayerDied = (e: any) => {
@@ -284,11 +318,17 @@ export class Player {
   onBecomeSpectator = () => {
     this.isSpectator = true;
     this.isDead = false;
+    this.lastRespawnTime = Date.now();
     this.isFlying = true;
     window.dispatchEvent(new CustomEvent("playerRespawn")); // Hide death screen
     useGameStore
       .getState()
       .addMessage("You are now spectating. Fly around!", "#FFFF55");
+  };
+
+  onSyncHealth = (e: any) => {
+    skyBridgeManager.stats.health = e.detail.health;
+    this.health = e.detail.health;
   };
 
   onNetworkPlayerHit = (e: any) => {
@@ -316,6 +356,7 @@ export class Player {
       const wasDead = this.isDead || this.isSpectator;
       this.isDead = false;
       this.isSpectator = false;
+      this.lastRespawnTime = Date.now();
       this.isFlying = false;
       this.isDeadThisFrame = true; // For camera reset
       this.worldPosition.set(
@@ -323,6 +364,7 @@ export class Player {
         e.detail.position.y + this.playerHeight,
         e.detail.position.z,
       );
+      this.highestY = this.worldPosition.y;
       this.velocity.set(0, 0, 0);
 
       if (e.detail.yaw !== undefined) {
@@ -355,7 +397,7 @@ export class Player {
       };
 
       if (modeWithoutNum === 'skycastles') {
-        if (getInventoryCount(ItemType.WOODEN_SWORD) === 0) {
+        if (getInventoryCount(ItemType.WOODEN_SWORD) === 0 && getInventoryCount(ItemType.BOW) === 0 && getInventoryCount(ItemType.IRON_SWORD) === 0 && getInventoryCount(ItemType.DIAMOND_SWORD) === 0 && getInventoryCount(ItemType.GOLDEN_SWORD) === 0 && getInventoryCount(ItemType.STONE_SWORD) === 0) {
           this.inventory.addItem(ItemType.WOODEN_SWORD, 1);
           itemsAdded = true;
         }
@@ -369,18 +411,18 @@ export class Player {
           itemsAdded = true;
         }
       } else if (modeWithoutNum === 'dungeondelver') {
-        if (getInventoryCount(ItemType.STONE_SWORD) === 0) {
-          this.inventory.addItem(ItemType.STONE_SWORD, 1);
-          itemsAdded = true;
-        }
-        const appleCount = getInventoryCount(ItemType.APPLE);
-        if (appleCount < 8) {
-          this.inventory.addItem(ItemType.APPLE, 8 - appleCount);
+        if (getInventoryCount(ItemType.WOODEN_SWORD) === 0) {
+          this.inventory.addItem(ItemType.WOODEN_SWORD, 1);
           itemsAdded = true;
         }
         if (!this.inventory.slots[Inventory.OFF_HAND_SLOT] || this.inventory.slots[Inventory.OFF_HAND_SLOT]?.type !== ItemType.TORCH) {
            this.inventory.slots[Inventory.OFF_HAND_SLOT] = { type: ItemType.TORCH, count: 1 };
            itemsAdded = true;
+        }
+      } else if (modeWithoutNum === 'voidtrail') {
+        if (getInventoryCount(ItemType.FLUID_CHOCOLATE_HOSE) === 0) {
+          this.inventory.addItem(ItemType.FLUID_CHOCOLATE_HOSE, 1);
+          itemsAdded = true;
         }
       }
       
@@ -397,7 +439,9 @@ export class Player {
 
   destroy() {
     this.inputController.destroy();
+    window.removeEventListener("syncHealth", this.onSyncHealth);
     window.removeEventListener("networkPlayerHit", this.onNetworkPlayerHit);
+    window.removeEventListener("networkShootArrow", this.onNetworkShootArrow as EventListener);
     window.removeEventListener(
       "networkPlayerRespawn",
       this.onNetworkPlayerRespawn,
@@ -434,14 +478,22 @@ export class Player {
     useGameStore.getState().incrementInventoryVersion();
   }
 
+  setupVoidTrailInventory() {
+    this.inventory.clear();
+    this.chestInventories.clear();
+    this.chestInventory = new Inventory(27);
+    this.inventory.addItem(ItemType.FLUID_CHOCOLATE_HOSE, 1);
+    this.hotbarIndex = 0;
+    useGameStore.getState().incrementInventoryVersion();
+  }
+
   setupDungeonDelverInventory() {
     this.inventory.clear();
     this.chestInventories.clear();
     this.chestInventory = new Inventory(27);
     
     // Core starter gear for Delver
-    this.inventory.addItem(ItemType.STONE_SWORD, 1);
-    this.inventory.addItem(ItemType.APPLE, 8);
+    this.inventory.addItem(ItemType.WOODEN_SWORD, 1);
     
     // The requested Off-hand Torch (exactly 1)
     this.inventory.slots[Inventory.OFF_HAND_SLOT] = {

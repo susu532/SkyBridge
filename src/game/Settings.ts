@@ -1,4 +1,6 @@
 
+import { getRandomCutePlayerName } from "./CuteNames";
+
 export interface Keybinds {
   forward: string;
   backward: string;
@@ -13,6 +15,7 @@ export interface Keybinds {
   perspective: string;
   fly: string;
   toggleHUD: string;
+  leaderboard: string;
   slot1: string;
   slot2: string;
   slot3: string;
@@ -34,6 +37,8 @@ export interface GameSettings {
   showDebug: boolean;
   performanceMode: boolean;
   premiumShaders: boolean;
+  hideShininess: boolean;
+  language: string;
   keybinds: Keybinds;
 }
 
@@ -51,6 +56,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   perspective: 'KeyB',
   fly: 'KeyP',
   toggleHUD: 'KeyN',
+  leaderboard: 'Tab',
   slot1: 'Digit1',
   slot2: 'Digit2',
   slot3: 'Digit3',
@@ -63,7 +69,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {
-  username: 'Player_' + Math.floor(Math.random() * 10000),
+  username: getRandomCutePlayerName(),
   renderDistance: 7,
   fov: 75,
   sensitivity: 0.002,
@@ -72,6 +78,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showDebug: false,
   performanceMode: false,
   premiumShaders: false,
+  hideShininess: true,
+  language: 'en',
   keybinds: { ...DEFAULT_KEYBINDS },
 };
 
@@ -104,6 +112,22 @@ class SettingsManager {
     } catch (e) {
       console.error('Failed to access or parse localStorage settings', e);
     }
+
+    // Try to load from CrazyGames async
+    if (typeof window !== 'undefined') {
+      setTimeout(async () => {
+         try {
+           if ((window as any).CrazyGames?.SDK?.data) {
+             const cgSaved = await (window as any).CrazyGames.SDK.data.getItem('game_settings_v2');
+             if (cgSaved) {
+               const parsed = JSON.parse(cgSaved);
+               this.settings = { ...this.settings, ...parsed };
+               this.notify();
+             }
+           }
+         } catch(e) {}
+      }, 1000);
+    }
   }
 
   getSettings() {
@@ -116,8 +140,12 @@ class SettingsManager {
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
         localStorage.setItem('game_settings_v2', JSON.stringify(this.settings));
       }
+      // CrazyGames Cloud Save
+      if (typeof window !== 'undefined' && (window as any).CrazyGames?.SDK?.data) {
+        (window as any).CrazyGames.SDK.data.setItem('game_settings_v2', JSON.stringify(this.settings));
+      }
     } catch (e) {
-      console.error('Failed to save settings to localStorage', e);
+      console.error('Failed to save settings to localStorage or Cloud', e);
     }
     this.notify();
   }

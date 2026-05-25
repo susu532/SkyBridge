@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { settingsManager } from './Settings';
 
-export class ParticleSystem {
+import { ISystem } from './ISystem';
+
+export class ParticleSystem implements ISystem {
   particles: { mesh: THREE.InstancedMesh, life: number, velocities: THREE.Vector3[], positions: THREE.Vector3[], active: boolean }[] = [];
   private scene: THREE.Scene;
   private camera: THREE.Camera;
@@ -50,6 +52,9 @@ export class ParticleSystem {
   onSpawnParticles = (e: CustomEvent) => {
     const { pos, type } = e.detail;
     const isPerformanceMode = settingsManager.getSettings().performanceMode;
+    const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    if (isPerformanceMode && isMobile) return;
+
     const particleCount = isPerformanceMode ? 4 : 12;
     
     const color = this._particleColorTemp.setHex(0x888888);

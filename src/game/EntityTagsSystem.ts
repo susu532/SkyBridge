@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Game } from './Game';
 import { settingsManager } from './Settings';
+import { useGameStore } from '../store/gameStore';
 
 export class EntityTagsSystem {
   game: Game;
@@ -59,11 +60,57 @@ export class EntityTagsSystem {
       projectEntity(mob.id, mob.position, mob.type, mob.health, mob.maxHealth, mob.level, undefined, mob.isPassive);
     });
 
-    this.game.entityManager.remotePlayers.forEach((player) => {
-      const combatLevel = player.skills?.Combat?.level || 1;
-      const heightOffset = player.isCrouching ? 1.8 : 2.2;
-      projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset, player.team);
-    });
+    const isDungeonDelver = useGameStore.getState().currentMode.startsWith("dungeondelver");
+    
+    if (isDungeonDelver) {
+      const chestPos = new THREE.Vector3(0.5, 0.0, 0.5);
+      const distSq = chestPos.distanceToSquared(this.game.camera.position);
+      if (!isNaN(distSq) && distSq <= 2500) {
+        const nowMs = Date.now();
+        const cycleDuration = 20 * 60 * 1000;
+        const elapsed = nowMs % cycleDuration;
+        const remaining = cycleDuration - elapsed;
+        
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        const formattedTime = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+        
+        this._tagTempVec.copy(chestPos);
+        this._tagTempVec.y += 0.9;
+        
+        this._tagToEntity.subVectors(this._tagTempVec, this.game.camera.position).normalize();
+        if (this._tempCameraDir.dot(this._tagToEntity) >= 0) {
+          this._tagTempVec.project(this.game.camera);
+          const x = (this._tagTempVec.x * widthHalf) + widthHalf;
+          const y = -(this._tagTempVec.y * heightHalf) + heightHalf;
+          
+          if (isFinite(x) && isFinite(y)) {
+            const distance = Math.sqrt(distSq);
+            if (distance <= 40) {
+              tags.push({
+                id: 'starter_chest_timer',
+                x,
+                y,
+                level: 1,
+                type: 'SpecialText',
+                health: 100,
+                maxHealth: 100,
+                distance,
+                name: `Starter Chest (Resets in ${formattedTime})`,
+                isPassive: true,
+                team: undefined
+              });
+            }
+          }
+        }
+      }
+    } else {
+      this.game.entityManager.remotePlayers.forEach((player) => {
+        const combatLevel = player.skills?.Combat?.level || 1;
+        const heightOffset = player.isCrouching ? 1.8 : 2.2;
+        projectEntity(player.id, player.group.position, 'Player', player.health || 100, 100, combatLevel, player.name, true, heightOffset, player.team);
+      });
+    }
 
     this._cachedTags = tags;
     return tags;

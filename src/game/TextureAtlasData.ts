@@ -508,7 +508,7 @@ BLOCK_UVS[BLOCK.LAPIS_LAZULI] = [[12,28], [12,28], [12,28], [12,28], [12,28], [1
 BLOCK_UVS[BLOCK.COPPER_INGOT] = [[13,28], [13,28], [13,28], [13,28], [13,28], [13,28]];
 BLOCK_UVS[BLOCK.HAY_BLOCK] = [[5,27], [5,27], [5,27], [5,27], [5,27], [5,27]];
 BLOCK_UVS[BLOCK.DRIED_KELP_BLOCK] = [[6,27], [6,27], [6,27], [6,27], [6,27], [6,27]];
-BLOCK_UVS[BLOCK.SPONGEY_HONEY] = [[7,27], [7,27], [7,27], [7,27], [7,27], [7,27]];
+BLOCK_UVS[BLOCK.FLUID_CHOCOLATE_HOSE] = [[3,3], [3,3], [3,3], [3,3], [3,3], [3,3]];
 
 let cachedBreakingTexture: THREE.Texture | null = null;
 export function createBreakingTexture(): THREE.Texture {

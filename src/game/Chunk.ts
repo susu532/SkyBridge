@@ -76,7 +76,18 @@ export class Chunk {
       geo.setAttribute('aSway', new THREE.BufferAttribute(layer.sways, 1));
       geo.setIndex(new THREE.BufferAttribute(layer.indices, 1));
 
-      if (mesh) { mesh.geometry.dispose(); mesh.geometry = geo; return mesh; }
+      if (mesh) {
+        mesh.geometry.dispose();
+        mesh.geometry = geo;
+        mesh.castShadow = !performanceMode;
+        mesh.receiveShadow = !performanceMode;
+        if (layer === opaque) {
+          mesh.customDepthMaterial = opaqueDepthMaterial;
+        } else if (layer === transparent) {
+          mesh.customDepthMaterial = transparentDepthMaterial;
+        }
+        return mesh;
+      }
 
       const newMesh = new THREE.Mesh(geo, material);
       newMesh.position.set(this.x * CHUNK_SIZE, WORLD_Y_OFFSET, this.z * CHUNK_SIZE);

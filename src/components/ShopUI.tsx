@@ -211,6 +211,31 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
     return sum + (def ? Math.floor(item.count / (def.price || 1)) * (def.outputAmount || 0) : 0);
   }, 0);
 
+  const [containerScale, setContainerScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const w = window.innerWidth;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      let scale = 1;
+      
+      if (isLandscape) {
+        if (w >= 1280) scale = 1;      // xl
+        else if (w >= 768) scale = 0.8; // md
+        else scale = 0.55;
+      } else {
+        if (w >= 768) scale = 1;       // md
+        else if (w >= 640) scale = 0.8; // sm
+        else scale = 0.6;
+      }
+      setContainerScale(scale);
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
   if (!npc) return null;
 
   return (
@@ -228,7 +253,8 @@ export const ShopUI = React.memo<ShopUIProps>(({ npc, inventory, isOpen, onClose
             initial={{ scale: 0.8, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.8, opacity: 0, y: 20 }}
-            className="mc-panel w-[960px] max-w-[95vw] h-[640px] max-h-[90vh] flex flex-col p-0 overflow-hidden relative"
+            className="mc-panel w-[960px] max-w-[95vw] h-[640px] flex flex-col p-0 overflow-hidden relative"
+            style={{ maxHeight: `calc(90vh / ${containerScale})` }}
           >
             {/* Hypixel Style Header */}
             <div className="relative h-20 bg-[#373737] border-b-[4px] border-[#222] flex items-center px-8 shrink-0">

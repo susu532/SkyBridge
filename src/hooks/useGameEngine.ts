@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Game } from '../game/Game';
-import { useUIStore } from '../store/UIStore';
+import { useUIStore } from '../store/uiStore';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../game/NetworkManager';
 import { audioManager } from '../game/AudioManager';
 import { settingsManager } from '../game/Settings';
 import { ITEM_NAMES } from '../game/Constants';
+import { CrazyGamesManager } from '../game/CrazyGamesManager';
 
 import { PointerLockStateMachine } from '../game/PointerLockStateMachine';
 
@@ -17,7 +18,37 @@ export function useGameEngine() {
   const currentMode = useGameStore(state => state.currentMode);
 
   useEffect(() => {
-    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    CrazyGamesManager.init();
+
+    const checkPointer = () => {
+      const touchCapable = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      // Devices with a fine pointer (like a mouse/trackpad) shouldn't be forced into touch controls
+      const hasFinePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
+      // If it's touch capable but DOES NOT have a fine pointer, we treat it as mobile.
+      // E.g., iPhones, iPads (without magic keyboard), Androids.
+      // If an iPad connects a mouse, hasFinePointer becomes true, and isMobile becomes false!
+      setIsMobile(touchCapable && !hasFinePointer);
+    };
+
+    checkPointer();
+    
+    // Listen for pointer changes (e.g., dynamically connecting/disconnecting a mouse on iPad)
+    const mediaQuery = window.matchMedia("(pointer: fine)");
+    const handler = () => checkPointer();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handler);
+    } else if (mediaQuery.addListener) {
+      // Legacy Safari support
+      mediaQuery.addListener(handler);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handler);
+      } else if (mediaQuery.removeListener) {
+        mediaQuery.removeListener(handler);
+      }
+    };
   }, []);
 
   const [showDebug, setShowDebug] = useState(false);
@@ -38,15 +69,21 @@ export function useGameEngine() {
     newGame.start();
     newGame.player.renderer.setHandVisible(useUIStore.getState().isHUDVisible);
 
-    const resizeObserver = new ResizeObserver(() => {
-      newGame.onWindowResize();
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (entries.length > 0) {
+        const { width, height } = entries[0].contentRect;
+        newGame.onWindowResize(width, height);
+      }
     });
     resizeObserver.observe(containerRef.current);
 
     const handleLockChange = () => {
       const locked = document.pointerLockElement === document.body;
       useUIStore.getState().setLocked(locked);
-      if (!locked) {
+      if (locked) {
+        CrazyGamesManager.gameplayStart();
+      } else {
+        CrazyGamesManager.gameplayStop();
         // Open pause menu when unlocking if not in other specific menus and not suppressed
         setTimeout(() => {
           const state = useUIStore.getState();
@@ -55,6 +92,7 @@ export function useGameEngine() {
               !state.isShopOpen && 
               !state.isSettingsOpen && 
               !state.isChestOpen && 
+              !state.isLoadoutOpen &&
               !state.isTyping) {
             state.setPauseMenuOpen(true);
           }
@@ -121,7 +159,8 @@ export function useGameEngine() {
           isTyping: typing, 
           isChestOpen: chest,
           isServerJoinOpen: serverJoin,
-          isLaunchMenuOpen: launchMenu
+          isLaunchMenuOpen: launchMenu,
+          isLoadoutOpen: loadout
         } = state;
 
         if (isInputFocused) {
@@ -129,7 +168,7 @@ export function useGameEngine() {
           return;
         }
 
-        if (inv || shop || settings || pause || typing || chest || serverJoin || launchMenu) {
+        if (inv || shop || settings || pause || typing || chest || serverJoin || launchMenu || loadout) {
           state.setInventoryOpen(false);
           state.setShopOpen(false);
           state.setSettingsOpen(false);
@@ -138,11 +177,12 @@ export function useGameEngine() {
           state.setTyping(false);
           state.setServerJoinOpen(false);
           state.setLaunchMenuOpen(false);
+          state.setLoadoutOpen(false);
           
           if (!isMobile) {
             trySafeLock(true);
           }
-        } else {
+        } else if (!useGameStore.getState().isMapLoading) {
           newGame.controls.unlock();
           state.setPauseMenuOpen(true);
         }
@@ -177,20 +217,6 @@ export function useGameEngine() {
       newGame.controls.unlock();
     };
 
-    const handleForceCloseMenus = () => {
-      const state = useUIStore.getState();
-      state.setInventoryOpen(false);
-      state.setShopOpen(false);
-      state.setSettingsOpen(false);
-      state.setPauseMenuOpen(false);
-      state.setChestOpen(false);
-      state.setTyping(false);
-      suppressPauseMenu.current = true;
-      if (!isMobile) {
-        trySafeLock();
-      }
-    };
-
     const trySafeLock = (isEscapeKey = false) => {
       if (document.pointerLockElement === document.body) return;
       if (isMobile) return;
@@ -219,29 +245,6 @@ export function useGameEngine() {
         if (store.isUnderLava !== newGame.player.isUnderLava) {
           store.setIsUnderLava(newGame.player.isUnderLava);
         }
-        
-        // Update target info for crosshair
-        if (newGame.lastRaycast) {
-          if (newGame.lastRaycast.npc) {
-            const npc = newGame.lastRaycast.npc;
-            const current = useGameStore.getState().targetInfo;
-            if (current?.id !== npc?.id) {
-              useGameStore.getState().setTargetInfo({ type: 'npc', name: npc.name, id: npc.id });
-            }
-          } else if (newGame.lastRaycast.block) {
-            const block = newGame.lastRaycast.block;
-            const newName = ITEM_NAMES[block.blockType] || 'Block';
-            const current = useGameStore.getState().targetInfo;
-            if (current?.type !== 'block' || current?.name !== newName) {
-              useGameStore.getState().setTargetInfo({ type: 'block', name: newName });
-            }
-          } else {
-            const current = useGameStore.getState().targetInfo;
-            if (current?.type !== null) {
-              useGameStore.getState().setTargetInfo({ type: null, name: null });
-            }
-          }
-        }
         lastRaycastTime = time;
       }
       fastUIAF = requestAnimationFrame(updateFastUI);
@@ -268,7 +271,13 @@ export function useGameEngine() {
     };
 
     const handlePlayerDied = () => {
-      newGame.player.respawn();
+      CrazyGamesManager.gameplayStop();
+      CrazyGamesManager.requestAd('midgame', {
+         adFinished: () => {
+            CrazyGamesManager.gameplayStart();
+            newGame.player.respawn();
+         }
+      });
     };
 
     const handleRequestGameRestart = () => {
@@ -298,7 +307,6 @@ export function useGameEngine() {
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('openShop', handleOpenShop as EventListener);
     window.addEventListener('openChest', handleOpenChest as EventListener);
-    window.addEventListener('forceCloseMenus', handleForceCloseMenus as EventListener);
     const handlePopState = () => {
       const p = new URLSearchParams(window.location.search);
       const server = p.get('server') || 'hub';
@@ -324,7 +332,13 @@ export function useGameEngine() {
       }, 2000);
     } else {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', `§bWelcome to ${serverName.startsWith('skycastles') ? 'SkyCastles' : serverName.startsWith('battleroyale') ? 'Battle Royale' : serverName.startsWith('skyisland') ? 'Sky Island' : 'SkyBridge'}!`);
+        let displayName = 'SkyBridge';
+        if (serverName.startsWith('skycastles')) displayName = 'SkyCastles';
+        else if (serverName.startsWith('battleroyale')) displayName = 'Battle Royale';
+        else if (serverName.startsWith('skyisland')) displayName = 'Sky Island';
+        else if (serverName.startsWith('dungeondelver')) displayName = 'Dungeon Delver';
+        else if (serverName.startsWith('voidtrail')) displayName = 'Void Trail';
+        networkManager.receiveLocalMessage('System', `§bWelcome to ${displayName}!`);
       }, 2000);
     }
 
@@ -344,7 +358,6 @@ export function useGameEngine() {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('openShop', handleOpenShop as EventListener);
       window.removeEventListener('openChest', handleOpenChest as EventListener);
-      window.removeEventListener('forceCloseMenus', handleForceCloseMenus as EventListener);
       window.removeEventListener('openServerJoin', handleOpenServerJoin as EventListener);
       window.removeEventListener('openLaunchMenu', handleOpenLaunchMenu as EventListener);
       window.removeEventListener('requestRespawn', handleRequestRespawn as EventListener);
@@ -378,7 +391,8 @@ export function useGameEngine() {
     }
 
     const uiState = useUIStore.getState();
-    if (game && !game.controls.isLocked && !uiState.isInventoryOpen && !uiState.isShopOpen && !uiState.isSettingsOpen && !uiState.isPauseMenuOpen && !uiState.isServerJoinOpen) {
+    const isMapLoading = useGameStore.getState().isMapLoading;
+    if (game && !game.controls.isLocked && !isMapLoading && !uiState.isInventoryOpen && !uiState.isShopOpen && !uiState.isSettingsOpen && !uiState.isPauseMenuOpen && !uiState.isServerJoinOpen && !uiState.isLoadoutOpen) {
       const isTouch = e && e.pointerType === 'touch';
       if (isTouch) {
         try {

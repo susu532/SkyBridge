@@ -11,6 +11,7 @@ import { getVoidTrailBlock } from "./generation/VoidTrailGenerator";
 import { generateSkyIslandTerrain } from "./generation/SkyIslandGenerator";
 import * as THREE from "three";
 import { skycastlesBakedBlocks } from "./SkycastlesBakedBlocks";
+import { dungeonBakedBlocks } from "./DungeonBakedBlocks";
 
 export async function generateChunkMethod(
   world: World,
@@ -44,29 +45,42 @@ export async function generateChunkMethod(
       }
 
       if (world.isDungeonDelver) {
-        // Iterate over vertical space. chunk y is 0-256. world y = y - 60
-        for (let y = 0; y < 100; y++) {
-          const worldY = y - 60;
+        // Iterate only over the playable vertical space (worldY -2 to 7, which is y 58 to 67)
+        // to prevent generating massive useless blocks under y < -2 and above y > 7.
+        for (let y = 58; y <= 67; y++) {
+          const worldY = y + WORLD_Y_OFFSET;
+          
+          const blockKey = `${Math.floor(worldX)},${Math.floor(worldY)},${Math.floor(worldZ)}`;
+          if (dungeonBakedBlocks.has(blockKey)) {
+             chunk.setBlockFast(x, y, z, dungeonBakedBlocks.get(blockKey)!);
+             continue;
+          }
 
           // Catacombs boundaries
-          if (Math.abs(worldX) > 200 || Math.abs(worldZ) > 200) {
-            if (worldY >= -5 && worldY <= 15) {
+          if (Math.abs(worldX) > 50 || Math.abs(worldZ) > 50) {
+            if (Math.abs(worldX) > 55 || Math.abs(worldZ) > 55) {
+              chunk.setBlockFast(x, y, z, BLOCK.AIR);
+              continue;
+            }
+            if (worldY >= -2 && worldY <= 7) {
               chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN);
               continue;
             }
           }
 
           // Outer bedrock/floor limits
-          if (worldY < -5) {
-            chunk.setBlockFast(x, y, z, BLOCK.OBSIDIAN);
+          // Note: In server y < -2 returns OBSIDIAN but if bounded to 105 it stops drawing.
+          // Because the catacombs boundaries rule already handles it, we can just do the same:
+          if (worldY < -2) {
+            chunk.setBlockFast(x, y, z, Math.abs(worldX) > 55 || Math.abs(worldZ) > 55 ? BLOCK.AIR : BLOCK.OBSIDIAN);
             continue;
           }
-          if (worldY > 15) {
+          if (worldY > 7) {
             chunk.setBlockFast(
               x,
               y,
               z,
-              Math.abs(worldX) > 200 || Math.abs(worldZ) > 200
+              Math.abs(worldX) > 50 || Math.abs(worldZ) > 50
                 ? BLOCK.AIR
                 : BLOCK.STONE,
             );
@@ -76,7 +90,9 @@ export async function generateChunkMethod(
           // Spawn Room (safe area)
           const distSq = worldX * worldX + worldZ * worldZ;
           if (distSq < 100) {
-            if (worldY === -1) {
+            if (worldX === 0 && worldY === 0 && worldZ === 0) {
+              chunk.setBlockFast(x, y, z, BLOCK.CHEST);
+            } else if (worldY === -1) {
               chunk.setBlockFast(
                 x,
                 y,
@@ -119,15 +135,17 @@ export async function generateChunkMethod(
 
           if (isCarved) {
             if (worldY >= 0 && worldY <= 4) {
-              if (worldY === 0 && caveNoise > 0.5)
-                chunk.setBlockFast(x, y, z, BLOCK.LAVA);
-              else chunk.setBlockFast(x, y, z, BLOCK.AIR);
+              chunk.setBlockFast(x, y, z, BLOCK.AIR);
             } else if (worldY === -1) {
-              const detailNoise = noise2D(worldX * 0.2, worldZ * 0.2);
-              if (detailNoise > 0.4) chunk.setBlockFast(x, y, z, BLOCK.DIRT);
-              else if (detailNoise < -0.4)
-                chunk.setBlockFast(x, y, z, BLOCK.CONCRETE_GRAY);
-              else chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              if (caveNoise > 0.5) {
+                chunk.setBlockFast(x, y, z, BLOCK.LAVA);
+              } else {
+                const detailNoise = noise2D(worldX * 0.2, worldZ * 0.2);
+                if (detailNoise > 0.4) chunk.setBlockFast(x, y, z, BLOCK.DIRT);
+                else if (detailNoise < -0.4)
+                  chunk.setBlockFast(x, y, z, BLOCK.CONCRETE_GRAY);
+                else chunk.setBlockFast(x, y, z, BLOCK.STONE);
+              }
             } else if (worldY < -1) {
               chunk.setBlockFast(x, y, z, BLOCK.STONE);
             } else if (worldY === 5) {
@@ -1288,7 +1306,7 @@ export async function generateChunkMethod(
   // Calculate sunlight
   for (let x = 0; x < CHUNK_SIZE; x++) {
     for (let z = 0; z < CHUNK_SIZE; z++) {
-      let lightLevel = 15;
+      let lightLevel = world.isDungeonDelver ? 0 : 15;
       for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
         const type = chunk.getBlock(x, y, z);
         if (isSolidBlock(type)) {

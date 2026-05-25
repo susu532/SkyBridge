@@ -68,6 +68,16 @@
   .safe-ml { margin-left: env(safe-area-inset-left); }
   .safe-mr { margin-right: env(safe-area-inset-right); }
   .safe-mb { margin-bottom: env(safe-area-inset-bottom); }
+
+  @media (max-height: 400px) {
+    .mc-slot {
+      width: 28px !important;
+      height: 28px !important;
+    }
+    .mc-panel {
+      padding: 0.5rem !important;
+    }
+  }
 }
 
 @keyframes slideUpFade {

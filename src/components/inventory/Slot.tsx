@@ -100,6 +100,22 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
     );
   }
 
+  if (item.type === ItemType.FLUID_CHOCOLATE_HOSE) {
+    return (
+      <div className="relative w-[20px] h-[20px] sm:w-[24px] sm:h-[24px] flex items-center justify-center select-none bg-zinc-900 rounded-sm border border-black/80 shadow-md">
+        <div className="flex flex-col items-center">
+          <div className="w-[4px] h-[5px] bg-[#999999] rounded-t-[1px]"></div>
+          <div className="w-[8px] h-[10px] bg-[#3d1c04] rounded-[2px] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#261001]"></div>
+        </div>
+        {item.count > 1 && (
+          <span className="absolute -bottom-1 -right-1 text-[10px] sm:text-[12px] font-bold text-white drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] pointer-events-none z-10">
+            {item.count}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   const flat = isFlatItem(item.type) || isPlant(item.type);
 
   if (!flat) {

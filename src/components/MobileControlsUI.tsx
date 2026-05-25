@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useUI } from '../store/UIStore';
+import { useUI } from '../store/uiStore';
 import { useGameStore } from '../store/gameStore';
 import { Crosshair, ArrowUp, Zap, Anchor, Navigation, Hand } from 'lucide-react';
 
@@ -112,18 +112,18 @@ export const MobileControlsUI: React.FC = () => {
     const distance = Math.sqrt(dx * dx + dy * dy);
     // Base max radius on viewport width/height roughly
     const isTablet = window.innerWidth >= 768;
-    const maxRadius = isTablet ? 72 : 56; 
+    const currentMaxRadius = isTablet ? 96 : 56; 
     
-    let normalizedX = dx / maxRadius;
-    let normalizedY = dy / maxRadius;
+    let normalizedX = dx / currentMaxRadius;
+    let normalizedY = dy / currentMaxRadius;
 
-    if (distance > maxRadius) {
+    if (distance > currentMaxRadius) {
       normalizedX = dx / distance;
       normalizedY = dy / distance;
     }
     
     // Add visual deadzone
-    if (distance < maxRadius * 0.25) {
+    if (distance < currentMaxRadius * 0.25) {
       normalizedX = 0;
       normalizedY = 0;
     }
@@ -149,10 +149,10 @@ export const MobileControlsUI: React.FC = () => {
 
   useEffect(() => {
     const isTablet = window.innerWidth >= 768;
-    maxRadius.current = isTablet ? 75 : 50;
+    maxRadius.current = isTablet ? 96 : 56;
 
     const handleResize = () => {
-      maxRadius.current = window.innerWidth >= 768 ? 75 : 50;
+      maxRadius.current = window.innerWidth >= 768 ? 96 : 56;
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -297,9 +297,15 @@ export const MobileControlsUI: React.FC = () => {
   if (isAnyMenuOpen) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none safe-pb">
+    <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none">
       {/* Top HUD Buttons */}
-      <div className="absolute top-2 right-2 flex gap-2 pointer-events-auto safe-pr safe-pt transform origin-top-right scale-[0.8] landscape:scale-[0.6] landscape:top-1 landscape:right-1">
+      <div 
+        className="absolute flex gap-2 pointer-events-auto transform origin-top-right scale-[0.8] landscape:scale-[0.8]"
+        style={{ 
+          top: 'calc(0.5rem + env(safe-area-inset-top))', 
+          right: 'calc(0.5rem + env(safe-area-inset-right))' 
+        }}
+      >
         <button 
           className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 touch-none mobile-button"
           onPointerDown={(e) => { 
@@ -369,7 +375,11 @@ export const MobileControlsUI: React.FC = () => {
       {/* Floating Joystick Area (Left half) */}
       <div 
         ref={joystickRef}
-        className="absolute top-0 bottom-16 landscape:bottom-24 left-0 w-1/2 z-50 pointer-events-auto touch-none"
+        className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-auto touch-none"
+        style={{ 
+          left: 'calc(0px + env(safe-area-inset-left))',
+          width: 'calc(50% - env(safe-area-inset-left))'
+        }}
         onPointerDown={startJoystick}
         onPointerMove={updateJoystick}
         onPointerUp={stopJoystick}
@@ -395,7 +405,13 @@ export const MobileControlsUI: React.FC = () => {
       </div>
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
-      <div className="absolute bottom-4 right-4 pointer-events-none w-44 h-44 landscape:w-36 landscape:h-36 landscape:bottom-2 landscape:right-2 safe-mr safe-mb transform origin-bottom-right scale-[0.75] sm:scale-100 landscape:scale-[0.65] md:landscape:scale-100">
+      <div 
+        className="absolute pointer-events-none w-44 h-44 landscape:w-36 landscape:h-36 transform origin-bottom-right scale-[0.75] sm:scale-90 landscape:scale-[0.65] md:landscape:scale-[0.8] lg:landscape:scale-[0.75]"
+        style={{
+          bottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
+          right: 'calc(0.5rem + env(safe-area-inset-right))'
+        }}
+      >
         {/* Drop Button (Top Left) */}
         <button 
           className="absolute top-0 left-0 mobile-button w-12 h-12 landscape:w-10 landscape:h-10 rounded-full bg-red-500/20 border-[3px] border-red-500/40 flex items-center justify-center active:bg-red-500/40 opacity-80 pointer-events-auto shadow-md text-red-100"

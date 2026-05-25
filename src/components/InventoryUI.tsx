@@ -456,7 +456,31 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
     }
   });
 
-  const emptyDoubleClick = React.useCallback(() => {}, []);
+  const [containerScale, setContainerScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const w = window.innerWidth;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      let scale = 1;
+      
+      if (isLandscape) {
+        if (w >= 1280) scale = 1;      // xl
+        else if (w >= 768) scale = 0.7; // md
+        else if (w >= 640) scale = 0.45; // sm
+        else scale = 0.4;
+      } else {
+        if (w >= 768) scale = 1;       // md
+        else if (w >= 640) scale = 0.8; // sm
+        else scale = 0.6;
+      }
+      setContainerScale(scale);
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -482,7 +506,8 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            className="mc-panel p-2 md:p-4 shadow-2xl relative mc-font max-w-[98vw] max-h-[98vh] overflow-y-auto overflow-x-hidden custom-scrollbar"
+            className="mc-panel p-2 md:p-4 shadow-2xl relative mc-font max-w-[98vw] overflow-y-auto overflow-x-hidden custom-scrollbar"
+            style={{ maxHeight: `calc(96vh / ${containerScale})` }}
           >
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 border-b-2 border-[#373737]/30 pb-2">
           <span className="font-bold text-sm md:text-lg px-2 md:px-3 py-1 text-[#373737]">

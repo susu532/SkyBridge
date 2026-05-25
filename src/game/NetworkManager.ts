@@ -2,6 +2,7 @@ import { useGameStore } from "../store/gameStore";
 import * as THREE from "three";
 import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
+import { audioManager } from "./AudioManager";
 import { getSecureBackendUrl } from '../utils/security';
 
 class FakeClientSocket {
@@ -284,6 +285,7 @@ export class NetworkManager {
 
   public connect(serverName: string) {
     useGameStore.getState().setIsMapLoading(true);
+    useGameStore.getState().clearLeaderboard();
     if (this.socket) {
       this.socket.disconnect();
       this.socket.removeAllListeners();
@@ -494,7 +496,19 @@ export class NetworkManager {
 
     this.socket.on("playerStatsUpdate", (data) => {
       if (!data || !data.id) return;
-      useGameStore.getState().updateLeaderboardStats(data.id, data.kills, data.deaths);
+      
+      const p = this.players[data.id];
+      const lb = useGameStore.getState().leaderboard;
+      if (!lb[data.id] && p) {
+         // Create entry if missing to ensure realtime visibility
+         useGameStore.getState().setLeaderboardPlayer(data.id, p.name || 'Unknown', p.team, data.kills, data.deaths);
+      } else {
+         useGameStore.getState().updateLeaderboardStats(data.id, data.kills, data.deaths);
+      }
+
+      if (data.id === this.id && data.health !== undefined) {
+         window.dispatchEvent(new CustomEvent("syncHealth", { detail: { health: data.health } }));
+      }
     });
 
     this.socket.on("playerDied", (data) => {
@@ -549,6 +563,18 @@ export class NetworkManager {
       window.dispatchEvent(new CustomEvent("becomeSpectator"));
     });
 
+    this.socket.on("killCelebration", (data: { victimName: string; isPlayer: boolean; isBot: boolean; coinsRewarded?: number }) => {
+      useGameStore.getState().addKillCelebration(data.victimName, data.isPlayer, data.isBot, data.coinsRewarded);
+      try {
+        const soundName = data.isPlayer ? "level_up" : "orb";
+        const volume = data.isPlayer ? 0.7 : 0.45;
+        const pitch = data.isPlayer ? 1.1 : 1.0;
+        audioManager.play(soundName, volume, pitch);
+      } catch (err) {
+        console.warn("Could not play kill celebration sound:", err);
+      }
+    });
+
     this.socket.on("playerRespawn", (data) => {
       if (this.onPlayerRespawn) this.onPlayerRespawn(data);
       window.dispatchEvent(
@@ -567,6 +593,10 @@ export class NetworkManager {
     this.socket.on("chatMessage", (data) => {
       if (this.onChatMessage) this.onChatMessage(data);
       useGameStore.getState().addChatMessage(data.sender, data.message, data.team);
+    });
+
+    this.socket.on("shootArrow", (data) => {
+      window.dispatchEvent(new CustomEvent("networkShootArrow", { detail: data }));
     });
 
     this.socket.on("switchServer", (mode) => {
@@ -613,15 +643,8 @@ export class NetworkManager {
   }
 
   move(position: THREE.Vector3, rotation: THREE.Euler) {
-    const buffer = new ArrayBuffer(20);
-    const view = new DataView(buffer);
-    view.setFloat32(0, position.x);
-    view.setFloat32(4, position.y);
-    view.setFloat32(8, position.z);
-    view.setFloat32(12, rotation.x);
-    view.setFloat32(16, rotation.y);
-
-    this._volatile_emit("moveP", buffer);
+    const f32 = new Float32Array([position.x, position.y, position.z, rotation.x, rotation.y]);
+    this._volatile_emit("moveP", f32);
   }
 
   updateState(state: any) {
@@ -646,6 +669,14 @@ export class NetworkManager {
 
   sendChatMessage(message: string) {
     this._emit("chatMessage", message);
+  }
+
+  shootArrow(
+    position: { x: number; y: number; z: number },
+    velocity: { x: number; y: number; z: number },
+    power: number
+  ) {
+    this._emit("shootArrow", { position, velocity, power });
   }
 
   dropItem(
@@ -730,6 +761,7 @@ export class NetworkManager {
     isSprinting: boolean,
     damage?: number,
     isCrit?: boolean,
+    isProjectile?: boolean,
   ) {
     this._emit("attack", {
       targetId,
@@ -738,6 +770,7 @@ export class NetworkManager {
       isSprinting,
       damage,
       isCrit,
+      isProjectile,
     });
   }
 

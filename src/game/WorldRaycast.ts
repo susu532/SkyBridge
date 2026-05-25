@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { World } from "./World";
-import { BLOCK, isWater } from "./TextureAtlas";
+import { BLOCK, isWater, isSolidBlock } from "./TextureAtlas";
 
 export class WorldRaycast {
   world: World;
@@ -14,6 +14,7 @@ export class WorldRaycast {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     maxDistance: number,
+    solidOnly: boolean = false,
   ) {
     let t = 0;
     // DDA (Digital Differential Analyzer) voxel raycast algorithm.
@@ -41,7 +42,11 @@ export class WorldRaycast {
     let hit = false;
     while (t < maxDistance) {
       const block = this.world.getBlock(x, y, z);
-      if (block !== BLOCK.AIR && !isWater(block)) {
+      const isHit = solidOnly 
+        ? (block !== BLOCK.AIR && isSolidBlock(block))
+        : (block !== BLOCK.AIR && !isWater(block));
+
+      if (isHit) {
         hit = true;
         break;
       }
@@ -74,11 +79,15 @@ export class WorldRaycast {
     }
 
     if (hit) {
+      // Calculate intersection point using the precise distance 't'
+      const hitPoint = origin.clone().add(direction.clone().multiplyScalar(t));
       return {
         hit: true,
         blockPos: new THREE.Vector3(x, y, z),
         prevPos: new THREE.Vector3(prevX, prevY, prevZ),
         blockType: this.world.getBlock(x, y, z),
+        distance: t,
+        hitPoint: hitPoint
       };
     }
 

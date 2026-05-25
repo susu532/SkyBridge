@@ -90,14 +90,15 @@ export class WorldUpdater {
       const dx = Math.abs(chunk.x - pcx);
       const dz = Math.abs(chunk.z - pcz);
       if (dx > this.world.renderDistance + 1 || dz > this.world.renderDistance + 1) {
+        this.world.meshesToRemove.push({
+           mesh: chunk.mesh,
+           transparentMesh: chunk.transparentMesh
+        });
         if (chunk.mesh) {
           this.world.scene.remove(chunk.mesh);
-          chunk.mesh.geometry.dispose();
-          // We don't dispose the material because it's shared across all chunks
         }
         if (chunk.transparentMesh) {
           this.world.scene.remove(chunk.transparentMesh);
-          chunk.transparentMesh.geometry.dispose();
         }
         this.world.chunks.delete(key);
       }
@@ -140,8 +141,13 @@ export class WorldUpdater {
     });
 
     for (const { chunk } of chunksToMesh) {
-      // Limit concurrent meshing to prevent stutter, but allow more if they are in frustum
-      const maxConcurrent = isMapLoading ? 32 : (chunksToMesh[0]?.inFrustum ? 16 : 8);
+      // Limit concurrent meshing to prevent stutter, scaling down dramatically for mobile devices
+      const isMobileDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+      let maxConcurrent = isMapLoading ? 32 : (chunksToMesh[0]?.inFrustum ? 16 : 8);
+      if (isMobileDevice) {
+        maxConcurrent = isMapLoading ? 8 : 2;
+      }
+      
       if (
         activeMeshing < maxConcurrent &&
         performance.now() - startTime < maxTimePerFrame * 4
@@ -156,8 +162,25 @@ export class WorldUpdater {
         }
 
         const isPerformanceMode = settingsManager.getSettings().performanceMode;
-        const neighborsBlocks = chunkCache.map((c) => (c ? c.blocks : null));
-        const neighborsLight = chunkCache.map((c) => (c ? c.light : null));
+        
+        const blocksCopy = chunk.blocks.slice();
+        const lightCopy = chunk.light.slice();
+        const neighborsBlocks: (Uint16Array | null)[] = [];
+        const neighborsLight: (Uint8Array | null)[] = [];
+        const transferList: ArrayBuffer[] = [blocksCopy.buffer, lightCopy.buffer];
+
+        for (const c of chunkCache) {
+          if (c) {
+            const nbCopy = c.blocks.slice();
+            const nlCopy = c.light.slice();
+            neighborsBlocks.push(nbCopy);
+            neighborsLight.push(nlCopy);
+            transferList.push(nbCopy.buffer, nlCopy.buffer);
+          } else {
+            neighborsBlocks.push(null);
+            neighborsLight.push(null);
+          }
+        }
 
         chunk.isMeshing = true;
         chunk.needsUpdate = false;
@@ -175,12 +198,12 @@ export class WorldUpdater {
           taskId,
           chunkX: chunk.x,
           chunkZ: chunk.z,
-          blocks: chunk.blocks,
-          light: chunk.light,
+          blocks: blocksCopy,
+          light: lightCopy,
           neighborsBlocks,
           neighborsLight,
           performanceMode: isPerformanceMode,
-        });
+        }, transferList);
 
         activeMeshing++;
       } else {

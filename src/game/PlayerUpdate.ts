@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Player } from "./Player";
 import { BLOCK, isPlant, isFlatItem, isSolidBlock, isWater, getBlockUVs, ATLAS_TILES } from "./TextureAtlas";
-import { ItemType, Inventory } from "./Inventory";
+import { ItemType, Inventory, isChest } from "./Inventory";
 import { networkManager } from "./NetworkManager";
 import { audioManager } from "./AudioManager";
 import { getMiningStats } from "./MiningStats";
@@ -92,21 +92,36 @@ export function updatePlayer(player: Player, delta: number) {
     player.playerHeight = targetHeight;
 
     // Handle Zoom
-    const targetFov = player.isZooming ? 30 : player.baseFOV;
+    let targetFov = player.isZooming ? 30 : player.baseFOV;
+
+    // Bow Charging Zoom
+    const equipStack = player.inventory.slots[player.hotbarIndex];
+    if (equipStack?.type === ItemType.BOW && player.inputController.bowChargeStart > 0) {
+      const chargeTime = Date.now() - player.inputController.bowChargeStart;
+      const charge = Math.min(1.0, chargeTime / 1000.0);
+      targetFov -= charge * 15; // Zoom in as bow is fully drawn
+    }
+
     if (player.camera.fov !== targetFov) {
       player.camera.fov = THREE.MathUtils.lerp(player.camera.fov, targetFov, 0.2);
       player.camera.updateProjectionMatrix();
     }
 
+    const activeTool = player.inventory.slots[player.hotbarIndex];
+    const isHose = activeTool?.type === ItemType.FLUID_CHOCOLATE_HOSE;
+
     // Handle Mining
-    if (player.isLeftMouseDown && !player.isDead && !player.isSpectator) {
+    if (player.isLeftMouseDown && !player.isDead && !player.isSpectator && !isHose) {
       if (!player.isMining && !player.isFlying) {
         // It should have been started by onMouseDown, if not, wait for another click.
         // In survival we don't auto-start mining immediately on drag unless we are still holding left click after a block breaks.
       }
 
-      const direction = _rayDir;
-      player.camera.getWorldDirection(direction);
+      const direction = _rayDir.set(
+        -Math.sin(player.cameraYaw) * Math.cos(player.cameraPitch),
+        Math.sin(player.cameraPitch),
+        -Math.cos(player.cameraYaw) * Math.cos(player.cameraPitch)
+      ).normalize();
       const rayOrigin = _rayOrigin.copy(player.playerHeadPos);
       const hitResult = player.world.raycast(rayOrigin, direction, 5);
 
@@ -192,8 +207,11 @@ export function updatePlayer(player: Player, delta: number) {
         player.miningTarget = null;
         if (player.breakingMesh) player.breakingMesh.visible = false;
       } else {
-        const direction = _rayDir;
-        player.camera.getWorldDirection(direction);
+        const direction = _rayDir.set(
+          -Math.sin(player.cameraYaw) * Math.cos(player.cameraPitch),
+          Math.sin(player.cameraPitch),
+          -Math.cos(player.cameraYaw) * Math.cos(player.cameraPitch)
+        ).normalize();
         const rayOrigin = _rayOrigin.copy(player.playerHeadPos);
         const hitResult = player.world.raycast(rayOrigin, direction, 5);
 
@@ -367,7 +385,8 @@ export function updatePlayer(player: Player, delta: number) {
         const isTool =
           (itemTypeNum >= 436 && itemTypeNum <= 455) ||
           (itemTypeNum >= 460 && itemTypeNum <= 472) ||
-          itemTypeNum === 54;
+          itemTypeNum === 54 ||
+          itemTypeNum === ItemType.FLUID_CHOCOLATE_HOSE;
         const isFood = itemTypeNum >= 456 && itemTypeNum <= 459;
         const isMaterial =
           itemTypeNum === 13 ||
@@ -379,7 +398,9 @@ export function updatePlayer(player: Player, delta: number) {
           itemTypeNum === 321 ||
           itemTypeNum === 43 ||
           itemTypeNum === 44 ||
-          isTorch;
+          isTorch ||
+          itemTypeNum === ItemType.FLUID_CHOCOLATE_HOSE ||
+          isChest(itemTypeNum);
         const use3DModel = isTool || isFood || isMaterial;
 
         if (use3DModel) {
@@ -392,26 +413,84 @@ export function updatePlayer(player: Player, delta: number) {
             const model = createItemModel(selectedStack.type);
             player.fpHeldItemModel.add(model);
             player.currentModelType = selectedStack.type;
+          }
 
-            // Positioning override based on type
-            if (isFood) {
-              player.fpHeldItemModel.position.set(0.4, -0.4, -0.7);
-              player.fpHeldItemModel.rotation.set(-0.2, -Math.PI / 4, 0.4);
-              player.fpHeldItemModel.scale.set(0.8, 0.8, 0.8);
-            } else if (isTorch) {
-              player.fpHeldItemModel.position.set(0.55, -0.5, -0.7);
-              player.fpHeldItemModel.rotation.set(0, -Math.PI / 8, 0);
-              player.fpHeldItemModel.scale.set(1.2, 1.2, 1.2);
-            } else if (isMaterial && !isTool) {
-              // Ingots, gems, sticks
-              player.fpHeldItemModel.position.set(0.5, -0.45, -0.7);
-              player.fpHeldItemModel.rotation.set(-0.3, -Math.PI / 4, 0.6);
-              player.fpHeldItemModel.scale.set(0.9, 0.9, 0.9);
+          // Positioning override based on type
+          if (isFood) {
+            player.fpHeldItemModel.position.set(0.4, -0.4, -0.7);
+            player.fpHeldItemModel.rotation.set(-0.2, -Math.PI / 4, 0.4);
+            player.fpHeldItemModel.scale.set(0.8, 0.8, 0.8);
+          } else if (isTorch) {
+            player.fpHeldItemModel.position.set(0.55, -0.5, -0.7);
+            player.fpHeldItemModel.rotation.set(0, -Math.PI / 8, 0);
+            player.fpHeldItemModel.scale.set(1.2, 1.2, 1.2);
+          } else if (itemTypeNum === ItemType.BOW) {
+            // Bow standard idle position
+            player.fpHeldItemModel.position.set(0.35, -0.25, -0.6);
+            // Tilt inward (left) slightly, handle pointing forward
+            player.fpHeldItemModel.rotation.set(-0.1, Math.PI / 2 - 0.1, -Math.PI / 8);
+            player.fpHeldItemModel.scale.set(1.4, 1.4, 1.4);
+          } else if (isMaterial && !isTool) {
+            // Ingots, gems, sticks
+            player.fpHeldItemModel.position.set(0.5, -0.45, -0.7);
+            player.fpHeldItemModel.rotation.set(-0.3, -Math.PI / 4, 0.6);
+            player.fpHeldItemModel.scale.set(0.9, 0.9, 0.9);
+          } else if (itemTypeNum === ItemType.FLUID_CHOCOLATE_HOSE) {
+            player.fpHeldItemModel.position.set(0.5, -0.4, -0.6); // Adjusted for better view
+            player.fpHeldItemModel.scale.set(0.85, 0.85, 0.85); // Slightly smaller scale
+            // Point outward slightly down, slight inward tilt for hose look
+            player.fpHeldItemModel.rotation.set(-Math.PI / 2 + 0.3, 0.2, 0.1);
+          } else {
+            // Standard tool position
+            player.fpHeldItemModel.position.set(0.55, -0.4, -0.75);
+            player.fpHeldItemModel.rotation.set(-0.35, -Math.PI / 3.5, 0.5);
+            player.fpHeldItemModel.scale.set(1.1, 1.1, 1.1);
+          }
+
+          // Apply live bow charging adjustments in 1st person
+          if (itemTypeNum === ItemType.BOW) {
+            const arrowMesh = player.fpHeldItemModel.getObjectByName('bow_arrow');
+            const stringMesh = player.fpHeldItemModel.getObjectByName('bow_string');
+            
+            if (player.inputController.bowChargeStart > 0) {
+              const chargeTime = Date.now() - player.inputController.bowChargeStart;
+              const charge = Math.min(1.0, Math.max(0, chargeTime / 1000.0));
+              // Pull the bow into center, pull it back, and shake when maxed
+              player.fpHeldItemModel.position.set(
+                0.35 - (charge * 0.35), // Pull to center X
+                -0.25 - (charge * 0.05), // Pull up
+                -0.6 + (charge * 0.2)  // Pull backwards Z
+              );
+              player.fpHeldItemModel.rotation.set(
+                -0.1 + (charge * 0.2), 
+                (Math.PI / 2 - 0.1) + (charge * 0.2), 
+                (-Math.PI / 8) + (charge * 0.3) // Rotate flat so it looks like drawing
+              );
+              
+              if (arrowMesh && stringMesh) {
+                arrowMesh.visible = true;
+                arrowMesh.rotation.y = Math.PI;
+                // Move arrow/string back with charge. String max X at around 0.24, pull back to 0.45 
+                arrowMesh.position.set(0.1 - (charge * 0.25), 0, 0);
+                // stringMesh.position.set(0.24 + (charge * 0.25), 0, 0);
+              }
+
+              if (charge >= 1.0) {
+                const rumbleX = Math.sin(performance.now() * 0.05) * 0.005;
+                const rumbleY = Math.cos(performance.now() * 0.07) * 0.005;
+                player.fpHeldItemModel.position.x += rumbleX;
+                player.fpHeldItemModel.position.y += rumbleY;
+              }
             } else {
-              // Standard tool position
-              player.fpHeldItemModel.position.set(0.55, -0.4, -0.75);
-              player.fpHeldItemModel.rotation.set(-0.35, -Math.PI / 3.5, 0.5);
-              player.fpHeldItemModel.scale.set(1.1, 1.1, 1.1);
+               // Reset back incase we stopped charging
+               player.fpHeldItemModel.position.set(0.35, -0.25, -0.6);
+               player.fpHeldItemModel.rotation.set(-0.1, Math.PI / 2 - 0.1, -Math.PI / 8);
+               
+               if (arrowMesh && stringMesh) {
+                 arrowMesh.visible = false;
+                 arrowMesh.rotation.y = 0;
+                 stringMesh.position.set(0.24, 0, 0);
+               }
             }
           }
         } else {
@@ -611,7 +690,9 @@ export function updatePlayer(player: Player, delta: number) {
     } else {
       player.modelGroup.visible = false;
       player.fpArmGroup.visible = player.renderer.isHandVisible;
-      player.fpOffHandArmGroup.visible = player.renderer.isHandVisible;
+      
+      const isChargingBow = player.inventory.slots[player.hotbarIndex]?.type === ItemType.BOW && player.inputController.bowChargeStart > 0;
+      player.fpOffHandArmGroup.visible = player.renderer.isHandVisible && !isChargingBow;
 
       // Apply smooth camera height (halved bobbing for less motion sickness)
       const bobY =
@@ -648,7 +729,29 @@ export function updatePlayer(player: Player, delta: number) {
         swingPosY = 0,
         swingPosZ = 0;
 
-      if (player.isSwinging) {
+      const equipItem = player.inventory.slots[player.hotbarIndex];
+      const isBow = equipItem?.type === ItemType.BOW;
+
+      if (isBow && player.inputController.bowChargeStart > 0) {
+        // Charging animation
+        const chargeTime = Date.now() - player.inputController.bowChargeStart;
+        const charge = Math.min(1.0, chargeTime / 1000.0);
+        
+        swingPosX = THREE.MathUtils.lerp(0, -0.3, charge); // Pull center
+        swingPosY = THREE.MathUtils.lerp(0, 0.1, charge);  // Raise slightly
+        swingPosZ = THREE.MathUtils.lerp(0, 0.2, charge);  // Pull back
+        
+        swingRotX = THREE.MathUtils.lerp(0, 0.1, charge);
+        swingRotY = THREE.MathUtils.lerp(0, 0.2, charge);
+        swingRotZ = THREE.MathUtils.lerp(0, -0.1, charge);
+        
+        // Tremble when fully charged
+        if (charge >= 1.0) {
+          const rumble = Math.sin(performance.now() * 0.05) * 0.005;
+          swingPosX += rumble;
+          swingPosY += rumble;
+        }
+      } else if (player.isSwinging) {
         // Minecraft-like snappy swing
         const t = player.swingTimer / Math.PI;
         // Faster "flick"
@@ -660,13 +763,6 @@ export function updatePlayer(player: Player, delta: number) {
         swingPosX = -swingProgress * 0.2;
         swingPosY = -swingProgress * 0.1;
         swingPosZ = swingProgress * 0.1;
-      }
-
-      if (player.inputController.isBlocking && player.renderer.fpHeldItemModel) {
-        // Overlay block animation
-        swingRotY -= 0.6;
-        swingRotZ -= 0.3;
-        swingPosX -= 0.15;
       }
 
       // Idle breathing and walk bobbing (more natural movement)
@@ -759,7 +855,7 @@ export function updatePlayer(player: Player, delta: number) {
       isSprinting: player.inputController.isSprinting,
       isSwinging: player.isSwinging,
       isGliding: player.isGliding,
-      isBlocking: player.inputController.isBlocking,
+      isBlocking: player.isBlocking,
       swingSpeed: player.swingSpeed,
       isGrounded: player.canJump,
       heldItem: player.inventory.slots[player.hotbarIndex]?.type || 0,

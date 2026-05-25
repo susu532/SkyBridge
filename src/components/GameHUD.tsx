@@ -1,4 +1,4 @@
-import { useUI } from '../store/UIStore';
+import { useUI } from '../store/uiStore';
 import { useGameStore } from '../store/gameStore';
 import { TopObjectiveHUD } from './TopObjectiveHUD';
 import { HubTitleUI } from './HubTitleUI';
@@ -9,18 +9,61 @@ import { MobileControlsUI } from './MobileControlsUI';
 import { SkyBridgeSidebar } from './SkyBridgeSidebar';
 import { SkyCastlesSidebar } from './SkyCastlesSidebar';
 import { BattleRoyaleSidebar } from './BattleRoyaleSidebar';
+import { DungeonDelverSidebar } from './DungeonDelverSidebar';
+import { DungeonDelverTitleUI } from './DungeonDelverTitleUI';
 import { SkyBridgeActionBar } from './SkyBridgeActionBar';
+import { DungeonDelverActionBar } from './DungeonDelverActionBar';
 import { SkyBridgeXPPopup } from './SkyBridgeXPPopup';
 import { DamageOverlay } from './DamageOverlay';
 import { DamageNumbers } from './DamageNumbers';
 import { GameMessages } from './GameMessages';
 import { LevelUpUI } from './LevelUpUI';
 import { HotbarUI } from './HotbarUI';
+import { KillCelebrationUI } from './KillCelebrationUI';
 import { Game } from '../game/Game';
 import { Maximize, Settings as SettingsIcon } from 'lucide-react';
 
-function CrosshairTargetInfo({ currentMode }: { currentMode: string }) {
-  const targetInfo = useGameStore(state => state.targetInfo);
+import { useState, useEffect } from 'react';
+import { ITEM_NAMES } from '../game/Constants';
+
+function CrosshairTargetInfo({ currentMode, game }: { currentMode: string, game?: Game }) {
+  const [targetInfo, setTargetInfo] = useState<{type: string | null, name: string | null, id?: string}>({type: null, name: null});
+
+  useEffect(() => {
+    if (!game) return;
+    let afId: number;
+    let lastTime = 0;
+    const update = (time: number) => {
+      if (time - lastTime > 100) {
+        lastTime = time;
+        let newType: string | null = null;
+        let newName: string | null = null;
+        let newId: string | undefined = undefined;
+
+        if (game.lastRaycast) {
+          if (game.lastRaycast.npc) {
+            newType = 'npc';
+            newName = game.lastRaycast.npc.name;
+            newId = game.lastRaycast.npc.id;
+          } else if (game.lastRaycast.block) {
+            newType = 'block';
+            newName = ITEM_NAMES[game.lastRaycast.block.blockType] || 'Block';
+          }
+        }
+
+        setTargetInfo(prev => {
+          if (prev.type !== newType || prev.name !== newName || prev.id !== newId) {
+            return { type: newType, name: newName, id: newId };
+          }
+          return prev;
+        });
+      }
+      afId = requestAnimationFrame(update);
+    };
+    afId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(afId);
+  }, [game]);
+
   if (!targetInfo.type || currentMode === 'voidtrail') return null;
 
   return (
@@ -46,6 +89,9 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
 
       {/* Hub Title */}
       {currentMode === 'hub' && <HubTitleUI />}
+
+      {/* Dungeon Delver Title */}
+      {currentMode === 'dungeondelver' && <DungeonDelverTitleUI />}
 
       {/* Debug Menu */}
       <DebugInfo game={game} showDebug={showDebug} />
@@ -90,9 +136,13 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       {/* Crosshair */}
       {isHUDVisible && (
         <div className="absolute top-1/2 left-1/2 w-4 h-4 -mt-2 -ml-2 pointer-events-none flex items-center justify-center">
-          <div className="w-full h-[2px] bg-white mix-blend-difference" />
-          <div className="h-full w-[2px] bg-white mix-blend-difference absolute" />
-          <CrosshairTargetInfo currentMode={currentMode} />
+          {!isMobile && (
+            <>
+              <div className="w-full h-[2px] bg-white mix-blend-difference" />
+              <div className="h-full w-[2px] bg-white mix-blend-difference absolute" />
+            </>
+          )}
+          <CrosshairTargetInfo currentMode={currentMode} game={game || undefined} />
         </div>
       )}
 
@@ -109,9 +159,11 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar isMobile={isMobile} />}
       {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar isMobile={isMobile} />}
       {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar isMobile={isMobile} />}
+      {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverSidebar isMobile={isMobile} />}
 
       {/* SkyBridge UI */}
       {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />}
+      {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverActionBar />}
       {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeXPPopup />}
       
       {isHUDVisible && (
@@ -120,6 +172,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
           <DamageNumbers />
           <GameMessages />
           <LevelUpUI />
+          <KillCelebrationUI />
         </>
       )}
 

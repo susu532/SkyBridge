@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { networkManager } from '../game/NetworkManager';
+import { settingsManager } from '../game/Settings';
 
 export const StatsPanel: React.FC = () => {
   const showLeaderboard = useGameStore(state => state.showLeaderboard);
@@ -9,14 +11,16 @@ export const StatsPanel: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
+      const leaderboardKeybind = settingsManager.getSettings().keybinds.leaderboard || 'Tab';
+      if (e.code === leaderboardKeybind || e.key === leaderboardKeybind) {
         e.preventDefault();
         setShowLeaderboard(true);
       }
     };
     
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
+      const leaderboardKeybind = settingsManager.getSettings().keybinds.leaderboard || 'Tab';
+      if (e.code === leaderboardKeybind || e.key === leaderboardKeybind) {
         e.preventDefault();
         setShowLeaderboard(false);
       }
@@ -71,13 +75,18 @@ export const StatsPanel: React.FC = () => {
           <tbody>
             {teamPlayers.length === 0 ? (
               <tr><td colSpan={3} className="py-2 px-2 text-center text-white/40 italic">Empty</td></tr>
-            ) : teamPlayers.map((p) => (
-              <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-1 px-2 truncate max-w-[120px]">{p.name || 'Unknown'}</td>
-                <td className="py-1 px-2 text-center text-[#55FF55]">{p.kills}</td>
-                <td className="py-1 px-2 text-center text-[#FF5555]">{p.deaths}</td>
-              </tr>
-            ))}
+            ) : teamPlayers.map((p) => {
+              const isMe = p.id === networkManager.id;
+              const isDungeonDelver = currentMode.startsWith('dungeondelver');
+              const nameColorClass = (isMe && isDungeonDelver) ? 'text-[#FFFF55]' : '';
+              return (
+                <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
+                  <td className={`py-1 px-2 truncate max-w-[120px] ${nameColorClass}`}>{p.name || 'Unknown'}</td>
+                  <td className="py-1 px-2 text-center text-[#55FF55]">{p.kills}</td>
+                  <td className="py-1 px-2 text-center text-[#FF5555]">{p.deaths}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

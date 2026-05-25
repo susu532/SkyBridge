@@ -602,7 +602,17 @@ export class PlayerRenderer {
         }
       });
       this.fpArmGroup.visible = this.isHandVisible && this.player.perspective === 0;
-      this.fpOffHandArmGroup.visible = this.isHandVisible && this.player.perspective === 0;
+      
+      const isChargingBow = this.player.inventory.slots[this.player.hotbarIndex]?.type === ItemType.BOW && this.player.inputController.bowChargeStart > 0;
+      this.fpOffHandArmGroup.visible = this.isHandVisible && this.player.perspective === 0 && !isChargingBow;
+      
+      // Also hide torch light and 3rd person off-hand if charging bow
+      if (this.torchLight) {
+        const hasTorch = this.player.inventory.slots[36]?.type === ItemType.TORCH || this.player.inventory.slots[this.player.hotbarIndex]?.type === ItemType.TORCH;
+        this.torchLight.visible = hasTorch && !isChargingBow;
+      }
+      
+
     }
   }
 
@@ -685,8 +695,13 @@ export class PlayerRenderer {
   }
 
   setHeldItem(type: number, offHandType: number = 0) {
+    let renderOffHandType = offHandType;
+    if (type === ItemType.BOW) {
+      renderOffHandType = ItemType.ARROW;
+    }
+
     this.updateItemHand(type, false);
-    this.updateItemHand(offHandType, true);
+    this.updateItemHand(renderOffHandType, true);
 
     const isPerformance = settingsManager.getSettings().performanceMode;
     const isTorch = type === ItemType.TORCH || offHandType === ItemType.TORCH;
@@ -731,9 +746,9 @@ export class PlayerRenderer {
     const isShovel = type >= ItemType.WOODEN_SHOVEL && type <= ItemType.DIAMOND_SHOVEL;
     const isAxe = type >= ItemType.WOODEN_AXE && type <= ItemType.DIAMOND_AXE;
     const isTorch = type === ItemType.TORCH;
-    const isTool = isPickaxe || isSword || isShovel || isAxe || (type >= 460 && type <= 472) || type === 54;
+    const isTool = isPickaxe || isSword || isShovel || isAxe || (type >= 460 && type <= 472) || type === 54 || type === ItemType.FLUID_CHOCOLATE_HOSE;
     const isFood = (type >= 456 && type <= 459);
-    const isMaterial = type === 13 || (type >= 500 && type <= 509) || type === 29 || type === 303 || type === 300 || type === 319 || type === 321 || type === 43 || type === 44 || isTorch;
+    const isMaterial = type === 13 || (type >= 500 && type <= 509) || type === 29 || type === 303 || type === 300 || type === 319 || type === 321 || type === 43 || type === 44 || isTorch || type === ItemType.CHEST || type === ItemType.ENDER_CHEST || type === ItemType.FLUID_CHOCOLATE_HOSE;
     const use3DModel = isTool || isFood || isMaterial;
 
     if (use3DModel) {
@@ -802,6 +817,24 @@ export class PlayerRenderer {
         fpModelGrp.position.set(0.35 * side, -0.25, -0.6);
         fpModelGrp.scale.set(0.9, 0.9, 0.9);
         fpModelGrp.rotation.set(0.2, -Math.PI / 4 * side, 0);
+      } else if (type === ItemType.ARROW) {
+        model.position.set(0, -0.4, -0.1);
+        model.scale.set(1.1, 1.1, 1.1);
+        // The arrow should point down (-Y) so it aligns with the hand, and then tilt slightly.
+        model.rotation.set(Math.PI - Math.PI / 4, Math.PI / 8 * side, Math.PI / 16 * side);
+
+        fpModelGrp.position.set(0.45 * side, -0.35, -0.7);
+        fpModelGrp.scale.set(1.3, 1.3, 1.3);
+        fpModelGrp.rotation.set(0.8, -Math.PI / 4 * side, -0.2 * side);
+      } else if (type === ItemType.FLUID_CHOCOLATE_HOSE) {
+        model.position.set(0, -0.45, -0.1);
+        model.scale.set(1.1, 1.1, 1.1);
+        model.rotation.set(-Math.PI/2 - 0.2, Math.PI / 8 * side, 0);
+
+        // adjust 1st person model to be clearly visible in front of camera
+        fpModelGrp.position.set(0.55 * side, -0.35, -0.65);
+        fpModelGrp.scale.set(0.9, 0.9, 0.9);
+        fpModelGrp.rotation.set(-Math.PI / 2 + 0.2, 0, 0.2 * side);
       } else {
         model.position.set(0, -0.4, -0.1);
         model.scale.set(1.1, 1.1, 1.1);
@@ -933,7 +966,7 @@ export class PlayerRenderer {
     );
     this.player.blockTransition = THREE.MathUtils.lerp(
       this.player.blockTransition,
-      this.player.inputController.isBlocking ? 1 : 0,
+      this.player.isBlocking ? 1 : 0,
       delta * 12,
     );
 
@@ -1251,25 +1284,84 @@ export class PlayerRenderer {
 
       if (this.player.blockTransition > 0.01 && this.heldItemModel) {
         const t = this.player.blockTransition;
-        // 3rd Person Sword Block Animation
-        this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
-          this.player.rightArmMesh.rotation.x,
-          -0.5,
-          t,
-        );
-        this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
-          this.player.rightArmMesh.rotation.y,
-          -0.3,
-          t,
-        );
-        this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
-          this.player.rightArmMesh.rotation.z,
-          0.5,
-          t,
-        );
+        if (this.heldItemType === ItemType.BOW) {
+          // 3rd Person Bow Charge Animation
+          // Both arms extend forward, right arm holds bow slightly more inward
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            Math.PI / 2,
+            t,
+          );
+          this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.y,
+            -0.3,
+            t,
+          );
+          // Left arm draws back the string
+          this.player.leftArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.x,
+            Math.PI / 2 - 0.5,
+            t,
+          );
+          this.player.leftArmMesh.rotation.y = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.y,
+            0.5,
+            t,
+          );
+          this.player.leftArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.leftArmMesh.rotation.z,
+            0.9,
+            t,
+          );
+          
+          if (this.heldItemModel) {
+            // Rotate bow vertically
+            this.heldItemModel.rotation.set(
+              THREE.MathUtils.lerp(-Math.PI / 4, Math.PI / 2, t),
+              THREE.MathUtils.lerp(Math.PI / 8, -Math.PI / 2, t),
+              THREE.MathUtils.lerp(Math.PI / 16, 0, t)
+            );
 
-        if (this.player.isSwinging) {
-          this.player.rightArmMesh.rotation.x += Math.sin(this.player.swingTimer) * 0.5 * t;
+            const arrowMesh = this.heldItemModel.getObjectByName('bow_arrow');
+            const stringMesh = this.heldItemModel.getObjectByName('bow_string');
+            if (arrowMesh && stringMesh) {
+               arrowMesh.visible = true;
+               arrowMesh.rotation.z = -Math.PI / 2;
+               arrowMesh.position.set(0.1 - (t * 0.25), 0, 0);
+               // stringMesh.position.set(0.24 + (t * 0.21), 0, 0);
+            }
+          }
+        } else {
+          // 3rd Person Sword Block Animation
+          this.player.rightArmMesh.rotation.x = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.x,
+            -0.5,
+            t,
+          );
+          this.player.rightArmMesh.rotation.y = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.y,
+            -0.3,
+            t,
+          );
+          this.player.rightArmMesh.rotation.z = THREE.MathUtils.lerp(
+            this.player.rightArmMesh.rotation.z,
+            0.5,
+            t,
+          );
+
+          if (this.player.isSwinging) {
+            this.player.rightArmMesh.rotation.x += Math.sin(this.player.swingTimer) * 0.5 * t;
+          }
+        }
+      } else {
+        if (this.heldItemType === ItemType.BOW && this.heldItemModel) {
+           this.heldItemModel.rotation.set(-Math.PI / 4, Math.PI / 8, Math.PI / 16);
+           const arrowMesh = this.heldItemModel.getObjectByName('bow_arrow');
+           const stringMesh = this.heldItemModel.getObjectByName('bow_string');
+           if (arrowMesh && stringMesh) {
+              arrowMesh.visible = false;
+              stringMesh.position.set(0.24, 0, 0);
+           }
         }
       }
 

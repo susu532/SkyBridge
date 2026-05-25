@@ -80,9 +80,11 @@ export class RemotePlayer {
   armorMeshes: THREE.Mesh[] = [];
   heldItemType: number = 0;
   offHandItemType: number = 0;
+  renderedHeldItemType: number = -1;
+  renderedOffHandItemType: number = -1;
   currentModelType: number | null = null;
   currentOffHandModelType: number | null = null;
-  torchLight: THREE.PointLight | null = null;
+
 
   targetPosition: THREE.Vector3;
   targetRotation: THREE.Euler;
@@ -371,10 +373,6 @@ export class RemotePlayer {
     this.leftArmMesh.add(this.offHandItemModel);
     this.leftArmMesh.add(this.offHandItemMesh);
 
-    this.torchLight = new THREE.PointLight(0xffbd5c, 160.0, 35); 
-    this.torchLight.visible = false;
-    this.group.add(this.torchLight);
-    
     this.createArmor();
     this.updateTeam(team);
   }
@@ -395,7 +393,13 @@ export class RemotePlayer {
       }
     }
     
-    if (team === 'red' || team === 'blue') {
+    let hideArmor = false;
+    const currentMode = new URLSearchParams(window.location.search).get("server") || "";
+    if (currentMode.startsWith("dungeondelver")) {
+      hideArmor = true;
+    }
+
+    if ((team === 'red' || team === 'blue') && !hideArmor) {
       const teamColor = team === 'blue' ? 0x3366cc : 0xcc3333;
       this.armorMeshes.forEach(mesh => {
         mesh.visible = true;
@@ -603,28 +607,25 @@ export class RemotePlayer {
   }
 
   setHeldItem(type: number, offHandType: number = 0) {
-    this.updateItem(type, false);
-    this.updateItem(offHandType, true);
-
-    const isTorch = type === ItemType.TORCH || offHandType === ItemType.TORCH;
-    if (this.torchLight) {
-      this.torchLight.visible = isTorch;
-      if (isTorch) {
-        if (type === ItemType.TORCH) {
-          this.torchLight.position.set(0.3, 1.2, 0);
-        } else {
-          this.torchLight.position.set(-0.3, 1.2, 0);
-        }
-      }
+    let renderOffHandType = offHandType;
+    if (type === ItemType.BOW) {
+      renderOffHandType = ItemType.ARROW;
     }
+
+    // Keep the real item types for torch logic
+    this.heldItemType = type;
+    this.offHandItemType = offHandType;
+
+    this.updateItem(type, false);
+    this.updateItem(renderOffHandType, true);
   }
 
   private updateItem(type: number, isOffHand: boolean) {
-    const currentType = isOffHand ? this.offHandItemType : this.heldItemType;
+    const currentType = isOffHand ? this.renderedOffHandItemType : this.renderedHeldItemType;
     if (currentType === type) return;
     
-    if (isOffHand) this.offHandItemType = type;
-    else this.heldItemType = type;
+    if (isOffHand) this.renderedOffHandItemType = type;
+    else this.renderedHeldItemType = type;
     
     const mesh = isOffHand ? this.offHandItemMesh : this.heldItemMesh;
     const model = isOffHand ? this.offHandItemModel : this.heldItemModel;
@@ -673,6 +674,10 @@ export class RemotePlayer {
           model.position.set(0, -0.45, -0.05);
           model.scale.set(0.9, 0.9, 0.9);
           model.rotation.set(Math.PI / 8, 0, Math.PI / 16 * side);
+        } else if (type === ItemType.ARROW) {
+          model.position.set(0, -0.4, -0.1);
+          model.scale.set(1.1, 1.1, 1.1);
+          model.rotation.set(Math.PI - Math.PI / 4, Math.PI / 8 * side, Math.PI / 16 * side);
         } else {
           model.position.set(0, -0.4, -0.1);
           model.scale.set(1.1, 1.1, 1.1);
@@ -817,12 +822,6 @@ export class RemotePlayer {
          });
       }
 
-      if (this.torchLight) {
-        const isPerformance = settingsManager.getSettings().performanceMode;
-        const isTorch = this.heldItemType === ItemType.TORCH || this.offHandItemType === ItemType.TORCH;
-        this.torchLight.visible = !isPerformance && isTorch && distSq < 900; // Only show other player torches within 30 blocks
-      }
-      
       // Toggle shadows based on distance to save rendering time (30 blocks)
       const shouldCastShadow = distSq < 900;
       if (this.bodyMesh.castShadow !== shouldCastShadow) {
@@ -1058,6 +1057,20 @@ export class RemotePlayer {
     this.crouchTransition = THREE.MathUtils.lerp(this.crouchTransition, this.isCrouching ? 1 : 0, delta * 10);
     this.swimTransition = THREE.MathUtils.lerp(this.swimTransition, this.isSwimming ? 1 : 0, delta * 8);
     this.blockTransition = THREE.MathUtils.lerp(this.blockTransition, this.isBlocking ? 1 : 0, delta * 12);
+    
+    // Hide off-hand when charging bow
+    const isChargingBow = this.heldItemType === ItemType.BOW && this.isBlocking;
+    if (this.offHandItemModel && this.offHandItemMesh) {
+      if (isChargingBow) {
+        this.offHandItemModel.visible = false;
+        this.offHandItemMesh.visible = false;
+      } else if (!this.offHandItemModel.visible && !this.offHandItemMesh.visible && this.offHandItemType !== 0) {
+        // Reset to normal rendering state if not charging
+        this.renderedOffHandItemType = -1; // Force re-eval
+        this.updateItem(this.offHandItemType, true);
+      }
+    }
+  
 
     this.hitFlailTarget = THREE.MathUtils.lerp(this.hitFlailTarget, 0, delta * 5.0);
     this.hitFlailValue = THREE.MathUtils.lerp(this.hitFlailValue, this.hitFlailTarget, delta * 12.0);
@@ -1367,21 +1380,60 @@ export class RemotePlayer {
 
     if (this.blockTransition > 0.01 && this.heldItemModel) {
       const t = this.blockTransition;
-      // Minecraft sword block animation style
-      this.rightArmMesh.rotation.x = THREE.MathUtils.lerp(this.rightArmMesh.rotation.x, -0.5, t);
-      this.rightArmMesh.rotation.y = THREE.MathUtils.lerp(this.rightArmMesh.rotation.y, -0.3, t);
-      this.rightArmMesh.rotation.z = THREE.MathUtils.lerp(this.rightArmMesh.rotation.z, 0.5, t);
-      
-      // Override idle sway logic
-      if (this.crouchTransition <= 0.01 && !isMoving && !this.isFlying && !this.isSwimming && this.groundedTimer > 0.5) {
-        const breath = Math.sin(this.idleTime * 2) * 0.02;
-        this.rightArmMesh.position.y += breath * 0.8;
+
+      if (this.heldItemType === ItemType.BOW) {
+        // 3rd Person Bow Charge Animation
+        this.rightArmMesh.rotation.x = THREE.MathUtils.lerp(this.rightArmMesh.rotation.x, Math.PI / 2, t);
+        this.rightArmMesh.rotation.y = THREE.MathUtils.lerp(this.rightArmMesh.rotation.y, -0.3, t);
+        
+        this.leftArmMesh.rotation.x = THREE.MathUtils.lerp(this.leftArmMesh.rotation.x, Math.PI / 2 - 0.5, t);
+        this.leftArmMesh.rotation.y = THREE.MathUtils.lerp(this.leftArmMesh.rotation.y, 0.5, t);
+        this.leftArmMesh.rotation.z = THREE.MathUtils.lerp(this.leftArmMesh.rotation.z, 0.9, t);
+
+        if (this.heldItemModel) {
+            this.heldItemModel.rotation.set(
+              THREE.MathUtils.lerp(-Math.PI / 4, Math.PI / 2, t),
+              THREE.MathUtils.lerp(Math.PI / 8, -Math.PI / 2, t),
+              THREE.MathUtils.lerp(Math.PI / 16, 0, t)
+            );
+        }
+
+        const arrowMesh = this.heldItemModel?.getObjectByName('bow_arrow');
+        const stringMesh = this.heldItemModel?.getObjectByName('bow_string');
+        if (arrowMesh && stringMesh) {
+           arrowMesh.visible = true;
+           arrowMesh.rotation.z = -Math.PI / 2;
+           arrowMesh.position.set(0.1 - (t * 0.25), 0, 0);
+           // stringMesh.position.set(0.24 + (t * 0.21), 0, 0);
+        }
+      } else {
+        // Minecraft sword block animation style
+        this.rightArmMesh.rotation.x = THREE.MathUtils.lerp(this.rightArmMesh.rotation.x, -0.5, t);
+        this.rightArmMesh.rotation.y = THREE.MathUtils.lerp(this.rightArmMesh.rotation.y, -0.3, t);
+        this.rightArmMesh.rotation.z = THREE.MathUtils.lerp(this.rightArmMesh.rotation.z, 0.5, t);
+        
+        // Override idle sway logic
+        if (this.crouchTransition <= 0.01 && !isMoving && !this.isFlying && !this.isSwimming && this.groundedTimer > 0.5) {
+          const breath = Math.sin(this.idleTime * 2) * 0.02;
+          this.rightArmMesh.position.y += breath * 0.8;
+        }
+        
+        if (this.isSwinging) {
+          this.rightArmMesh.rotation.x += Math.sin(this.swingTimer) * 0.5 * t;
+        }
+      }
+    } else {
+      if (this.heldItemType === ItemType.BOW && this.heldItemModel) {
+         this.heldItemModel.rotation.set(-Math.PI / 4, Math.PI / 8, Math.PI / 16);
+         const arrowMesh = this.heldItemModel.getObjectByName('bow_arrow');
+         const stringMesh = this.heldItemModel.getObjectByName('bow_string');
+         if (arrowMesh && stringMesh) {
+            arrowMesh.visible = false;
+            stringMesh.position.set(0.24, 0, 0);
+         }
       }
       
       if (this.isSwinging) {
-        this.rightArmMesh.rotation.x += Math.sin(this.swingTimer) * 0.5 * t;
-      }
-    } else if (this.isSwinging) {
       const t = this.swingTimer / Math.PI;
       // Use a power curve for more "snap" at the start of the swing
       const swingProgress = Math.sin(Math.pow(t, 0.4) * Math.PI);
@@ -1407,8 +1459,9 @@ export class RemotePlayer {
         this.rightArmMesh.rotation.x -= 0.2;
       }
     }
+  }
 
-    // Final clamp for head rotation to prevent extreme angles from animations
+  // Final clamp for head rotation to prevent extreme angles from animations
     const limitUpHead = Math.PI * 0.35;
     const limitDownHead = Math.PI * 0.20; // ~86 degrees
     

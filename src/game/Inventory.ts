@@ -494,6 +494,7 @@ export enum ItemType {
   MINION = 500,
   CHEST = 519,
   CHEST_REVERSED = 520,
+  FLUID_CHOCOLATE_HOSE = 521,
 };
 
 export const isChest = (type: number) => type === ItemType.CHEST || type === ItemType.ENDER_CHEST || type === ItemType.CHEST_REVERSED;
@@ -664,7 +665,7 @@ export function getMaxStack(type: ItemType): number {
     ItemType.WOODEN_SWORD, ItemType.STONE_SWORD, ItemType.IRON_SWORD, ItemType.GOLDEN_SWORD, ItemType.DIAMOND_SWORD,
     ItemType.WOODEN_SHOVEL, ItemType.STONE_SHOVEL, ItemType.IRON_SHOVEL, ItemType.GOLDEN_SHOVEL, ItemType.DIAMOND_SHOVEL,
     ItemType.WOODEN_AXE, ItemType.STONE_AXE, ItemType.IRON_AXE, ItemType.GOLDEN_AXE, ItemType.DIAMOND_AXE,
-    ItemType.ASPECT_OF_THE_END, ItemType.MINION, ItemType.BOW, ItemType.FISHING_ROD, ItemType.BUCKET, ItemType.WATER_BUCKET, ItemType.LAVA_BUCKET
+    ItemType.ASPECT_OF_THE_END, ItemType.MINION, ItemType.BOW, ItemType.FISHING_ROD, ItemType.BUCKET, ItemType.WATER_BUCKET, ItemType.LAVA_BUCKET, ItemType.FLUID_CHOCOLATE_HOSE
   ];
   return unstackable.includes(type) ? 1 : 64;
 }
@@ -706,6 +707,8 @@ export class Inventory {
       this.addItem(ItemType.TORCH, 64, undefined, true);
       this.addItem(ItemType.LAUNCHER, 64, undefined, true);
       this.addItem(ItemType.CHEST, 64, undefined, true);
+      this.addItem(ItemType.BOW, 1, undefined, true);
+      this.addItem(ItemType.ARROW, 64, undefined, true);
       
       // Add some SkyBridge items
       this.addItem(ItemType.ASPECT_OF_THE_END, 1, {

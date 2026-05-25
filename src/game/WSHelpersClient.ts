@@ -1,6 +1,35 @@
 import { encode, decode } from '@msgpack/msgpack';
 
 export function encodePacketClient(event: string, args: any[]): string | ArrayBuffer {
+  // Translate spatial objects to Float32Array structs
+  if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null && !ArrayBuffer.isView(args[0]) && !(args[0] instanceof ArrayBuffer)) {
+      if (event === "setBlock") {
+          const d = args[0];
+          const f32 = new Float32Array([d.x, d.y, d.z, d.type, d.force ? 1 : 0]);
+          return encodePacketClient(event, [f32]);
+      } else if (event === "dropItem") {
+          const d = args[0];
+          let vx = 0, vy = 0, vz = 0;
+          if (d.velocity) {
+              vx = d.velocity.x; vy = d.velocity.y; vz = d.velocity.z;
+          }
+          const f32 = new Float32Array([d.type, d.position.x, d.position.y, d.position.z, vx, vy, vz]);
+          return encodePacketClient(event, [f32]);
+      } else if (event === "shootArrow") {
+          const d = args[0];
+          let vx = 0, vy = 0, vz = 0;
+          if (d.velocity) {
+              vx = d.velocity.x; vy = d.velocity.y; vz = d.velocity.z;
+          }
+          const f32 = new Float32Array([d.power || 1, d.position.x, d.position.y, d.position.z, vx, vy, vz]);
+          return encodePacketClient(event, [f32]);
+      } else if (event === "spawnMinion") {
+          const d = args[0];
+          const f32 = new Float32Array([d.type, d.position.x, d.position.y, d.position.z]);
+          return encodePacketClient(event, [f32]);
+      }
+  }
+
   // If single binary arg
   if (args.length === 1 && (args[0] instanceof ArrayBuffer || ArrayBuffer.isView(args[0]))) {
      const eventBuf = new TextEncoder().encode(event);

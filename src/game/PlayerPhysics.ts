@@ -132,8 +132,8 @@ export class PlayerPhysics {
       p.highestY = Math.max(p.highestY, p.worldPosition.y);
     }
 
-    p.velocity.x -= p.velocity.x * 10.0 * delta;
-    p.velocity.z -= p.velocity.z * 10.0 * delta;
+    p.velocity.x *= Math.exp(-10.0 * delta);
+    p.velocity.z *= Math.exp(-10.0 * delta);
     
     const horizontalVelocity = Math.sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z);
     const isMoving = horizontalVelocity > 0.1;
@@ -142,7 +142,7 @@ export class PlayerPhysics {
     
     if (p.isSwimming) {
       const drag = inLava ? 8.0 : 5.0; // Lava is thicker than water
-      p.velocity.y -= p.velocity.y * drag * delta; 
+      p.velocity.y *= Math.exp(-drag * delta); 
       p.velocity.y -= p.gravity * 0.1 * delta; // Reduced gravity
       
       const vertDir = Number(input.moveUp) - Number(input.moveDown);
@@ -167,7 +167,7 @@ export class PlayerPhysics {
         p.velocity.y -= p.gravity * delta;
       }
     } else {
-      p.velocity.y -= p.velocity.y * 10.0 * delta;
+      p.velocity.y *= Math.exp(-10.0 * delta);
       const vertDir = Number(input.moveUp) - Number(input.moveDown);
       const currentSpeed = p.flySpeed;
       if (input.moveUp || input.moveDown) p.velocity.y += vertDir * currentSpeed * delta * 10.0;
@@ -351,7 +351,7 @@ export class PlayerPhysics {
         
         // Fall damage calculation
         const fallDistance = p.highestY - currentPos.y;
-        if (fallDistance > 3.5 && !p.isFlying && !p.isSwimming && !p.world.isHub && !p.isGliding) {
+        if (fallDistance > 3.5 && !p.isFlying && !p.isSwimming && !p.world.isHub && !p.isGliding && (Date.now() - p.lastRespawnTime > 5000)) {
           const damage = Math.floor(fallDistance - 3);
           if (damage > 0) {
             p.takeDamage(damage * 5, undefined, false, "died of fall damage"); // 5 damage per block fallen (20 health max usually)
@@ -430,9 +430,9 @@ export class PlayerPhysics {
 
     if (p.isDeadThisFrame) {
       p.isDeadThisFrame = false;
-      currentPos.copy(p.worldPosition); // (0, 10, 0)
+      currentPos.copy(p.worldPosition);
       p.velocity.set(0, 0, 0);
-      p.highestY = 10;
+      p.highestY = p.worldPosition.y;
       p.wasInAir = false;
     }
 

@@ -46,6 +46,10 @@ export class World {
     mesh: THREE.Mesh | null;
     transparentMesh: THREE.Mesh | null;
   }[] = [];
+  meshesToRemove: {
+    mesh: THREE.Mesh | null;
+    transparentMesh: THREE.Mesh | null;
+  }[] = [];
   fallingBlocks: Set<string> = new Set();
   waterUpdates: Set<string> = new Set();
   lightingManager: LightingManager;
@@ -104,7 +108,16 @@ export class World {
       texture = createTextureAtlas();
     }
 
-    for (let i = 0; i < 8; i++) {
+    const hwConcurrency = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
+    const isMobileDevice = typeof window !== 'undefined' && 
+      (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+      ('ontouchstart' in window) || 
+      (navigator.maxTouchPoints > 0));
+
+    // Limit workers to prevent Context Switching overhead on low-end CPUs
+    const workerCount = isMobileDevice ? 1 : Math.max(1, Math.floor(hwConcurrency / 2));
+
+    for (let i = 0; i < workerCount; i++) {
       const worker = new MesherWorker();
       worker.onmessage = this.onWorkerMessage.bind(this);
       this.meshWorkers.push(worker);
@@ -127,6 +140,9 @@ export class World {
       };
       shader.uniforms.uIsVoidtrail = {
         value: this.isVoidtrail ? 1.0 : 0.0,
+      };
+      shader.uniforms.uHideShininess = {
+        value: settingsManager.getSettings().hideShininess ? 1.0 : 0.0,
       };
       (this.opaqueMaterial as any).userData = shader.uniforms;
 
@@ -167,6 +183,7 @@ export class World {
         uniform float uPerformanceMode;
         uniform float uIsVoidtrail;
         uniform float uWetness;
+        uniform float uHideShininess;
         varying vec3 vWorldNormal;
         varying vec3 vWorldPos;
         float customRoughness = 0.8;
@@ -211,27 +228,131 @@ export class World {
              customRoughness = clamp(0.8 - lum * 0.4 - saturation * 0.4, 0.1, 0.9);
              customMetalness = clamp((1.0 - saturation) * lum * 1.5, 0.0, 0.8);
              
+             // White/light-grey/desaturated blocks (snow, concrete, wool, diorite, quartz etc.) should be matte, not shiny
+             if (lum > 0.65 && saturation < 0.15) {
+                 customRoughness = 0.95;
+                 customMetalness = 0.0;
+             }
+             
              // Specific block handling (rough approximation based on tile UV)
+             float u = vTileBase.x;
+             float v = vTileBase.y;
+
              // Lava
-             if (abs(vTileBase.x - 0.125) < 0.01 && abs(vTileBase.y - 0.750) < 0.01) {
+             if (abs(u - 0.125) < 0.01 && abs(v - 0.750) < 0.01) {
                  customRoughness = 0.0;
                  customMetalness = 0.0;
              }
-             // Dirt, Grass, Wood, Leaves, Planks (Earthy/Matte Materials)
-             else if (
-                 (vTileBase.y > 0.85) || // Rows 0-4: Dirt, Wood, Grass, Stone, Leaves, Sand, Planks
-                 (saturation < 0.35 && lum < 0.55 && texelColor.r >= texelColor.b) // Other wood/plank textures
-             ) {
-                 // Exceptions in Rows 0-4: Stone (saturation < 0.1 usually)
-                 if (saturation < 0.05 && lum > 0.3 && vTileBase.y > 0.85) {
-                     // Stone: keep slightly reflective
-                     customRoughness = clamp(0.7 - lum*0.3, 0.2, 0.8);
-                     customMetalness = 0.2;
+             // Solid Metal/Jewel decorative blocks: Iron, Gold, Diamond, Emerald, Lapis, Redstone, Copper
+             else if (abs(v - 0.4375) < 0.01 && (u >= 0.0 && u <= 0.23)) {
+                 customRoughness = 0.06;
+                 customMetalness = 0.95;
+             }
+             // Netherite block
+             else if (abs(u - 0.5) < 0.01 && abs(v - 0.1875) < 0.01) {
+                 customRoughness = 0.12;
+                 customMetalness = 0.92;
+             }
+             // Amethyst Block
+             else if (abs(u - 0.4375) < 0.01 && abs(v - 0.4375) < 0.01) {
+                 customRoughness = 0.04;
+                 customMetalness = 0.45;
+             }
+             // Glowstone and Sea Lantern (glossy glassy texture reflection)
+             else if (abs(u - 0.250) < 0.01 && abs(v - 0.125) < 0.01) {
+                 customRoughness = 0.85;
+                 customMetalness = 0.0;
+             }
+             else if (abs(u - 0.375) < 0.01 && abs(v - 0.125) < 0.01) {
+                 customRoughness = 1.0;
+                 customMetalness = 0.0;
+             }
+             else if (abs(u - 0.375) < 0.01 && abs(v - 0.5625) < 0.01) {
+                 customRoughness = 0.35;
+                 customMetalness = 0.1;
+             }
+             else if (false) {
+                 customRoughness = 0.05;
+                 customMetalness = 0.6;
+             }
+             // Shiny Ore veins processing (specular sparkles for diamond, redstone, emerald, gold, lapis)
+             // Diamond Ore or Deepslate Diamond Ore
+             else if ((abs(u - 0.15625) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.4375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                 if (texelColor.b > 0.5 && texelColor.g > 0.4 && texelColor.r < 0.6) {
+                     customRoughness = 0.04;
+                     customMetalness = 0.95;
                  } else {
-                     // Dirt, Wood, Planks, Leaves: NO REFLECTION
-                     customRoughness = 1.0;
+                     customRoughness = 0.85;
                      customMetalness = 0.0;
                  }
+             }
+             // Redstone Ore or Deepslate Redstone Ore
+             else if ((abs(u - 0.125) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.34375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                 if (texelColor.r > 0.4 && texelColor.g < 0.2 && texelColor.b < 0.2) {
+                     customRoughness = 0.08;
+                     customMetalness = 0.9;
+                 } else {
+                     customRoughness = 0.85;
+                     customMetalness = 0.0;
+                 }
+             }
+             // Emerald Ore or Deepslate Emerald Ore
+             else if ((abs(u - 0.1875) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                 if (texelColor.g > 0.45 && texelColor.r < 0.4 && texelColor.b < 0.4) {
+                     customRoughness = 0.04;
+                     customMetalness = 0.95;
+                 } else {
+                     customRoughness = 0.85;
+                     customMetalness = 0.0;
+                 }
+             }
+             // Gold Ore or Deepslate Gold Ore
+             else if ((abs(u - 0.0625) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.3125) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                 if (texelColor.r > 0.5 && texelColor.g > 0.4 && texelColor.b < 0.3) {
+                     customRoughness = 0.06;
+                     customMetalness = 0.95;
+                 } else {
+                     customRoughness = 0.85;
+                     customMetalness = 0.0;
+                 }
+             }
+             // Lapis Ore or Deepslate Lapis Ore
+             else if ((abs(u - 0.09375) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.40625) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                 if (texelColor.b > 0.4 && texelColor.r < 0.3 && texelColor.g < 0.3) {
+                     customRoughness = 0.08;
+                     customMetalness = 0.9;
+                 } else {
+                     customRoughness = 0.85;
+                     customMetalness = 0.0;
+                 }
+             }
+             // Dirt, Grass, Wood, Leaves, Planks (Earthy/Matte Materials)
+             // Explicitly track if this block is Earthy (dirt, coarse dirt, rooted dirt, dirt path, grass, sand, mud, wood) to prevent accidental reflections
+             bool isEarthyBlock = false;
+             if (v > 0.85) {
+                 // Rows 0-4 are generally earthy/matte (Dirt, Grass, Wood, Leaves, Sand, Planks), unless it's Stone (low saturation, higher luminance)
+                 if (!(saturation < 0.05 && lum > 0.3)) {
+                     isEarthyBlock = true;
+                 }
+             } else if (
+                 (abs(v - 0.21875) < 0.01 && (abs(u - 0.5) < 0.02 || abs(u - 0.53125) < 0.02)) || // Coarse Dirt, Rooted Dirt (row 24)
+                 (abs(v - 0.40625) < 0.01 && abs(u - 0.09375) < 0.01) || // Dirt Path (row 18, col 3)
+                 (abs(v - 0.750) < 0.01 && u < 0.1) || // Mud, Red Sand, Terracotta (row 7)
+                 (abs(v - 0.78125) < 0.01 && abs(u - 0.0625) < 0.01) || // Mycelium side (row 6)
+                 (saturation < 0.35 && lum < 0.55 && texelColor.r >= texelColor.b) // Wood structures fallback
+             ) {
+                 isEarthyBlock = true;
+             }
+
+             if (isEarthyBlock) {
+                 // Dirt, grass, wood, planks, leaves, mud: NO REFLECTION (completely matte)
+                 customRoughness = 1.0;
+                 customMetalness = 0.0;
+             }
+             else if (v > 0.85 && saturation < 0.05 && lum > 0.3) {
+                 // Stone: keep slightly reflective
+                 customRoughness = clamp(0.7 - lum*0.3, 0.2, 0.8);
+                 customMetalness = 0.2;
              }
              // Stone/Ores variants outside top rows (usually grey, low sat)
              else if (saturation < 0.1 && lum > 0.3) {
@@ -240,16 +361,16 @@ export class World {
                  customMetalness = 0.3;
              }
              // Metallic / Ores (very high luminance or specific colored specs in grey rock)
-             // If local pixel is much brighter/more saturated than the average block luminance
-             if (saturation > 0.3 && lum > 0.5) {
+             // If local pixel is much brighter/more saturated than the average block luminance, and NOT an earthy block
+             if (!isEarthyBlock && saturation > 0.3 && lum > 0.5) {
                  customRoughness = 0.1;
                  customMetalness = 0.8;
              }
              
-             if (uIsVoidtrail > 0.5) {
-                 // Reduce excessive light reflection for all blocks in voidtrail
-                 customRoughness = 0.6;
-                 customMetalness = 0.1;
+             if (uIsVoidtrail > 0.5 || uHideShininess > 0.5) {
+                 // Completely eliminate specular/glossy highlights to prevent excessive light reflection
+                 customRoughness = 1.0;
+                 customMetalness = 0.0;
              }
              
              // Wetness and Puddles Effect
@@ -302,10 +423,94 @@ export class World {
               // If the scene lighting (ambient + directional) is darker than our baked light,
               // we boost the final output color to match the baked light!
               // diffuseColor already contains texelColor * vColor.
-              gl_FragColor.rgb = max(gl_FragColor.rgb, diffuseColor.rgb);
+              vec3 baseCol = max(gl_FragColor.rgb, diffuseColor.rgb);
+              
+              vec3 emissiveColor = vec3(0.0);
+              if (uShaders > 0.5) {
+                float u = vTileBase.x;
+                float v = vTileBase.y;
+
+                // 1. Lava / Magma check (UV 4, 7 -> u=0.125, v=0.750) — thick glowing orange/yellow pulse
+                if (abs(u - 0.125) < 0.01 && abs(v - 0.750) < 0.01) {
+                  float pulse = 0.85 + 0.15 * sin(uTime * 1.5 + vWorldPos.x * 0.1);
+                  emissiveColor = texelColor.rgb * 1.8 * pulse;
+                }
+                // 2. Torches (u=0.375, v=0.125)
+                else if (abs(u - 0.375) < 0.01 && abs(v - 0.125) < 0.01) {
+                  float flicker = 1.0 + 0.1 * sin(uTime * 15.0);
+                  emissiveColor = texelColor.rgb * 2.2 * flicker;
+                }
+                // 3. Glowstone (u=0.250, v=0.125) & Shroomlight (u=0.21875, v=0.25)
+                else if ((abs(u - 0.250) < 0.01 && abs(v - 0.125) < 0.01) || (abs(u - 0.21875) < 0.01 && abs(v - 0.25) < 0.01)) {
+                  emissiveColor = texelColor.rgb * 1.6;
+                }
+                // 4. Sea Lantern (u=0.375, v=0.5625)
+                else if (abs(u - 0.375) < 0.01 && abs(v - 0.5625) < 0.01) {
+                  emissiveColor = texelColor.rgb * 1.4;
+                }
+                // 5. Nether Portal / End Portal
+                else if ((abs(u - 0.875) < 0.01 && abs(v - 0.21875) < 0.01) || (abs(u - 0.84375) < 0.01 && abs(v - 0.21875) < 0.01)) {
+                  float pulse = 1.0 + 0.25 * sin(uTime * 2.5);
+                  emissiveColor = texelColor.rgb * 2.5 * pulse;
+                }
+                // 6. Crying Obsidian (u=0.03125, v=0.40625)
+                else if (abs(u - 0.03125) < 0.01 && abs(v - 0.40625) < 0.01) {
+                  if (texelColor.r > 0.4 && texelColor.b > 0.4 && texelColor.g < 0.3) {
+                    emissiveColor = texelColor.rgb * 3.5;
+                  }
+                }
+                // 7. Ores! Glow the individual mineral flecks
+                // Diamond Ore (u=0.15625, v=0.71875) & Deepslate Diamond Ore (u=0.4375, v=0.1875)
+                else if ((abs(u - 0.15625) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.4375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                  if (texelColor.b > 0.5 && texelColor.g > 0.4 && texelColor.r < 0.6) {
+                    float pulse = 1.0 + 0.4 * sin(uTime * 2.0);
+                    emissiveColor = vec3(0.0, 0.8, 1.0) * 2.5 * pulse;
+                  }
+                }
+                // Redstone Ore (u=0.125, v=0.71875) & Deepslate Redstone (u=0.34375, v=0.1875)
+                else if ((abs(u - 0.125) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.34375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                  if (texelColor.r > 0.4 && texelColor.g < 0.2 && texelColor.b < 0.2) {
+                    float pulse = 1.0 + 0.5 * sin(uTime * 3.0);
+                    emissiveColor = vec3(1.0, 0.1, 0.1) * 3.0 * pulse;
+                  }
+                }
+                // Emerald Ore (u=0.1875, v=0.71875) & Deepslate Emerald (u=0.375, v=0.1875)
+                else if ((abs(u - 0.1875) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.375) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                  if (texelColor.g > 0.45 && texelColor.r < 0.4 && texelColor.b < 0.4) {
+                    float pulse = 1.0 + 0.3 * sin(uTime * 1.5);
+                    emissiveColor = vec3(0.1, 1.0, 0.2) * 2.8 * pulse;
+                  }
+                }
+                // Gold Ore (u=0.0625, v=0.71875) & Deepslate Gold (u=0.3125, v=0.1875)
+                else if ((abs(u - 0.0625) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.3125) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                  if (texelColor.r > 0.5 && texelColor.g > 0.4 && texelColor.b < 0.3) {
+                    emissiveColor = vec3(1.0, 0.8, 0.15) * 1.8;
+                  }
+                }
+                // Lapis Ore (u=0.09375, v=0.71875) & Deepslate Lapis (u=0.40625, v=0.1875)
+                else if ((abs(u - 0.09375) < 0.01 && abs(v - 0.71875) < 0.01) || (abs(u - 0.40625) < 0.01 && abs(v - 0.1875) < 0.01)) {
+                  if (texelColor.b > 0.4 && texelColor.r < 0.3 && texelColor.g < 0.3) {
+                    emissiveColor = vec3(0.1, 0.3, 1.0) * 2.2;
+                  }
+                }
+                // Jack_O_Lantern
+                else if (abs(u - 0.1875) < 0.01 && abs(v - 0.5625) < 0.01) {
+                  if (texelColor.r > 0.6 && texelColor.g > 0.3) {
+                    emissiveColor = texelColor.rgb * 2.8;
+                  }
+                }
+                // Lantern / Soul Lantern / Campfire
+                else if (abs(v - 0.25) < 0.01 && u >= 0.59 && u <= 0.70) {
+                  if (texelColor.r > 0.4 || texelColor.b > 0.4) {
+                    emissiveColor = texelColor.rgb * 2.2;
+                  }
+                }
+              }
+              gl_FragColor.rgb = baseCol + emissiveColor;
             } else {
               // Childish happy vibes for voidtrail
-              vec3 color = gl_FragColor.rgb;
+              // Incorporate voxel-baked lighting (min illumination) here so interiors/shadows are illuminated properly, matching the bright exteriors of Voidtrail!
+              vec3 color = max(gl_FragColor.rgb, diffuseColor.rgb * 1.5);
               float lum = dot(color, vec3(0.299, 0.587, 0.114));
               // Saturate slightly instead of blowing out
               color = mix(vec3(lum), color, 1.3);
@@ -469,6 +674,9 @@ export class World {
       shader.uniforms.uIsVoidtrail = {
         value: this.isVoidtrail ? 1.0 : 0.0,
       };
+      shader.uniforms.uHideShininess = {
+        value: settingsManager.getSettings().hideShininess ? 1.0 : 0.0,
+      };
       (this.transparentMaterial as any).userData = shader.uniforms;
 
       shader.vertexShader = `
@@ -523,6 +731,7 @@ export class World {
         uniform float uPerformanceMode;
         uniform float uShaders;
         uniform float uIsVoidtrail;
+        uniform float uHideShininess;
         varying vec3 vWorldPos;
         varying vec2 vTileBase;
         varying vec3 vWorldNormal;
@@ -557,40 +766,122 @@ export class World {
             float moveX = uTime * 0.005;
             float moveY = uTime * 0.005;
             
-            // Note: because we're in an atlas, we have to clamp or use fract, but fract is harsh 
-            // if the texture isn't perfectly seamless on all 4 edges. We'll use a very slow gentle move.
             animatedUv.x = vTileBase.x + margin + mod(vWorldPos.x * 0.05 + moveX + refracX, 0.03125 - 2.0 * margin);
             animatedUv.y = vTileBase.y + margin + mod(vWorldPos.z * 0.05 + moveY + refracY, 0.03125 - 2.0 * margin);
             
-            // Dynamic Caustics
-            float caustic1 = sin(vWorldPos.x * 0.8 + uTime * 1.5) * cos(vWorldPos.z * 0.8 + uTime * 1.2);
-            float caustic2 = sin(vWorldPos.x * 1.5 - uTime * 0.8) * cos(vWorldPos.z * 1.5 - uTime * 1.1);
-            shimmer = pow(max(0.0, (caustic1 + caustic2) * 0.5), 3.0) * 0.3; // Much softer, broader waves instead of sharp dots
+            // Advanced sharp caustics and wave sparkles
+            float waveScale = 1.5;
+            float caustic1 = sin(vWorldPos.x * waveScale + uTime * 1.8) * cos(vWorldPos.z * waveScale + uTime * 1.4);
+            float caustic2 = sin(vWorldPos.x * waveScale * 1.6 - uTime * 1.2) * cos(vWorldPos.z * waveScale * 1.6 - uTime * 1.1);
+            float waveHeight = (caustic1 + caustic2) * 0.5;
+            shimmer = pow(max(0.0, waveHeight + 0.3), 4.0) * 0.40; 
           }
           vec4 texelColor = texture2D( map, animatedUv );
           texelColor.rgb += shimmer; // Apply the cooling shimmer
 
-          // Apply a deeper water color for better aesthetics without the white curtain
+          // Apply a deeper water color with custom Fresnel and specular sky reflection
           if (uShaders > 0.5 && uPerformanceMode < 0.5 && vTileBase.y > 0.90 && vTileBase.y < 0.91 && vTileBase.x < 0.01) {
-            vec3 deepWaterColor = vec3(0.08, 0.3, 0.5);
-            texelColor.rgb = mix(texelColor.rgb, deepWaterColor, 0.5);
-            texelColor.a = 0.85; // Give it a slight consistent transparency
+             vec3 deepWaterColor = vec3(0.05, 0.20, 0.35); // Beautiful ocean cyan
+             
+             // Dynamic Sky Reflection estimation based on dynamic time orbits
+             float sunProxy = sin(uTime * 0.03) * 0.8 + 0.2; // slow day-sunset-night cycle
+             vec3 dynamicSkyRefl = vec3(0.40, 0.60, 0.90); // default bright day
+             if (sunProxy < 0.1) {
+                 float sunsetPct = clamp((sunProxy + 0.1) * 5.0, 0.0, 1.0);
+                 dynamicSkyRefl = mix(vec3(0.02, 0.03, 0.08), vec3(1.0, 0.45, 0.25), sunsetPct);
+             } else {
+                 float dayPct = clamp((sunProxy - 0.1) * 3.3, 0.0, 1.0);
+                 dynamicSkyRefl = mix(vec3(1.0, 0.45, 0.25), vec3(0.45, 0.65, 0.95), dayPct);
+              }
+             
+             // Fresnel Formula (Schlick approximation)
+             float cosTheta = max(0.0, dot(vWorldNormal, viewDir));
+             float R0 = 0.02; // Fresh water refl coefficient
+             fresnel = R0 + (1.0 - R0) * pow(1.0 - cosTheta, 5.0);
+             
+             // Composite reflection with sky
+             vec3 reflectionColor = dynamicSkyRefl * 0.8;
+             // Add artificial glittering specular sun/moon highlights
+             vec3 lightDirection = normalize(vec3(0.5, 0.86, 0.25)); // general light vector
+             vec3 halfVector = normalize(viewDir + lightDirection);
+             float spec = pow(max(0.0, dot(vWorldNormal, halfVector)), 64.0) * (1.0 - uHideShininess);
+             reflectionColor += vec3(1.0, 0.95, 0.8) * spec * 2.5; // bright sun glint
+             
+             texelColor.rgb = mix(deepWaterColor + shimmer * 0.3, reflectionColor, fresnel * 0.7);
+             texelColor.a = mix(0.65, 0.95, fresnel); // Grazing viewing angles are more opaque/reflective
           }
 
-          #ifndef DEPTH_PACKING
-          // Physically Based Rendering (PBR) approximation for transparent items
-          if (uShaders > 0.5 && uPerformanceMode < 0.5) {
-             float lum = dot(texelColor.rgb, vec3(0.299, 0.587, 0.114));
-             float saturation = length(texelColor.rgb - vec3(lum));
-             
-             customRoughness = clamp(1.0 - lum + saturation * 1.5, 0.1, 1.0);
-             // Water and glass are highly specular (low roughness, high metalness or purely reflective)
-             if (texelColor.a < 0.9) {
-                 customRoughness = 0.05;
-                 customMetalness = 0.95;
-             }
-          }
-          #endif
+                     #ifndef DEPTH_PACKING
+           // Physically Based Rendering (PBR) approximation for transparent items
+           if (uShaders > 0.5 && uPerformanceMode < 0.5) {
+              float lum = dot(texelColor.rgb, vec3(0.299, 0.587, 0.114));
+              float saturation = length(texelColor.rgb - vec3(lum));
+              
+              customRoughness = clamp(1.0 - lum + saturation * 1.5, 0.1, 1.0);
+              
+              float u = vTileBase.x;
+              float v = vTileBase.y;
+              
+              // Check if this is an organic block (Leaves, Grasses, Flowers, Crops, Plants, Sugarcane, Mushrooms)
+              bool isOrganic = false;
+              
+              // Precise UV matching for all leaves types:
+              // - Leaves: col 2, row 1 => u = 0.0625, v = 0.9375
+              // - Birch Leaves: col 6, row 1 => u = 0.1875, v = 0.9375
+              // - Spruce Leaves: col 6, row 2 => u = 0.1875, v = 0.90625
+              // - Cherry Leaves: col 6, row 6 => u = 0.1875, v = 0.78125
+              // - Dark Oak Leaves: col 2, row 5 => u = 0.0625, v = 0.8125
+              // - Acacia Leaves: col 2, row 15 => u = 0.0625, v = 0.500
+              // - Jungle Leaves: col 5, row 15 => u = 0.15625, v = 0.500
+              // - Mangrove Leaves: col 2, row 16 => u = 0.0625, v = 0.46875
+              if (
+                  (abs(v - 0.9375) < 0.01 && (abs(u - 0.0625) < 0.01 || abs(u - 0.1875) < 0.01)) || // Leaves, Birch Leaves
+                  (abs(v - 0.90625) < 0.01 && abs(u - 0.1875) < 0.01) || // Spruce Leaves
+                  (abs(v - 0.78125) < 0.01 && abs(u - 0.1875) < 0.01) || // Cherry Leaves
+                  (abs(v - 0.8125) < 0.01 && abs(u - 0.0625) < 0.01) ||  // Dark Oak Leaves
+                  (abs(v - 0.500) < 0.01 && (abs(u - 0.0625) < 0.01 || abs(u - 0.15625) < 0.01)) || // Acacia Leaves, Jungle Leaves
+                  (abs(v - 0.46875) < 0.01 && abs(u - 0.0625) < 0.01) // Mangrove Leaves
+              ) {
+                  isOrganic = true;
+              }
+              
+              // Other organic transparent plants/flower cutoff blocks:
+              // - Tall Grass: col 4, row 0 => u = 0.125, v = 0.96875
+              // - Flower Red: col 5, row 0 => u = 0.15625, v = 0.96875
+              // - Flower Yellow: col 6, row 0 => u = 0.1875, v = 0.96875
+              // - Wheat: col 7, row 0 => u = 0.21875, v = 0.96875
+              // - Sugarcane: col 9, row 27 => u = 0.28125, v = 0.125
+              // - Mushrooms: col 5/6, row 7 => u = 0.15625/0.1875, v = 0.75
+              // - Dead Bush: col 7, row 3 => u = 0.21875, v = 0.875
+              if (
+                  (abs(v - 0.96875) < 0.01 && (abs(u - 0.125) < 0.01 || abs(u - 0.15625) < 0.01 || abs(u - 0.1875) < 0.01 || abs(u - 0.21875) < 0.01)) || // Grass, Flowers, Wheat
+                  (abs(v - 0.125) < 0.01 && abs(u - 0.28125) < 0.01) || // Sugarcane
+                  (abs(v - 0.750) < 0.01 && (abs(u - 0.15625) < 0.01 || abs(u - 0.1875) < 0.01)) || // Mushrooms
+                  (abs(v - 0.875) < 0.01 && abs(u - 0.21875) < 0.01) // Dead Bush
+              ) {
+                  isOrganic = true;
+              }
+              
+              if (isOrganic) {
+                  customRoughness = 1.0;
+                  customMetalness = 0.0;
+              } else {
+                  // Water and glass are highly specular (low roughness, high metalness or purely reflective)
+                  if (texelColor.a < 0.9) {
+                      customRoughness = 0.05;
+                      customMetalness = 0.95;
+                  }
+                  if (uIsVoidtrail > 0.5 && texelColor.a >= 0.9) {
+                      customRoughness = 1.0;
+                      customMetalness = 0.0;
+                  }
+                  if (uHideShininess > 0.5 ? true : (lum > 0.65 && saturation < 0.15 && texelColor.a >= 0.9)) {
+                      customRoughness = 0.95;
+                      customMetalness = 0.0;
+                  }
+              }
+           }
+           #endif
 
           diffuseColor *= texelColor;
         #endif
@@ -627,7 +918,8 @@ export class World {
               gl_FragColor.rgb = max(gl_FragColor.rgb, diffuseColor.rgb);
             } else {
               // Childish happy vibes for voidtrail
-              vec3 color = gl_FragColor.rgb;
+              // Incorporate voxel-baked lighting (min illumination) here so interiors/shadows are illuminated properly, matching the bright exteriors of Voidtrail!
+              vec3 color = max(gl_FragColor.rgb, diffuseColor.rgb * 1.5);
               float lum = dot(color, vec3(0.299, 0.587, 0.114));
               // Saturate slightly instead of blowing out
               color = mix(vec3(lum), color, 1.3);
@@ -661,6 +953,15 @@ export class World {
     }
     if ((this.transparentMaterial as any).userData?.uIsVoidtrail) {
       (this.transparentMaterial as any).userData.uIsVoidtrail.value = isVoidtrail ? 1.0 : 0.0;
+    }
+
+    // Update uHideShininess
+    const hideShininess = settings.hideShininess;
+    if ((this.opaqueMaterial as any).userData?.uHideShininess) {
+      (this.opaqueMaterial as any).userData.uHideShininess.value = hideShininess ? 1.0 : 0.0;
+    }
+    if ((this.transparentMaterial as any).userData?.uHideShininess) {
+      (this.transparentMaterial as any).userData.uHideShininess.value = hideShininess ? 1.0 : 0.0;
     }
     if ((this.transparentMaterial as any).userData?.uPerformanceMode) {
       (this.transparentMaterial as any).userData.uPerformanceMode.value =
@@ -809,6 +1110,10 @@ export class World {
 
     // The entire hub world is indestructible to prevent players from mining the spawn
     if (isHub) return true;
+
+    if (this.isDungeonDelver && Math.floor(x) === 0 && Math.floor(y) === 0 && Math.floor(z) === 0) {
+      return true;
+    }
 
     const absX = Math.abs(Math.floor(x));
     const absZ = Math.abs(Math.floor(z));
@@ -1078,25 +1383,34 @@ export class World {
     const task = this.pendingTasks.get(data.taskId);
     if (!task) return;
     this.pendingTasks.delete(data.taskId);
-    try {
-      task.chunk.applyMesh(
-        data.opaque,
-        data.transparent,
-        this.opaqueMaterial,
-        this.transparentMaterial,
-        this.opaqueDepthMaterial,
-        this.transparentDepthMaterial,
-        settingsManager.getSettings().performanceMode,
-      );
-      this.meshesToAdd.push({
-        chunk: task.chunk,
-        mesh: task.chunk.mesh,
-        transparentMesh: task.chunk.transparentMesh,
-      });
-      task.resolve();
-    } catch (err) {
-      task.chunk.isMeshing = false;
-      task.reject(err);
+
+    const processMesh = () => {
+      try {
+        task.chunk.applyMesh(
+          data.opaque,
+          data.transparent,
+          this.opaqueMaterial,
+          this.transparentMaterial,
+          this.opaqueDepthMaterial,
+          this.transparentDepthMaterial,
+          settingsManager.getSettings().performanceMode,
+        );
+        this.meshesToAdd.push({
+          chunk: task.chunk,
+          mesh: task.chunk.mesh,
+          transparentMesh: task.chunk.transparentMesh,
+        });
+        task.resolve();
+      } catch (err) {
+        task.chunk.isMeshing = false;
+        task.reject(err);
+      }
+    };
+
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(processMesh);
+    } else {
+      setTimeout(processMesh, 0);
     }
   }
   update(playerPosition: THREE.Vector3, camera?: THREE.Camera) {
@@ -1119,13 +1433,15 @@ export class World {
     this.isSkyIsland = serverName.startsWith("skyisland");
 
     this.chunks.forEach((chunk) => {
+      this.meshesToRemove.push({
+         mesh: chunk.mesh,
+         transparentMesh: chunk.transparentMesh
+      });
       if (chunk.mesh) {
         this.scene.remove(chunk.mesh);
-        chunk.mesh.geometry.dispose();
       }
       if (chunk.transparentMesh) {
         this.scene.remove(chunk.transparentMesh);
-        chunk.transparentMesh.geometry.dispose();
       }
     });
     this.chunks.clear();
@@ -1141,7 +1457,8 @@ export class World {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     maxDistance: number,
+    solidOnly: boolean = false,
   ) {
-    return this.raycaster.raycast(origin, direction, maxDistance);
+    return this.raycaster.raycast(origin, direction, maxDistance, solidOnly);
   }
 }

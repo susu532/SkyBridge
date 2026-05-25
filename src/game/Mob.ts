@@ -56,6 +56,10 @@ export class Mob {
   velocity = new THREE.Vector3();
   targetPosition: THREE.Vector3 | null = null;
   lastNetPos: THREE.Vector3 = new THREE.Vector3();
+  currentPos: THREE.Vector3 = new THREE.Vector3();
+  isDead: boolean = false;
+  isDying: boolean = false;
+  deathTimer: number = 0;
   interpolationTimer: number = 0;
   lastAttackTime: number = 0;
   jumpTimer: number = 0;
@@ -236,6 +240,8 @@ export class Mob {
         this.lastNetPos.copy(this.targetPosition);
       }
 
+      _tempVec1.copy(this.position);
+
       // Networked movement interpolation
       const dist = this.position.distanceTo(this.targetPosition);
       if (dist > 10) {
@@ -245,11 +251,21 @@ export class Mob {
         this.position.lerp(this.targetPosition, moveFactor);
       }
 
+      this.velocity.x = (this.position.x - _tempVec1.x) / delta;
+      this.velocity.y = (this.position.y - _tempVec1.y) / delta;
+      this.velocity.z = (this.position.z - _tempVec1.z) / delta;
+
       // Apply knockback to prediction offset instead of modifying real state
       if (this.knockbackVelocity.lengthSq() > 0.01) {
+        // Apply realistic gravity to the visual knockback prediction
+        this.knockbackVelocity.y -= 28.0 * delta; // standard gravity acceleration pulling it down
+
         const step = this.knockbackVelocity.clone().multiplyScalar(delta);
         this.predictionOffset.add(step);
-        this.knockbackVelocity.multiplyScalar(1.0 - 8.0 * delta); // friction
+
+        // Decelerate horizontal axes faster (friction), let gravity govern vertical axis
+        this.knockbackVelocity.x *= Math.exp(-4.605 * delta);
+        this.knockbackVelocity.z *= Math.exp(-4.605 * delta);
       }
 
       // Decay the prediction offset as server syncs up
@@ -517,8 +533,8 @@ export class Mob {
           0.1,
         );
       } else if (
-        (this.isPassive || this.type === MobType.MORVANE) &&
-        (dist < 20 || this.wanderAngle === -2 || this.type === MobType.MORVANE)
+        this.isPassive &&
+        (dist < 20 || this.wanderAngle === -2)
       ) {
         // Look at player
         _tempVec1.copy(playerPos);
@@ -589,18 +605,6 @@ export class Mob {
 
     this.renderer.animateLimbs(delta);
 
-    if (this.targetPosition) {
-      const lerpFactor = 1.0 - Math.pow(0.001, delta);
-
-      // Calculate velocity for animation
-      _tempVec1.copy(this.position);
-      this.position.lerp(this.targetPosition, lerpFactor);
-
-      this.velocity.x = (this.position.x - _tempVec1.x) / delta;
-      this.velocity.y = (this.position.y - _tempVec1.y) / delta;
-      this.velocity.z = (this.position.z - _tempVec1.z) / delta;
-    }
-
     if (this.knockbackTimer > 0) {
       const tilt = (this.knockbackTimer / 0.5) * 0.4;
       this.group.rotation.z = Math.sin(this.knockbackTimer * 20) * tilt;
@@ -623,12 +627,7 @@ export class Mob {
 
     this.group.position.copy(this.position);
 
-    // Floating animation for Morvane
-    if (this.type === MobType.MORVANE && this.health > 0) {
-      const time = Date.now() * 0.001;
-      const floatY = Math.sin(time * 1.5) * 0.8;
-      this.group.position.y += 2.0 + floatY; // Start higher and bob
-    }
+    // Floating animation for Morvane removed to keep it entirely static
 
     // Attack player
     const dx = playerPos.x - this.position.x;
@@ -670,7 +669,7 @@ export class Mob {
           const headGeo = new THREE.BoxGeometry(0.08, 0.08, 0.1);
           const headMat = new THREE.MeshStandardMaterial({ color: 0xaabbcc });
           const head = new THREE.Mesh(headGeo, headMat);
-          head.position.z = 0.3;
+          head.position.z = -0.3;
           arrowGroup.add(head);
 
           arrowGroup.position.copy(_startPos);
@@ -803,15 +802,16 @@ export class Mob {
   }
 
   knockback(dir: THREE.Vector3, force: number) {
+    if (this.type === MobType.MORVANE) return;
     this.velocity.x = dir.x * force;
     this.velocity.z = dir.z * force;
-    this.velocity.y = 6; // Upward pop (lift)
+    this.velocity.y = 1.5; // Upward pop (lift) - was 6, which was too high
     this.knockbackTimer = 0.5; // 500ms of knockback where AI movement is disabled
     this.lastKnockbackTime = Date.now();
     
     // Client-side visual knockback prediction
-    this.knockbackVelocity.copy(dir).multiplyScalar(force * 1.5);
-    this.knockbackVelocity.y = Math.min(force, 12);
+    this.knockbackVelocity.copy(dir).multiplyScalar(force);
+    this.knockbackVelocity.y = 1.5;
   }
 
   takeDamage(
@@ -826,25 +826,27 @@ export class Mob {
 
     if (this.isPassive) this.fleeTimer = 5.0;
 
-    if (knockbackDir && knockbackDir.lengthSq() > 0) {
-      const kDir = knockbackDir.clone().normalize();
-      this.visualOffset.addScaledVector(kDir, 0.4);
-      this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
-      this.damageRotate = 0.4;
-      
-      this.knockback(kDir, knockbackDir.length());
-    } else {
-      this._recoilDir
-        .set(0, 0, 1)
-        .applyQuaternion(this.group.quaternion)
-        .negate();
-      this.visualOffset.addScaledVector(this._recoilDir, 0.4);
-      this.damageRotateAxis
-        .set(-this._recoilDir.z, 0, this._recoilDir.x)
-        .normalize();
-      this.damageRotate = 0.4;
+    if (this.type !== MobType.MORVANE) {
+      if (knockbackDir && knockbackDir.lengthSq() > 0) {
+        const kDir = knockbackDir.clone().normalize();
+        this.visualOffset.addScaledVector(kDir, 0.4);
+        this.damageRotateAxis.set(-kDir.z, 0, kDir.x).normalize();
+        this.damageRotate = 0.4;
+        
+        this.knockback(kDir, knockbackDir.length());
+      } else {
+        this._recoilDir
+          .set(0, 0, 1)
+          .applyQuaternion(this.group.quaternion)
+          .negate();
+        this.visualOffset.addScaledVector(this._recoilDir, 0.4);
+        this.damageRotateAxis
+          .set(-this._recoilDir.z, 0, this._recoilDir.x)
+          .normalize();
+        this.damageRotate = 0.4;
+      }
+      this.visualOffset.y += 0.2;
     }
-    this.visualOffset.y += 0.2;
 
     // Play hurt sound
     const soundPrefix = this.type.toLowerCase();

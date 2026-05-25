@@ -1,14 +1,107 @@
-
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { settingsManager, GameSettings, DEFAULT_SETTINGS } from '../game/Settings';
-import { networkManager } from '../game/NetworkManager';
-import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard, User } from 'lucide-react';
+import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard, Globe } from 'lucide-react';
 
 interface SettingsUIProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const translations: Record<string, Record<string, string>> = {
+  en: {
+    settingsTitle: "Settings Configuration",
+    graphics: "Graphics",
+    renderDistance: "Render Distance",
+    fov: "Field of View (FOV)",
+    performanceMode: "Performance Mode",
+    performanceDesc: "Reduces render distance and disables heavy effects for smoother gameplay",
+    premiumShaders: "Premium Shaders",
+    shadersDesc: "Enables Real-time Shadows, Water Waves, and Wind",
+    controls: "Controls",
+    sensitivity: "Mouse Sensitivity",
+    invertMouse: "Invert Mouse",
+    audio: "Audio",
+    masterVolume: "Master Volume",
+    keybinds: "Keybinds",
+    debug: "Debug",
+    showDebug: "Show Debug Info (F3)",
+    resetButton: "Reset to Defaults",
+    doneButton: "Done",
+    cancelButton: "Cancel",
+    languageSection: "Language / Idioma",
+    selectLanguage: "Select Language"
+  },
+  es: {
+    settingsTitle: "Configuración de Ajustes",
+    graphics: "Gráficos",
+    renderDistance: "Distancia de Sombreado",
+    fov: "Campo de Visión (FOV)",
+    performanceMode: "Modo Rendimiento",
+    performanceDesc: "Reduce la distancia de renderizado y desactiva efectos pesados",
+    premiumShaders: "Shaders Premium",
+    shadersDesc: "Activa sombras en tiempo real, efectos de agua y viento",
+    controls: "Controles",
+    sensitivity: "Sensibilidad del Ratón",
+    invertMouse: "Invertir Ratón",
+    audio: "Sonido",
+    masterVolume: "Volumen Principal",
+    keybinds: "Teclado / Racks",
+    debug: "Depurar",
+    showDebug: "Mostrar Info de Depuración (F3)",
+    resetButton: "Restablecer Ajustes",
+    doneButton: "Aceptar",
+    cancelButton: "Cancelar",
+    languageSection: "Idioma / Language",
+    selectLanguage: "Seleccionar Idioma"
+  },
+  fr: {
+    settingsTitle: "Configuration des Options",
+    graphics: "Graphismes",
+    renderDistance: "Distance d'Affichage",
+    fov: "Champ de Vision (FOV)",
+    performanceMode: "Mode Performance",
+    performanceDesc: "Réduit la distance d'affichage et désactive les effets pour plus de fluidité",
+    premiumShaders: "Shaders Premium",
+    shadersDesc: "Active les ombres en temps réel, les vagues et le vent",
+    controls: "Contrôles",
+    sensitivity: "Sensibilité de la Souris",
+    invertMouse: "Inverser la Souris",
+    audio: "Audio",
+    masterVolume: "Volume Principal",
+    keybinds: "Raccourcis clavier",
+    debug: "Débogage",
+    showDebug: "Afficher les Infos de Débug (F3)",
+    resetButton: "Réinitialiser",
+    doneButton: "Confirmer",
+    cancelButton: "Annuler",
+    languageSection: "Langue / Language",
+    selectLanguage: "Sélectionner la Langue"
+  },
+  de: {
+    settingsTitle: "Einstellungen Konfiguration",
+    graphics: "Grafikeinstellungen",
+    renderDistance: "Sichtweite",
+    fov: "Sichtfeld (FOV)",
+    performanceMode: "Leistungsmodus",
+    performanceDesc: "Reduziert die Sichtweite und deaktiviert komplexe Effekte für mehr FPS",
+    premiumShaders: "Premium Shader",
+    shadersDesc: "Aktiviert Echtzeitschatten, Wasserwellen und Windeffekte",
+    controls: "Steuerung",
+    sensitivity: "Mausempfindlichkeit",
+    invertMouse: "Maus umkehren",
+    audio: "Audio / Sound",
+    masterVolume: "Gesamtlautstärke",
+    keybinds: "Tastenbelegung",
+    debug: "Analysedaten",
+    showDebug: "Debug-Informationen (F3)",
+    resetButton: "Zurücksetzen",
+    doneButton: "Fertig",
+    cancelButton: "Abbrechen",
+    languageSection: "Sprache / Language",
+    selectLanguage: "Sprache Auswählen"
+  }
+};
 
 export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<GameSettings>(settingsManager.getSettings());
@@ -39,12 +132,12 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
 
   const handleChange = (key: keyof GameSettings, value: any) => {
     settingsManager.updateSettings({ [key]: value });
-    if (key === 'username') {
-      networkManager.updateProfile({ name: value });
-    }
   };
 
   if (!isOpen) return null;
+
+  const currentLang = settings.language || 'en';
+  const t = translations[currentLang] || translations.en;
 
   return (
     <AnimatePresence>
@@ -74,9 +167,9 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
           {/* Header */}
           <div className="bg-[#8B8B8B] p-4 flex items-center justify-between border-b-4 border-[#555555]">
             <div className="flex items-center gap-3">
-              <SettingsIcon className="w-6 h-6 text-white drop-shadow-[2px_2px_0_rgba(0,0,0,1)]" />
+              <SettingsIcon className="w-6 h-6 text-white drop-shadow-[2px_2px_0_rgba(0,0,0,1)] animate-[spin_10s_linear_infinite]" />
               <h2 className="text-2xl font-bold text-white drop-shadow-[2px_2px_0_rgba(0,0,0,1)] uppercase tracking-wider">
-                Game Settings
+                {t.settingsTitle}
               </h2>
             </div>
             <button 
@@ -90,28 +183,33 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          {/* Content */}
-          <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-8">
+          {/* Settings Options Scroll Box */}
+          <div className="p-6 h-[55vh] md:h-[60vh] overflow-y-auto custom-scrollbar space-y-8 bg-[#C6C6C6] select-none text-left">
             
-            {/* Profile */}
+            {/* Language Selection Section */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
-                <User className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Profile</h3>
+                <Globe className="w-5 h-5 text-[#555555]" />
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">
+                  {t.languageSection}
+                </h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-[#555555] uppercase">Username</label>
-                  <input 
-                    type="text" 
-                    value={settings.username || ''}
-                    onChange={(e) => handleChange('username', e.target.value)}
-                    maxLength={16}
-                    className="w-full h-10 px-3 bg-[#8B8B8B] border-2 border-black/20 text-[#555555] font-bold focus:outline-none focus:border-[#555555] uppercase placeholder-black/30"
-                    placeholder="Enter Username"
-                  />
-                  
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1 bg-[#A0A0A0] p-3 border-2 border-black/10">
+                  <label className="text-xs font-bold text-[#333] uppercase block">
+                    {t.selectLanguage}
+                  </label>
+                  <select 
+                    value={settings.language || 'en'}
+                    onChange={(e) => handleChange('language', e.target.value)}
+                    className="w-full text-sm font-bold bg-[#C6C6C6] border-2 border-black/30 text-[#222] px-2 py-1.5 focus:outline-none uppercase font-mono"
+                  >
+                    <option value="en">English (US)</option>
+                    <option value="es">Español (ES)</option>
+                    <option value="fr">Français (FR)</option>
+                    <option value="de">Deutsch (DE)</option>
+                  </select>
                 </div>
               </div>
             </section>
@@ -120,13 +218,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
                 <Monitor className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Graphics</h3>
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">{t.graphics}</h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`space-y-2 ${settings.performanceMode ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div className="flex justify-between">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Render Distance</label>
+                    <label className="text-sm font-bold text-[#555555] uppercase font-sans">{t.renderDistance}</label>
                     <span className="text-sm font-bold text-[#555555]">{settings.renderDistance} Chunks</span>
                   </div>
                   <input 
@@ -143,7 +241,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
 
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Field of View (FOV)</label>
+                    <label className="text-sm font-bold text-[#555555] uppercase font-sans">{t.fov}</label>
                     <span className="text-sm font-bold text-[#555555]">{settings.fov}</span>
                   </div>
                   <input 
@@ -161,9 +259,9 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-yellow-500" />
-                      <label className="text-sm font-bold text-[#555555] uppercase">Performance Mode</label>
+                      <label className="text-sm font-bold text-[#555555] uppercase">{t.performanceMode}</label>
                     </div>
-                    <span className="text-xs text-[#555555]">Reduces render distance and disables heavy effects for smoother gameplay</span>
+                    <span className="text-xs text-[#555555]">{t.performanceDesc}</span>
                   </div>
                   <button 
                     onClick={() => {
@@ -178,7 +276,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
                         settingsManager.updateSettings({ performanceMode: false });
                       }
                     }}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${settings.performanceMode ? 'bg-green-500' : 'bg-[#555555]'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settings.performanceMode ? 'bg-green-500' : 'bg-[#555555]'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.performanceMode ? 'left-7' : 'left-1'}`} />
                   </button>
@@ -186,13 +284,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
 
                 <div className={`flex items-center justify-between p-3 bg-[#A0A0A0] border-2 border-black/20 md:col-span-2 ${settings.performanceMode ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div className="flex flex-col">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Premium Shaders</label>
-                    <span className="text-xs text-[#555555]">Enables Real-time Shadows, Water Waves, and Wind</span>
+                    <label className="text-sm font-bold text-[#555555] uppercase">{t.premiumShaders}</label>
+                    <span className="text-xs text-[#555555]">{t.shadersDesc}</span>
                   </div>
                   <button 
                     disabled={settings.performanceMode}
                     onClick={() => handleChange('premiumShaders', !settings.premiumShaders)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${settings.premiumShaders ? 'bg-green-500' : 'bg-[#555555]'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settings.premiumShaders ? 'bg-green-500' : 'bg-[#555555]'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.premiumShaders ? 'left-7' : 'left-1'}`} />
                   </button>
@@ -204,13 +302,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
                 <MousePointer2 className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Controls</h3>
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">{t.controls}</h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Mouse Sensitivity</label>
+                    <label className="text-sm font-bold text-[#555555] uppercase">{t.sensitivity}</label>
                     <span className="text-sm font-bold text-[#555555]">{Math.round(settings.sensitivity * 10000)}</span>
                   </div>
                   <input 
@@ -225,10 +323,10 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-[#A0A0A0] border-2 border-black/20">
-                  <label className="text-sm font-bold text-[#555555] uppercase">Invert Mouse</label>
+                  <label className="text-sm font-bold text-[#555555] uppercase">{t.invertMouse}</label>
                   <button 
                     onClick={() => handleChange('invertMouse', !settings.invertMouse)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${settings.invertMouse ? 'bg-green-500' : 'bg-[#555555]'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settings.invertMouse ? 'bg-green-500' : 'bg-[#555555]'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.invertMouse ? 'left-7' : 'left-1'}`} />
                   </button>
@@ -240,13 +338,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
                 <Volume2 className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Audio</h3>
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">{t.audio}</h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <label className="text-sm font-bold text-[#555555] uppercase">Master Volume</label>
+                    <label className="text-sm font-bold text-[#555555] uppercase">{t.masterVolume}</label>
                     <span className="text-sm font-bold text-[#555555]">{Math.round(settings.volume * 100)}%</span>
                   </div>
                   <input 
@@ -266,7 +364,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
                 <Keyboard className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Keybinds</h3>
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">{t.keybinds}</h3>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -278,7 +376,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
                     <button
                       onClick={() => setRebindingKey(name)}
                       className={`
-                        min-w-[80px] px-2 py-1 text-xs font-mono font-bold border-2 
+                        min-w-[85px] px-2 py-1 text-xs font-mono font-bold border-2 
                         ${rebindingKey === name 
                           ? 'bg-yellow-400 border-yellow-600 text-black animate-pulse' 
                           : 'bg-[#C6C6C6] border-[#555555] text-[#333] hover:bg-white'
@@ -296,14 +394,14 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-[#8B8B8B] pb-2">
                 <Bug className="w-5 h-5 text-[#555555]" />
-                <h3 className="text-lg font-bold text-[#555555] uppercase">Debug</h3>
+                <h3 className="text-lg font-bold text-[#555555] uppercase font-sans">{t.debug}</h3>
               </div>
               
               <div className="flex items-center justify-between p-3 bg-[#A0A0A0] border-2 border-black/20">
-                <label className="text-sm font-bold text-[#555555] uppercase">Show Debug Info (F3)</label>
+                <label className="text-sm font-bold text-[#555555] uppercase">{t.showDebug}</label>
                 <button 
                   onClick={() => handleChange('showDebug', !settings.showDebug)}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${settings.showDebug ? 'bg-green-500' : 'bg-[#555555]'}`}
+                  className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settings.showDebug ? 'bg-green-500' : 'bg-[#555555]'}`}
                 >
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.showDebug ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -318,7 +416,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               onClick={() => settingsManager.updateSettings(DEFAULT_SETTINGS)}
               className="px-4 py-2 bg-[#A0A0A0] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] font-bold text-[#555555] hover:bg-white transition-colors uppercase text-sm"
             >
-              Reset to Defaults
+              {t.resetButton}
             </button>
             <button 
               onClick={() => {
@@ -327,7 +425,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               }}
               className="px-8 py-2 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] font-bold text-[#555555] hover:bg-white transition-colors uppercase tracking-widest shadow-lg"
             >
-              {rebindingKey ? 'Cancel' : 'Done'}
+              {rebindingKey ? t.cancelButton : t.doneButton}
             </button>
           </div>
         </motion.div>

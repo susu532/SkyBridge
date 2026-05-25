@@ -4,7 +4,9 @@ import { settingsManager } from './Settings';
 import { getTerrainData } from './TerrainGenerator';
 import { audioManager } from './AudioManager';
 
-export class EnvironmentManager {
+import { ISystem } from './ISystem';
+
+export class EnvironmentManager implements ISystem {
   game: Game;
   
   dayTime: number = 0; // 0 to 1
@@ -37,7 +39,7 @@ export class EnvironmentManager {
     const dirLight = new THREE.DirectionalLight(0xffffee, 1.5);
     dirLight.name = 'sun';
     dirLight.position.set(50, 100, 50);
-    dirLight.castShadow = !isPerformance;
+    dirLight.castShadow = !isPerformance && !(this.game.world && this.game.world.isDungeonDelver);
     
     // High-Precision Shadow Settings for Ultra-Realistic Soft Shadows
     const shadowSize = 120; // Reduced frustum for higher pixel density
@@ -346,14 +348,17 @@ export class EnvironmentManager {
 
   updateWeather(delta: number) {
     const settings = settingsManager.getSettings();
-    if (settings.performanceMode) {
+    const isDungeon = this.game.currentMode.startsWith("dungeondelver") || (this.game.world && this.game.world.isDungeonDelver);
+    if (settings.performanceMode || isDungeon) {
         if (this.rainPoints) this.rainPoints.visible = false;
         if (this.snowPoints) this.snowPoints.visible = false;
         
-        // Stop rain sound if performance mode is enabled
+        // Stop rain sound if performance or dungeon mode is enabled
         if (audioManager.isAmbientPlaying('rain')) {
             audioManager.stopAmbient('rain');
         }
+        this.globalWeatherIntensity = 0;
+        this.weatherType = 'clear';
         return;
     }
 
@@ -567,7 +572,7 @@ export class EnvironmentManager {
     
     let skyColor;
     if (this.game.world.isDungeonDelver) {
-      skyColor = new THREE.Color(0x050505);
+      skyColor = new THREE.Color(0x000000);
       if (this.clouds) this.clouds.visible = false;
       if (this.sunMesh) this.sunMesh.visible = false;
       if (this.moonMesh) this.moonMesh.visible = false;
@@ -617,7 +622,7 @@ export class EnvironmentManager {
       } else if (this.game.player.isUnderwater) {
         this.game.scene.fog.density = 0.15;
       } else if (this.game.world.isDungeonDelver) {
-        this.game.scene.fog.density = 0.08;
+        this.game.scene.fog.density = 0.12;
       } else {
         const fogFactor = Math.max(0, -sunY * 2 + 0.5);
         // Volumetric fog effect: enhance fog density in the morning/evening for god ray simulation
@@ -683,14 +688,15 @@ export class EnvironmentManager {
       }
       
       dirLight.intensity = this.game.world.isDungeonDelver ? 0 : targetIntensity;
+      dirLight.castShadow = this.game.world.isDungeonDelver ? false : !isPerformance;
       
       // Update Hemisphere Light for GI Ray Tracing Feel
       const hemiLight = this.game.scene.getObjectByName('hemi') as THREE.HemisphereLight;
       if (hemiLight) {
           if (this.game.world.isDungeonDelver) {
-            hemiLight.color.copy(skyColor).lerp(new THREE.Color(0x333333), 0.5);
+            hemiLight.color.copy(new THREE.Color(0x333333));
             hemiLight.groundColor.copy(new THREE.Color(0x111111));
-            hemiLight.intensity = 0.6;
+            hemiLight.intensity = 0.2;
           } else {
             const upBlend = this.game.world.isVoidtrail ? new THREE.Color(0xffffee) : new THREE.Color(0xffffff);
             const downBlend = this.game.world.isVoidtrail ? new THREE.Color(0xddeeff) : new THREE.Color(0x556633);
@@ -708,19 +714,30 @@ export class EnvironmentManager {
     if (ambientLight) {
       let ambientIntensity = isDay ? (Math.max(0, sunY) * 0.4 + 0.4) : (Math.abs(sunY) * 0.2 + 0.2);
       if (this.game.world.isVoidtrail) ambientIntensity *= 1.3;
+      if (this.game.world.isDungeonDelver) ambientIntensity = 0.05;
+
       if (this.globalWeatherIntensity > 0) {
         ambientIntensity = THREE.MathUtils.lerp(ambientIntensity, ambientIntensity * 0.6, this.globalWeatherIntensity);
       }
-      if (isPremium) {
+      if (isPremium && !this.game.world.isVoidtrail) {
          // RTX style: lower flat ambient, rely on directional + hemi + reflections
          ambientIntensity *= 0.3;
       }
       ambientLight.intensity = ambientIntensity;
       if (this.game.world.isVoidtrail) {
         ambientLight.color.copy(skyColor).lerp(new THREE.Color(0xffffff), 0.3);
+      } else if (this.game.world.isDungeonDelver) {
+        ambientLight.color.setHex(0xffffff);
       } else {
         ambientLight.color.copy(skyColor);
       }
+    }
+  }
+
+  destroy(): void {
+    // Basic cleanup
+    if (this.clouds) {
+      this.game.scene.remove(this.clouds);
     }
   }
 }

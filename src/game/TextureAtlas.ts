@@ -279,7 +279,8 @@ export function createTextureAtlas(): THREE.Texture {
 
     // 1. Draw Stick (Handle)
     // Detailed stick with diagonal banding
-    for (let i = 0; i < 9; i++) {
+    const handleLength = 9;
+    for (let i = 0; i < handleLength; i++) {
         const px = x * size + i + 1;
         const py = y * size + 14 - i;
         
@@ -298,16 +299,18 @@ export function createTextureAtlas(): THREE.Texture {
 
     if (isPickaxe) {
         // --- PICKAXE HEAD ---
-        // Curved head shape
-        const drawPixel = (dx: number, dy: number, color: string) => {
-            ctx.fillStyle = color;
-            ctx.fillRect(x * size + dx, y * size + dy, 1, 1);
-        };
-
-        // Head coordinates
+        // A classic diagonal 'T' with curved ends (Minecraft style)
         const headPixels = [
-            [8,4], [7,4], [6,5], [5,5], [4,6], [3,7], [2,8], [2,9], // Left arm
-            [9,4], [10,4], [11,5], [12,5], [13,6], [14,7], [15,8], [15,9] // Right arm
+            // Center connecting to stick
+            [10, 5], [11, 4], [10, 4], [10, 3], [11, 5], [12, 5],
+            // Top-left curve
+            [9, 4], [9, 3], [8, 3], [8, 2], [7, 2], [6, 2], [5, 3],
+            // Inner top-left
+            [9, 2], [7, 3], [6, 3],
+            // Bottom-right curve
+            [12, 6], [13, 6], [13, 7], [13, 8], [14, 8], [14, 9], [13, 10],
+            // Inner bottom-right
+            [14, 7], [13, 9], [12, 7]
         ];
 
         // Outline
@@ -317,31 +320,20 @@ export function createTextureAtlas(): THREE.Texture {
         });
 
         // Main body
-        ctx.fillStyle = matColor;
+        ctx.fillStyle = (tier === 0) ? (ITEM_COLORS[BLOCK.WOODEN_PICKAXE] || '#8b5a2b') : (tier === 1) ? (ITEM_COLORS[BLOCK.STONE] || '#888888') : (tier === 2) ? (ITEM_COLORS[BLOCK.IRON_PICKAXE] || '#e5e4e2') : (tier === 3) ? (ITEM_COLORS[BLOCK.SKYCOIN] || '#ffd700') : (ITEM_COLORS[BLOCK.DIAMOND_PICKAXE] || '#b9f2ff');
         headPixels.forEach(([px, py]) => {
             ctx.fillRect(x*size + px, y*size + py, 1, 1);
         });
         
-        // Highlights
+        // Highlights (top and left edges)
         ctx.fillStyle = highlight;
-        ctx.fillRect(x*size + 6, y*size + 5, 3, 1);
-        ctx.fillRect(x*size + 9, y*size + 5, 3, 1);
-        ctx.fillRect(x*size + 14, y*size + 7, 1, 1);
-        ctx.fillRect(x*size + 3, y*size + 7, 1, 1);
-
-        // Center hub
-        ctx.fillStyle = outline;
-        ctx.fillRect(x*size + 7, y*size + 3, 3, 3);
-        ctx.fillStyle = matColor;
-        ctx.fillRect(x*size + 8, y*size + 4, 1, 1);
-        
-        // Shiny spark for high tiers
-        if (tier >= 3) {
-            ctx.fillStyle = (ITEM_COLORS[BLOCK.SNOW] || '#ffffff');
-            ctx.fillRect(x*size + 8, y*size + 4, 1, 1);
-            ctx.fillRect(x*size + 4, y*size + 6, 1, 1);
-            ctx.fillRect(x*size + 13, y*size + 6, 1, 1);
-        }
+        const highlights = [
+            [10, 3], [9, 2], [8, 2], [7, 2], [6, 2], [5, 3],
+            [11, 4], [12, 5], [13, 6], [14, 7], [14, 8], [14, 9]
+        ];
+        highlights.forEach(([px, py]) => {
+            ctx.fillRect(x*size + px, y*size + py, 1, 1);
+        });
 
     } else {
         // --- SWORD ---
@@ -563,12 +555,38 @@ export function createTextureAtlas(): THREE.Texture {
 
   const drawBow = (x: number, y: number) => {
     ctx.clearRect(x * size, y * size, size, size);
-    ctx.strokeStyle = (ITEM_COLORS[BLOCK.WOOD] || '#6b4d29');
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x*size + 4, y*size + 8, 6, -Math.PI/2, Math.PI/2); ctx.stroke();
-    ctx.strokeStyle = '#eeeeee';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x*size+4, y*size+2); ctx.lineTo(x*size+4, y*size+14); ctx.stroke();
+
+    const outline = '#2b2319';
+    const mid = '#845e2a';
+    const light = '#b58b44';
+    
+    // Let's just use hardcoded pixels for a nice diagonal bow
+    // Bow is usually bottom-left to top-right.
+    const bowPixels = [
+      [outline, [
+        [1,12],[2,13],[3,14],
+        [2,11],[4,13],[5,14],[6,14],[7,13],[8,12],[9,11],[10,10],[11,9],[12,8],[13,7],
+        [14,6],[14,5],[13,4],
+        [3,10],[4,9],[5,8],[6,7],[7,6],[8,5],[9,4],[10,3],
+        [11,2],[12,1],[13,2],[14,3]
+      ]],
+      [mid, [
+        [2,12],[3,13],
+        [3,11],[4,12],[5,13],[6,13],
+        [4,11],[5,12],[6,12],[7,12],[8,11],[9,10],[10,9],[11,8],[12,7],[13,6],
+        [13,5],[12,4],[11,3],[12,2],[13,3]
+      ]],
+      [light, [
+        [4,10],[5,11],[6,11],[7,11],[8,10],[9,9],[10,8],[11,7],[12,6],[12,5]
+      ]]
+    ];
+
+    for (const [color, pixels] of bowPixels) {
+      ctx.fillStyle = color as string;
+      for (const [px, py] of pixels as number[][]) {
+        ctx.fillRect(x*size + px, y*size + py, 1, 1);
+      }
+    }
   };
 
   const drawArrow = (x: number, y: number) => {
