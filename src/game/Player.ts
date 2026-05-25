@@ -578,7 +578,7 @@ export class Player {
 
       // Add vertical lift to make knockback feel more impactful
       if (this.canJump || this.isSwimming) {
-        this.velocity.y = Math.min(8.0, 5.5 + (force - 8.0) * 0.5);
+        this.velocity.y = (this.velocity.y || 0) + 0.3;
       }
     }
   }

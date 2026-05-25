@@ -739,7 +739,7 @@ export class RemotePlayer {
   knockback(dir: THREE.Vector3, force: number) {
     // Client-side visual knockback prediction for instant response
     this.knockbackVelocity.copy(dir).multiplyScalar(force * 1.5);
-    this.knockbackVelocity.y = Math.min(force, 12);
+    this.knockbackVelocity.y = 0.3;
     this.lastKnockbackTime = Date.now();
   }
 
