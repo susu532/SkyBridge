@@ -92,7 +92,7 @@ export const Slot: React.FC<{
     {(() => {
       const isSword = item?.type && item.type >= 441 && item.type <= 445;
       const isTool = item?.type && ((item.type >= 436 && item.type <= 440) || (item.type >= 446 && item.type <= 455));
-      const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'hub' : 'hub';
+      const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'dungeondelver' : 'hub';
       const isSkyCastles = serverName.startsWith('skycastles');
       const shouldShow = item?.metadata?.durability !== undefined && item?.metadata?.maxDurability !== undefined && !isSword && !(isTool && isSkyCastles);
       
@@ -255,7 +255,7 @@ export const ItemIcon = React.memo<{ item: ItemStack }>(({ item }) => {
       {(() => {
         const isSword = item?.type && item.type >= 441 && item.type <= 445;
         const isTool = item?.type && ((item.type >= 436 && item.type <= 440) || (item.type >= 446 && item.type <= 455));
-        const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'hub' : 'hub';
+        const serverName = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('server') || 'dungeondelver' : 'hub';
         const isSkyCastles = serverName.startsWith('skycastles');
         const shouldShow = item.metadata?.maxDurability && item.metadata.durability !== undefined && !isSword && !(isTool && isSkyCastles);
 

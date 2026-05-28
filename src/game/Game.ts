@@ -173,7 +173,7 @@ export class Game {
       this.renderer.shadowMap.enabled = enabled;
       const dirLight = this.scene.getObjectByName('sun') as THREE.DirectionalLight;
       if (dirLight) {
-        dirLight.castShadow = enabled && !(this.world && this.world.isDungeonDelver);
+        dirLight.castShadow = enabled;
       }
 
       // Toggle entity shadows
@@ -365,7 +365,7 @@ export class Game {
     
     updateAnimatedItems(this.clock.getElapsedTime());
 
-    const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
+    const serverName = new URLSearchParams(window.location.search).get('server') || 'dungeondelver';
     this.gameController.tick(delta, serverName);
     
     // Check loading state

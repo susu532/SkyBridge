@@ -24,7 +24,7 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
 
   const handleInvite = () => {
     try {
-      const server = new URLSearchParams(window.location.search).get('server') || 'hub';
+      const server = new URLSearchParams(window.location.search).get('server') || 'dungeondelver';
       const link = CrazyGamesManager.inviteLink({ server });
       navigator.clipboard.writeText(link);
       setCopied(true);

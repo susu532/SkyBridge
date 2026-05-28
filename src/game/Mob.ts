@@ -23,19 +23,13 @@ const _chaseForce = new THREE.Vector3();
 import { BLOCK, isSolidBlock, isSlab, ATLAS_TILES } from "./TextureAtlas";
 import { skyBridgeManager, SkillType } from "./SkyBridgeManager";
 import { networkManager } from "./NetworkManager";
+import { calculateMobMaxHealth, MobTypes as MobType } from "./Constants";
 import { ItemType } from "./Inventory";
 import { audioManager } from "./AudioManager";
 import { settingsManager } from "./Settings";
 
-export enum MobType {
-  ZOMBIE = "Zombie",
-  SLIME = "Slime",
-  SKELETON = "Skeleton",
-  CREEPER = "Creeper",
-  COW = "Cow",
-  SHEEP = "Sheep",
-  MORVANE = "Morvane",
-}
+
+export { MobTypes as MobType } from "./Constants";
 
 export class Mob {
   renderer: MobRenderer;
@@ -113,13 +107,10 @@ export class Mob {
     this.textureAtlas = textureAtlas;
     this.wanderAngle = Math.random() * Math.PI * 2;
 
-    this.maxHealth = 100 + (level - 1) * 50;
+    this.maxHealth = calculateMobMaxHealth(type, level);
     if (type === MobType.MORVANE) {
-      this.maxHealth = 5000;
       this.name = "Morvane, Guardian of Skycastle";
     }
-    if (type === MobType.SLIME) this.maxHealth *= 0.5;
-    if (this.isPassive) this.maxHealth = 20;
 
     this.health = this.maxHealth;
     this.renderer = new MobRenderer(this);

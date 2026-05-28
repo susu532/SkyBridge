@@ -156,15 +156,15 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       {isHUDVisible && isMobile && <MobileControlsUI />}
 
       {/* Sidebars */}
-      {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar isMobile={isMobile} />}
-      {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar isMobile={isMobile} />}
-      {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar isMobile={isMobile} />}
+      {/* {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeSidebar isMobile={isMobile} />} */}
+      {/* {isHUDVisible && currentMode === 'skycastles' && <SkyCastlesSidebar isMobile={isMobile} />} */}
+      {/* {isHUDVisible && currentMode === 'battleroyale' && <BattleRoyaleSidebar isMobile={isMobile} />} */}
       {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverSidebar isMobile={isMobile} />}
 
       {/* SkyBridge UI */}
-      {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />}
+      {/* {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />} */}
       {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverActionBar />}
-      {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeXPPopup />}
+      {/* {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeXPPopup />} */}
       
       {isHUDVisible && (
         <>

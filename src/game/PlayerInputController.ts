@@ -294,10 +294,10 @@ export class PlayerInputController {
       case keybinds.slot8: if (!this.player.world.isHub) { this.player.hotbarIndex = 7; this.resetItemState(); } break;
       case keybinds.slot9: if (!this.player.world.isHub) { this.player.hotbarIndex = 8; this.resetItemState(); } break;
       case keybinds.fly: 
-       
+       /*
           this.player.isFlying = !this.player.isFlying;
           this.player.velocity.set(0, 0, 0);
-       
+       */
         break;
       case keybinds.jump: 
         this.moveUp = true;
@@ -466,29 +466,29 @@ export class PlayerInputController {
       const npc = this.player.entityManager.raycastNPC(rayOrigin, direction, 4, this.player.camera);
       if (npc) {
         if (npc.id === 'hub_npc_q') {
-          if (networkManager.serverName.startsWith('hub')) {
-            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skybridge' } }));
-          }
+          // if (networkManager.serverName.startsWith('hub')) {
+          //   window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skybridge' } }));
+          // }
         } else if (npc.id === 'hub_npc_r') {
-          if (networkManager.serverName.startsWith('hub')) {
-            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skycastles' } }));
-          }
+          // if (networkManager.serverName.startsWith('hub')) {
+          //   window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skycastles' } }));
+          // }
         } else if (npc.id === 'hub_npc_dungeon') {
           if (networkManager.serverName.startsWith('hub')) {
             window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'dungeondelver' } }));
           }
         } else if (npc.id === 'hub_npc_br') {
-          if (networkManager.serverName.startsWith('hub')) {
-            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'battleroyale' } }));
-          }
+          // if (networkManager.serverName.startsWith('hub')) {
+          //   window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'battleroyale' } }));
+          // }
         } else if (npc.id === 'hub_npc_void') {
-          if (networkManager.serverName.startsWith('hub')) {
-            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
-          }
+          // if (networkManager.serverName.startsWith('hub')) {
+          //   window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'voidtrail' } }));
+          // }
         } else if (npc.id === 'hub_npc_island') {
-          if (networkManager.serverName.startsWith('hub')) {
-            window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skyisland' } }));
-          }
+          // if (networkManager.serverName.startsWith('hub')) {
+          //   window.dispatchEvent(new CustomEvent('openServerJoin', { detail: { server: 'skyisland' } }));
+          // }
         } else if (npc.id.startsWith('bren')) {
           window.dispatchEvent(new CustomEvent('openLaunchMenu'));
         } else {
@@ -871,7 +871,7 @@ export class PlayerInputController {
     const isTool = ((itemType >= 436 && itemType <= 455) || (itemType >= 460 && itemType <= 472) || itemType === 54) && !isSword;
     
     if (isTool) {
-      const serverName = new URLSearchParams(window.location.search).get('server') || 'hub';
+      const serverName = new URLSearchParams(window.location.search).get('server') || 'dungeondelver';
       const isSkyCastles = serverName.startsWith('skycastles');
       if (!isSkyCastles) {
         if (this.player.inventory.damageItem(this.player.hotbarIndex, 1)) {

@@ -231,7 +231,7 @@ export class Player {
 
     // Initialize camera rotation state
     const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get("server") || "hub";
+    const serverName = urlParams.get("server") || "dungeondelver";
     const isHub = serverName.startsWith("hub");
 
     if (isHub) {
@@ -594,7 +594,7 @@ export class Player {
 
   public performBlockBreak(pos: THREE.Vector3, blockType: number) {
     const serverName =
-      new URLSearchParams(window.location.search).get("server") || "hub";
+      new URLSearchParams(window.location.search).get("server") || "dungeondelver";
     const isSkyCastles = serverName.startsWith("skycastles");
 
     // Prevent breaking the chest
@@ -736,7 +736,7 @@ export class Player {
 
       // Damage tool (except in skycastles mode)
       const serverName =
-        new URLSearchParams(window.location.search).get("server") || "hub";
+        new URLSearchParams(window.location.search).get("server") || "dungeondelver";
       const isSkyCastles = serverName.startsWith("skycastles");
       const equippedItem = this.inventory.slots[this.hotbarIndex];
       if (

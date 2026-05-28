@@ -73,7 +73,7 @@ export class GameController {
   }
 
   public tick(delta: number, serverName: string) {
-    const baseMode = serverName.split('_')[0] || 'hub';
+    const baseMode = serverName.split('_')[0] || 'dungeondelver';
     const mode = this.modes[baseMode] || new DefaultMode();
     mode.tick(delta);
   }

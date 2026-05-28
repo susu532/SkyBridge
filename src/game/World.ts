@@ -88,7 +88,7 @@ export class World {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get("server") || "hub";
+    const serverName = urlParams.get("server") || "dungeondelver";
     this.isHub = serverName.startsWith("hub");
     this.isSkyCastles = serverName.startsWith("skycastles");
     this.isVoidtrail = serverName.startsWith("voidtrail");
@@ -1104,7 +1104,7 @@ export class World {
     let isHub = false;
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const serverName = urlParams.get("server") || "hub";
+      const serverName = urlParams.get("server") || "dungeondelver";
       isHub = serverName.startsWith("hub");
     }
 
@@ -1423,8 +1423,8 @@ export class World {
     });
   }
 
-  reset(serverName: string = "hub") {
-    if (!serverName) serverName = "hub";
+  reset(serverName: string = "dungeondelver") {
+    if (!serverName) serverName = "dungeondelver";
     this.isHub = serverName.startsWith("hub");
     this.isSkyCastles = serverName.startsWith("skycastles");
     this.isVoidtrail = serverName.startsWith("voidtrail");

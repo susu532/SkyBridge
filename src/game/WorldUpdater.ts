@@ -204,7 +204,6 @@ export class WorldUpdater {
           neighborsLight,
           performanceMode: isPerformanceMode,
           isDungeonDelver: this.world.isDungeonDelver,
-
         }, transferList);
 
         activeMeshing++;

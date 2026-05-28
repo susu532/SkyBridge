@@ -100,7 +100,7 @@ class FakeClientSocket {
 export class NetworkManager {
   socket!: FakeClientSocket;
   // ... rest of implementation (using socket as FakeClientSocket)
-  serverName: string = "hub";
+  serverName: string = "dungeondelver";
   players: Record<string, any> = {};
   blockChanges: Record<string, number> = {};
   private pendingEmits: { event: string; args: any[] }[] = [];
@@ -207,7 +207,7 @@ export class NetworkManager {
       this.reconnectAttempt = 0;
     }
     const urlParams = new URLSearchParams(window.location.search);
-    const mode = modeOverride || urlParams.get("server") || "hub";
+    const mode = modeOverride || urlParams.get("server") || "dungeondelver";
 
     // Immediately update URL to provide instant visual feedback of server transition
     if (modeOverride) {
@@ -296,7 +296,7 @@ export class NetworkManager {
     this.blockChanges = {};
     this.serverName = serverName;
 
-    useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "hub");
+    useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "dungeondelver");
     useGameStore.getState().setServerId(serverName);
 
     const backendUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);

@@ -22,7 +22,7 @@ export class ClientNetworkSync {
     // Network setup
     networkManager.onInit = (data: IGameStateData) => {
       const urlParams = new URLSearchParams(window.location.search);
-      const serverName = urlParams.get("server") || "hub";
+      const serverName = urlParams.get("server") || "dungeondelver";
 
       this.game.player.hasReceivedInitialRespawn = false;
       useGameStore.getState().setIsMapLoading(true);

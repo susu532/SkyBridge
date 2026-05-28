@@ -273,7 +273,7 @@ export class EntityManager {
   private spawnInitialNPCs() {
     // Spawn local NPCs immediately to prevent pop-in delay from the network
     const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get("server") || "hub";
+    const serverName = urlParams.get("server") || "dungeondelver";
     const baseServerName = serverName.split("_")[0];
 
     const localNPCs = (npcsData as any)[baseServerName];

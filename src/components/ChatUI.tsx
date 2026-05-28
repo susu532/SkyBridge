@@ -49,7 +49,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
       if (val) {
         if (val.startsWith('/server ')) {
           const target = val.split(' ')[1];
-          if (target === 'hub' || target === 'skybridge' || target === 'skycastles' || target === 'battleroyale' || target === 'skyisland') {
+          if (target === 'dungeondelver') {
              networkManager.initMatchmaking(target);
              window.dispatchEvent(new CustomEvent('requestGameRestart'));
           } else {

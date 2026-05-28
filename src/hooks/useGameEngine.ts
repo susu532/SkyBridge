@@ -309,7 +309,7 @@ export function useGameEngine() {
     window.addEventListener('openChest', handleOpenChest as EventListener);
     const handlePopState = () => {
       const p = new URLSearchParams(window.location.search);
-      const server = p.get('server') || 'hub';
+      const server = p.get('server') || 'dungeondelver';
       networkManager.initMatchmaking(server).then(() => {
         setGameKey(k => k + 1);
       }).catch(() => {
@@ -325,10 +325,10 @@ export function useGameEngine() {
     window.addEventListener('requestGameRestart', handleRequestGameRestart as EventListener);
 
     const urlParams = new URLSearchParams(window.location.search);
-    const serverName = urlParams.get('server') || 'hub';
+    const serverName = urlParams.get('server') || 'dungeondelver';
     if (serverName.startsWith('hub')) {
       setTimeout(() => {
-        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server skybridge or /server skycastles or /server skyisland to join the game.');
+        networkManager.receiveLocalMessage('System', '§bWelcome to Starplex.io hub! §eExplore the area or use /server dungeondelver to join the game.');
       }, 2000);
     } else {
       setTimeout(() => {

@@ -39,7 +39,7 @@ export class EnvironmentManager implements ISystem {
     const dirLight = new THREE.DirectionalLight(0xffffee, 1.5);
     dirLight.name = 'sun';
     dirLight.position.set(50, 100, 50);
-    dirLight.castShadow = !isPerformance && !(this.game.world && this.game.world.isDungeonDelver);
+    dirLight.castShadow = !isPerformance;
     
     // High-Precision Shadow Settings for Ultra-Realistic Soft Shadows
     const shadowSize = 120; // Reduced frustum for higher pixel density
@@ -51,8 +51,8 @@ export class EnvironmentManager implements ISystem {
     dirLight.shadow.camera.far = 300;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = 0.0002; // Small positive bias to eliminate shadow acne/z-fighting without causing floating (Peter Panning) shadows
-    dirLight.shadow.normalBias = 0.04; // Normal bias pushes shadow bounds mapping smoothly along surface normals for voxel faces
+    dirLight.shadow.bias = 0.0015; // Increased to eliminate shadow acne/z-fighting in voxel/dungeon delver mode
+    dirLight.shadow.normalBias = 0.12; // Increased normal bias to smoothly map voxel faces and eliminate edge-on z-fighting
     dirLight.shadow.autoUpdate = true;
     dirLight.shadow.radius = this.game.world.isVoidtrail ? 6 : 1; // Super soft shadow for voidtrail
     
@@ -687,8 +687,13 @@ export class EnvironmentManager implements ISystem {
         targetIntensity = THREE.MathUtils.lerp(targetIntensity, targetIntensity * 0.4, this.globalWeatherIntensity);
       }
       
-      dirLight.intensity = this.game.world.isDungeonDelver ? 0 : targetIntensity;
-      dirLight.castShadow = this.game.world.isDungeonDelver ? false : !isPerformance;
+      if (this.game.world.isDungeonDelver) {
+        dirLight.intensity = 0.25; // Faint dungeon moonlight/ambient leak
+        dirLight.castShadow = !isPerformance;
+      } else {
+        dirLight.intensity = targetIntensity;
+        dirLight.castShadow = !isPerformance;
+      }
       
       // Update Hemisphere Light for GI Ray Tracing Feel
       const hemiLight = this.game.scene.getObjectByName('hemi') as THREE.HemisphereLight;

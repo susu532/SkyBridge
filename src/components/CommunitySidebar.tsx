@@ -105,7 +105,7 @@ export const CommunitySidebar: React.FC = () => {
     if (activePlayer) {
       let locName = 'In Game';
       try {
-         const srv = new URLSearchParams(window.location.search).get('server') || 'hub';
+         const srv = new URLSearchParams(window.location.search).get('server') || 'dungeondelver';
          locName = srv.charAt(0).toUpperCase() + srv.slice(1);
       } catch (e) {}
 
@@ -333,7 +333,7 @@ export const CommunitySidebar: React.FC = () => {
           {lobbyPlayers.map((p: any) => {
             let locName = 'Lobby';
             try {
-               const srv = new URLSearchParams(window.location.search).get('server') || 'hub';
+               const srv = new URLSearchParams(window.location.search).get('server') || 'dungeondelver';
                locName = srv.charAt(0).toUpperCase() + srv.slice(1);
             } catch (e) {}
 
