@@ -6,7 +6,10 @@
   'use strict';
 
   // ===== 1. ANTI-IFRAME: Bust out of frames =====
-  if (window.top !== window.self) {
+  var ref = document.referrer ? document.referrer.toLowerCase() : '';
+  var isCG = ref.indexOf('crazygames') > -1 || ref.indexOf('1001juegos') > -1 || ref.indexOf('speelspelletjes') > -1 || ref.indexOf('1001jeux') > -1 || ref.indexOf('onlinegame') > -1 || window.location.hostname.indexOf('crazygames') > -1 || window.location.search.indexOf('crazygames') > -1;
+
+  if (window.top !== window.self && !isCG) {
     try {
       window.top.location.href = window.self.location.href;
     } catch (e) {
@@ -104,12 +107,14 @@
     },
   });
 
-  // Periodic DevTools check
+  // Periodic DevTools check (Disabled for CrazyGames QA)
+  /*
   setInterval(function () {
     _dc = 0;
     console.log(_el);
     console.clear();
   }, 2000);
+  */
 
   // ===== 8. CONSOLE WARNING =====
   console.log(
@@ -140,7 +145,15 @@
   // ===== 10. DOMAIN LOCK =====
   var _allowedHosts = [
     'starplex-io.vercel.app',
-    'skybridge-server.onrender.com'
+    'skybridge-server.onrender.com',
+    'crazygames.com',
+    '1001juegos.com',
+    'speelspelletjes.nl',
+    '1001jeux.fr',
+    'onlinegame.co.id',
+    'crazygames.fr',
+    'crazygames.es',
+    'crazygames.com.br'
   ];
 
   function _checkDomain() {
