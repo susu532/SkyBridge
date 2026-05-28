@@ -43,7 +43,7 @@ window.mobileInputs = window.mobileInputs || {
   zoomJoystickY: 0,
 };
 
-import { Menu, Backpack, MessageSquare, Camera, ScanEye, ArrowDownToLine, Sword, ArrowDown, ChevronsUp } from 'lucide-react';
+import { Menu, Backpack, MessageSquare, Camera, ScanEye, Sword, ArrowDown, ChevronsUp } from 'lucide-react';
 
 export const MobileControlsUI: React.FC = () => {
   const isInventoryOpen = useUI(state => state.isInventoryOpen);
@@ -116,10 +116,16 @@ export const MobileControlsUI: React.FC = () => {
     
     let normalizedX = dx / currentMaxRadius;
     let normalizedY = dy / currentMaxRadius;
+    let isSprinting = false;
 
     if (distance > currentMaxRadius) {
       normalizedX = dx / distance;
       normalizedY = dy / distance;
+      
+      // Sprint when pushing significantly forward
+      if (distance > currentMaxRadius * 1.3 && normalizedY < -0.5) {
+        isSprinting = true;
+      }
     }
     
     // Add visual deadzone
@@ -131,6 +137,7 @@ export const MobileControlsUI: React.FC = () => {
     setJoystick({ x: normalizedX, y: normalizedY });
     window.mobileInputs.joystickX = normalizedX;
     window.mobileInputs.joystickY = normalizedY;
+    window.mobileInputs.isSprinting = isSprinting;
   };
 
   const stopJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -140,6 +147,7 @@ export const MobileControlsUI: React.FC = () => {
     joystickPointerId.current = null;
     window.mobileInputs.joystickX = 0;
     window.mobileInputs.joystickY = 0;
+    window.mobileInputs.isSprinting = false;
     setJoystick({ x: 0, y: 0 });
     setJoystickOrigin(null);
     try {
@@ -392,13 +400,17 @@ export const MobileControlsUI: React.FC = () => {
             style={{ left: joystickOrigin.x, top: joystickOrigin.y }}
           >
              <div 
-                className="w-12 h-12 md:w-16 md:h-16 bg-white/40 border-2 border-white/60 rounded-full shadow-lg pointer-events-none flex items-center justify-center"
+                className={`w-12 h-12 md:w-16 md:h-16 border-2 rounded-full shadow-lg pointer-events-none flex items-center justify-center transition-colors ${window.mobileInputs.isSprinting ? 'bg-white/60 border-white/80' : 'bg-white/40 border-white/60'}`}
                 style={{ 
                    transform: `translate(${joystick.x * 125}%, ${joystick.y * 125}%)`,
                    transition: joystickPointerId.current === null ? 'transform 0.15s ease-out' : 'none'
                 }}
              >
-               <Navigation size={20} className={`text-white drop-shadow-md ${joystick.y < -0.5 ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
+               {window.mobileInputs.isSprinting ? (
+                 <ChevronsUp size={24} className="text-white drop-shadow-md opacity-100" />
+               ) : (
+                 <Navigation size={20} className={`text-white drop-shadow-md ${joystick.y < -0.5 ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
+               )}
              </div>
           </div>
         )}
@@ -412,14 +424,6 @@ export const MobileControlsUI: React.FC = () => {
           right: 'calc(0.5rem + env(safe-area-inset-right))'
         }}
       >
-        {/* Drop Button (Top Left) */}
-        <button 
-          className="absolute top-0 left-0 mobile-button w-12 h-12 landscape:w-10 landscape:h-10 rounded-full bg-red-500/20 border-[3px] border-red-500/40 flex items-center justify-center active:bg-red-500/40 opacity-80 pointer-events-auto shadow-md text-red-100"
-          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.triggerDrop = true; }}
-        >
-          <ArrowDownToLine size={20} className="drop-shadow-md text-red-200" />
-        </button>
-
         {/* Jump Button (Top) */}
         <button 
           className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-14 h-14 landscape:w-12 landscape:h-12 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
@@ -428,16 +432,6 @@ export const MobileControlsUI: React.FC = () => {
           onPointerCancel={(e) => { window.mobileInputs.isJumping = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
         >
           <ArrowUp size={24} className="text-white drop-shadow-md" />
-        </button>
-        
-        {/* Sprint Button (Top Right corner) */}
-        <button 
-          className="absolute -top-4 -right-2 mobile-button w-12 h-12 landscape:w-10 landscape:h-10 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
-          onPointerDown={(e) => { e.preventDefault(); window.mobileInputs.isSprinting = true; e.currentTarget.setPointerCapture?.(e.pointerId); }}
-          onPointerUp={(e) => { e.preventDefault(); window.mobileInputs.isSprinting = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
-          onPointerCancel={(e) => { window.mobileInputs.isSprinting = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
-        >
-          <ChevronsUp size={20} className="text-white drop-shadow-md" />
         </button>
 
         {/* Interact Button (Left) */}

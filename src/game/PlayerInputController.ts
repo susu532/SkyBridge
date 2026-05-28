@@ -111,7 +111,7 @@ export class PlayerInputController {
         this.player.isZooming = window.mobileInputs.isZooming;
         
         if (window.mobileInputs.triggerDrop) {
-          if (!this.player.world.isHub && !this.player.isSpectator && !this.player.isDead) this.dropItem(false);
+          if (!this.player.world.isHub && !this.player.isSpectator && !this.player.isDead) this.dropItem(true);
           window.mobileInputs.triggerDrop = false;
         }
 
@@ -575,7 +575,7 @@ export class PlayerInputController {
         const attackerYaw = this.player.cameraYaw;
         const kbDir = new THREE.Vector3(
           -Math.sin(attackerYaw) * kbForce,
-          0,
+          isCombative ? 12.0 : 0,
           -Math.cos(attackerYaw) * kbForce
         );
         
@@ -614,7 +614,7 @@ export class PlayerInputController {
         const attackerYaw = this.player.cameraYaw;
         const kbDir = new THREE.Vector3(
           -Math.sin(attackerYaw) * kbForce,
-          0,
+          12.0,
           -Math.cos(attackerYaw) * kbForce
         );
         networkManager.attack(mob.id, true, kbDir, this.isSprinting, damage, isCrit);

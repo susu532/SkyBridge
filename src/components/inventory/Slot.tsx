@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useRef, useState, useEffect } from 'react';
 import { ItemStack, ItemType } from '../../game/Inventory';
 import { ITEM_NAMES } from '../../game/Constants';
 import { getTextureAtlasDataUrl, getBlockUVs, isFlatItem, isPlant } from '../../game/TextureAtlas';
@@ -13,13 +13,57 @@ export const Slot: React.FC<{
   onHover: (item: ItemStack | null) => void,
   isDragging?: boolean,
   dragButton?: number
-}> = memo(({ item, onClick, onDoubleClick, isResult, onHover, isDragging, dragButton }) => (
+}> = memo(({ item, onClick, onDoubleClick, isResult, onHover, isDragging, dragButton }) => {
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [showProgress, setShowProgress] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const progressInterval = useRef<NodeJS.Timeout | null>(null);
+
+  const clearTimers = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    setShowProgress(false);
+    setProgress(0);
+  };
+
+  useEffect(() => clearTimers, []);
+
+  return (
   <div 
     onPointerDown={(e) => {
       e.stopPropagation();
       e.preventDefault();
-      onClick(item, e.button, e.shiftKey, false);
+      
+      // Assume left click by default
+      const eButton = e.button;
+      const isShift = e.shiftKey;
+      onClick(item, eButton, isShift, false);
+      
+      // On mobile (pointerType touch), simulate right-click for splitting item on long press
+      if (e.pointerType === 'touch' || window.mobileInputs) {
+        clearTimers();
+        setShowProgress(true);
+        const startTime = Date.now();
+        const duration = 500; // 500ms for right-click split
+        
+        progressInterval.current = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          setProgress(Math.min(100, (elapsed / duration) * 100));
+        }, 50);
+
+        longPressTimer.current = setTimeout(() => {
+          clearTimers();
+          // Trigger right-click equivalent
+          onClick(item, 2, isShift, false);
+        }, duration);
+      }
     }}
+    onPointerUp={clearTimers}
+    onPointerLeave={() => {
+      if (onHover) onHover(null);
+      clearTimers();
+    }}
+    onPointerCancel={clearTimers}
     onDoubleClick={(e) => {
       e.preventDefault();
       if (onDoubleClick) onDoubleClick();
@@ -28,10 +72,7 @@ export const Slot: React.FC<{
       if (onHover) onHover(item);
       if (isDragging) onClick(item, dragButton!, false, true);
     }}
-    onMouseLeave={() => {
-      if (onHover) onHover(null);
-    }}
-    className={`w-[34px] h-[34px] sm:w-10 sm:h-10 mc-slot flex items-center justify-center cursor-pointer hover:bg-[#A0A0A0] transition-colors relative group`}
+    className={`w-[34px] h-[34px] sm:w-10 sm:h-10 mc-slot flex items-center justify-center cursor-pointer hover:bg-[#A0A0A0] transition-colors relative group overflow-hidden`}
     style={{ 
       borderWidth: item?.metadata?.rarity && item.metadata.rarity !== Rarity.COMMON ? '3px' : '2px',
       borderColor: item?.metadata?.rarity ? RARITY_COLORS[item.metadata.rarity] : undefined,
@@ -40,6 +81,12 @@ export const Slot: React.FC<{
       transform: 'translateZ(0)'
     }}
   >
+    {showProgress && progress > 0 && progress < 100 && (
+      <div 
+        className="absolute bottom-0 left-0 h-1 bg-green-500 z-20"
+        style={{ width: `${progress}%` }}
+      />
+    )}
     <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 pointer-events-none" />
     {item && <ItemIcon item={item} />}
     {(() => {
@@ -52,7 +99,7 @@ export const Slot: React.FC<{
       if (!shouldShow) return null;
 
       return (
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none">
+        <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50 pointer-events-none z-30">
           <div 
             className="h-full"
             style={{ 
@@ -64,7 +111,8 @@ export const Slot: React.FC<{
       );
     })()}
   </div>
-), (prev, next) => {
+);
+}, (prev, next) => {
   if (prev.isDragging !== next.isDragging) return false;
   if (prev.dragButton !== next.dragButton) return false;
   if (prev.isResult !== next.isResult) return false;

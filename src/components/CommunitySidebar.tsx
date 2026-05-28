@@ -209,7 +209,8 @@ export const CommunitySidebar: React.FC = () => {
                 {settings.username || 'PLAYER'}
               </span>
             </div>
-             <p className="text-[9px] text-green-300 font-bold tracking-wider pt-0.5 uppercase">● Profile Account</p>
+                        <p className="text-[9px] text-green-300 font-bold tracking-wider pt-0.5 uppercase">● Profile Account</p>
+
           </div>
         </div>
 
@@ -241,7 +242,7 @@ export const CommunitySidebar: React.FC = () => {
 
         {/* CrazyGames Auth */}
         <div className="space-y-1 pt-2 border-t border-black/15 flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold text-black/60 uppercase block">Cloud Save</label>
+          <label className="text-[10px] font-bold text-black/60 uppercase block">Cloud Save (CrazyGames)</label>
           {cgUser ? (
              <div className="flex items-center gap-1.5 text-[10px] text-green-300 font-bold uppercase drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/40 px-2 py-1 border border-black/30">
                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
@@ -252,7 +253,7 @@ export const CommunitySidebar: React.FC = () => {
               onClick={handleCGLogin}
               className="w-full flex items-center justify-center gap-2 bg-[#612A9E] hover:bg-[#7236B5] text-white text-[10px] font-bold uppercase py-1.5 border-2 border-[#4A1F7A] shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
             >
-              <LogIn className="w-3.5 h-3.5" /> Login 
+              <LogIn className="w-3.5 h-3.5" /> Login to CrazyGames
             </button>
           )}
           <button
@@ -282,7 +283,7 @@ export const CommunitySidebar: React.FC = () => {
         </div>
 
         {/* Friends Scroll Container */}
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0 max-h-[140px]">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0 md:max-h-[140px]">
           {friends.map(friend => {
             const info = getDynamicFriendInfo(friend);
             return (
@@ -328,7 +329,7 @@ export const CommunitySidebar: React.FC = () => {
         </div>
 
         {/* Lobby Players Scroll Container */}
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-[80px]">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0 md:min-h-[80px]">
           {lobbyPlayers.map((p: any) => {
             let locName = 'Lobby';
             try {

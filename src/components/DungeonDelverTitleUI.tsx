@@ -7,7 +7,7 @@ export function DungeonDelverTitleUI() {
         className="font-black text-center uppercase flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap whitespace-nowrap"
         style={{
           fontFamily: "'Pixelify Sans', sans-serif",
-          fontSize: "clamp(0.95rem, 2.6vw, 1.7rem)",
+          fontSize: "clamp(1.5rem, 5vw, 3rem)",
           margin: 0,
         }}
       >
@@ -17,6 +17,7 @@ export function DungeonDelverTitleUI() {
             textShadow: "1.5px 1.5px 0px #222200, 2px 2px 4px rgba(0,0,0,0.8)",
             letterSpacing: "0.08em",
             fontWeight: "bold",
+            fontSize: "0.55em",
           }}
         >
           starplex.io
@@ -26,6 +27,7 @@ export function DungeonDelverTitleUI() {
             color: "#FFAAAA",
             textShadow: "1.5px 1.5px 0px #220000, 2px 2px 4px rgba(0,0,0,0.8)",
             fontWeight: "bold",
+            fontSize: "0.55em",
           }}
         >
           -

@@ -576,10 +576,8 @@ export class Player {
       this.knockbackVelocity.x = dir.x * force;
       this.knockbackVelocity.z = dir.z * force;
 
-      // Add vertical lift to make knockback feel more impactful
-      if (this.canJump || this.isSwimming) {
-        this.velocity.y = (this.velocity.y || 0) + 0.3;
-      }
+      // Add vertical lift to make knockback feel more impactful (works in mid-air too)
+      this.velocity.y = (this.velocity.y || 0) + 2.2;
     }
   }
 

@@ -56,8 +56,8 @@ export function decodePacketClient(data: string | ArrayBuffer | Blob): Promise<{
        const d = JSON.parse(data);
        return { event: d.e, args: d.a };
      } catch(e) { return null; }
-  } else if (data instanceof ArrayBuffer) {
-     const view = new Uint8Array(data);
+  } else if (data instanceof ArrayBuffer || (data && typeof (data as ArrayBuffer).byteLength === 'number' && !(data instanceof Blob))) {
+     const view = new Uint8Array(data as ArrayBuffer);
      if (view.length > 0 && view[0] === 255) {
         try {
           const d = decode(view.subarray(1)) as any;

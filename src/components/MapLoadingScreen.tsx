@@ -46,41 +46,41 @@ export function MapLoadingScreen() {
           }}
         >
           {showTapToPlay ? (
-            <div className="flex flex-col items-center justify-center gap-10 max-w-lg w-[90%] text-center pointer-events-none">
+            <div className="flex flex-col items-center justify-center gap-4 landscape:gap-2 sm:gap-10 max-w-lg w-[90%] text-center pointer-events-none">
               {/* Logo Area */}
               <div className="flex flex-col items-center gap-4">
                 <img 
                   src="/favicon.png" 
                   alt="Starplex Logo" 
-                  className="w-72 h-72 md:w-96 md:h-96 drop-shadow-[0_16px_32px_rgba(0,0,0,0.8)] select-none pointer-events-none object-contain"
+                  className="w-[40vh] h-[40vh] min-w-[120px] min-h-[120px] max-w-[384px] max-h-[384px] drop-shadow-[0_16px_32px_rgba(0,0,0,0.8)] select-none pointer-events-none object-contain landscape:w-[25vh] landscape:h-[25vh]"
                   style={{ imageRendering: 'pixelated' }}
                 />
                
               </div>
 
               {/* Tap to Play Button */}
-              <div className="flex flex-col items-center gap-4 w-full">
+              <div className="flex flex-col items-center gap-2 sm:gap-4 w-full">
                 <div className="animate-pulse w-full max-w-sm">
-                  <span className="block text-center text-white text-2xl md:text-4xl font-black bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 px-8 py-5 rounded-xl border-4 border-amber-300 select-none shadow-[0_8px_0_#975A16,0_12px_24px_rgba(0,0,0,0.6)] tracking-wider">
+                  <span className="block text-center text-white text-xl landscape:text-lg sm:text-2xl md:text-4xl font-black bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 px-6 py-4 landscape:px-4 landscape:py-2 sm:px-8 sm:py-5 rounded-xl border-4 border-amber-300 select-none shadow-[0_8px_0_#975A16,0_12px_24px_rgba(0,0,0,0.6)] tracking-wider">
                     TAP TO PLAY
                   </span>
                 </div>
-                <p className="text-gray-300 text-xs md:text-sm font-bold uppercase tracking-widest drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">
+                <p className="text-gray-300 text-xs md:text-sm font-bold uppercase tracking-widest drop-shadow-[1px_1px_0_rgba(0,0,0,1)] text-center">
                   (Click or Tap Anywhere to Enter)
                 </p>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-6 p-8 rounded-2xl bg-black/60 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] md:backdrop-blur-sm w-[90%] max-w-md pointer-events-none">
+            <div className="flex flex-col items-center gap-4 sm:gap-6 p-4 sm:p-8 landscape:p-4 rounded-2xl bg-black/60 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] md:backdrop-blur-sm w-[90%] max-w-md pointer-events-none">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                className="relative w-16 h-16 flex items-center justify-center"
+                className="relative w-12 h-12 landscape:w-10 landscape:h-10 sm:w-16 sm:h-16 flex items-center justify-center"
               >
-                <Loader2 className="w-12 h-12 text-[#55FFFF] animate-spin" />
+                <Loader2 className="w-8 h-8 landscape:w-6 landscape:h-6 sm:w-12 sm:h-12 text-[#55FFFF] animate-spin" />
               </motion.div>
-              <div className="flex flex-col items-center gap-2 w-full">
-                <h1 className="text-2xl md:text-3xl text-white font-bold drop-shadow-md text-center">
+              <div className="flex flex-col items-center gap-1 sm:gap-2 w-full">
+                <h1 className="text-xl landscape:text-lg sm:text-2xl md:text-3xl text-white font-bold drop-shadow-md text-center">
                   Entering World
                 </h1>
                 

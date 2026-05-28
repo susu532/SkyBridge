@@ -805,13 +805,13 @@ export class Mob {
     if (this.type === MobType.MORVANE) return;
     this.velocity.x = dir.x * force;
     this.velocity.z = dir.z * force;
-    this.velocity.y = 1.5; // Upward pop (lift) - was 6, which was too high
+    this.velocity.y = 5.5; // Upward pop (lift)
     this.knockbackTimer = 0.5; // 500ms of knockback where AI movement is disabled
     this.lastKnockbackTime = Date.now();
     
     // Client-side visual knockback prediction
     this.knockbackVelocity.copy(dir).multiplyScalar(force);
-    this.knockbackVelocity.y = 1.5;
+    this.knockbackVelocity.y = 5.5;
   }
 
   takeDamage(

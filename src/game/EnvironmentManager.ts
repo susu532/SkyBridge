@@ -51,8 +51,8 @@ export class EnvironmentManager implements ISystem {
     dirLight.shadow.camera.far = 300;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = -0.0004; // Increased bias to prevent HD artifacts in FP
-    dirLight.shadow.normalBias = 0.05; // Stronger normal bias for voxel edges
+    dirLight.shadow.bias = 0.0002; // Small positive bias to eliminate shadow acne/z-fighting without causing floating (Peter Panning) shadows
+    dirLight.shadow.normalBias = 0.04; // Normal bias pushes shadow bounds mapping smoothly along surface normals for voxel faces
     dirLight.shadow.autoUpdate = true;
     dirLight.shadow.radius = this.game.world.isVoidtrail ? 6 : 1; // Super soft shadow for voidtrail
     
@@ -622,7 +622,7 @@ export class EnvironmentManager implements ISystem {
       } else if (this.game.player.isUnderwater) {
         this.game.scene.fog.density = 0.15;
       } else if (this.game.world.isDungeonDelver) {
-        this.game.scene.fog.density = 0.12;
+        this.game.scene.fog.density = 0.4;
       } else {
         const fogFactor = Math.max(0, -sunY * 2 + 0.5);
         // Volumetric fog effect: enhance fog density in the morning/evening for god ray simulation
@@ -694,9 +694,9 @@ export class EnvironmentManager implements ISystem {
       const hemiLight = this.game.scene.getObjectByName('hemi') as THREE.HemisphereLight;
       if (hemiLight) {
           if (this.game.world.isDungeonDelver) {
-            hemiLight.color.copy(new THREE.Color(0x333333));
-            hemiLight.groundColor.copy(new THREE.Color(0x111111));
-            hemiLight.intensity = 0.2;
+            hemiLight.color.copy(new THREE.Color(0x222222));
+            hemiLight.groundColor.copy(new THREE.Color(0x050505));
+            hemiLight.intensity = 0.05;
           } else {
             const upBlend = this.game.world.isVoidtrail ? new THREE.Color(0xffffee) : new THREE.Color(0xffffff);
             const downBlend = this.game.world.isVoidtrail ? new THREE.Color(0xddeeff) : new THREE.Color(0x556633);
@@ -714,7 +714,7 @@ export class EnvironmentManager implements ISystem {
     if (ambientLight) {
       let ambientIntensity = isDay ? (Math.max(0, sunY) * 0.4 + 0.4) : (Math.abs(sunY) * 0.2 + 0.2);
       if (this.game.world.isVoidtrail) ambientIntensity *= 1.3;
-      if (this.game.world.isDungeonDelver) ambientIntensity = 0.05;
+      if (this.game.world.isDungeonDelver) ambientIntensity = 0.01;
 
       if (this.globalWeatherIntensity > 0) {
         ambientIntensity = THREE.MathUtils.lerp(ambientIntensity, ambientIntensity * 0.6, this.globalWeatherIntensity);
