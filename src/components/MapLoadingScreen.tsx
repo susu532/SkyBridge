@@ -50,7 +50,7 @@ export function MapLoadingScreen() {
               {/* Logo Area */}
               <div className="flex flex-col items-center gap-4">
                 <img 
-                  src="/favicon.png" 
+                  src="https://raw.githubusercontent.com/susu532/sounds/main/minecraft/favicon.png" 
                   alt="Starplex Logo" 
                   className="w-[40vh] h-[40vh] min-w-[120px] min-h-[120px] max-w-[384px] max-h-[384px] drop-shadow-[0_16px_32px_rgba(0,0,0,0.8)] select-none pointer-events-none object-contain landscape:w-[25vh] landscape:h-[25vh]"
                   style={{ imageRendering: 'pixelated' }}
