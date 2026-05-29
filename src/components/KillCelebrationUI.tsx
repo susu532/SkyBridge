@@ -6,7 +6,7 @@ export const KillCelebrationUI: React.FC = () => {
   const killCelebrations = useGameStore((state) => state.killCelebrations);
 
   return (
-    <div className="fixed left-1/2 -translate-x-1/2 bottom-[115px] md:bottom-[180px] landscape:bottom-[80px] xl:landscape:bottom-[180px] pointer-events-none z-[900] flex flex-col items-center gap-1.5 select-none w-max">
+    <div className="fixed left-1/2 -translate-x-1/2 bottom-20 sm:bottom-32 md:bottom-40 lg:bottom-48 pointer-events-none z-[900] flex flex-col items-center gap-1.5 select-none w-max transform origin-bottom scale-[0.65] sm:scale-85 md:scale-100 landscape:scale-[0.45] sm:landscape:scale-75 md:landscape:scale-90 lg:landscape:scale-100">
       <AnimatePresence>
         {killCelebrations.map((kill) => (
           <motion.div
