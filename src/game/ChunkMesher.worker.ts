@@ -378,7 +378,14 @@ class LayerData {
       }
       const light = getLightLevel(x,y,z,lx,ly,lz);
       const isEmissive = blockType === BLOCK.GLOWSTONE || blockType === BLOCK.LAVA || isAnyTorch(blockType);
-      const lightMult = isEmissive ? 1.0 : Math.max(0.35, Math.pow(0.85, 15 - light));
+      let lightMult;
+      if (isEmissive) {
+        lightMult = 1.0;
+      } else if (data.isDungeonDelver) {
+        lightMult = Math.max(0.08, Math.pow(light / 15.0, 1.4));
+      } else {
+        lightMult = Math.max(0.35, Math.pow(0.85, 15 - light));
+      }
       
       const l0 = (layer === transparent || isEmissive) ? lightMult : ((ao[0] + 1) / 4) * lightMult;
       const l1 = (layer === transparent || isEmissive) ? lightMult : ((ao[1] + 1) / 4) * lightMult;
@@ -573,7 +580,7 @@ class LayerData {
         lightMult = 1.0;
       } else if (data.isDungeonDelver) {
         // Pitch darkness at 0, otherwise exponential drop-off starting from a custom scale
-        lightMult = Math.pow(light / 15.0, 1.4);
+        lightMult = Math.max(0.08, Math.pow(light / 15.0, 1.4));
       } else {
         lightMult = Math.max(0.35, Math.pow(0.85, 15 - light));
       }
