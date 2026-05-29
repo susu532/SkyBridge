@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
+import { getSecureBackendUrl } from '../utils/security';
 
 class FakeClientSocket {
   public connected = false;
@@ -214,7 +215,7 @@ export class NetworkManager {
     }
 
     try {
-      const baseUrl = (import.meta as any).env.VITE_BACKEND_URL as string;
+      const baseUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
       const resp = await fetch(`${baseUrl}/api/matchmake?mode=${mode}`);
       const data = await resp.json();
       if (data.serverId) {
@@ -298,7 +299,7 @@ export class NetworkManager {
     useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "dungeondelver");
     useGameStore.getState().setServerId(serverName);
 
-    const backendUrl = (import.meta as any).env.VITE_BACKEND_URL as string;
+    const backendUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     const wsUrl = backendUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
     this.socket = new FakeClientSocket(`${wsUrl}/ws/${serverName}`);
     
