@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
-import { getSecureBackendUrl } from '../utils/security';
 
 class FakeClientSocket {
   public connected = false;
