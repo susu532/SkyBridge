@@ -101,7 +101,7 @@ export class Game {
       canvas, 
       antialias: false,
       powerPreference: "high-performance",
-      precision: initialSettings.performanceMode ? "mediump" : "highp"
+      precision: "highp" // Force highp to fix point lights on mobile devices
     });
     
     this.renderer.setPixelRatio(this.getResolvedDpr(initialSettings.performanceMode));

@@ -60,8 +60,8 @@ export class PlayerRenderer {
     this.createFirstPersonArm();
     this.createFirstPersonOffHandArm();
 
-    this.torchLight = new THREE.PointLight(0xffbd5c, 160.0, 35); 
-    this.torchLight.visible = false;
+    this.torchLight = new THREE.PointLight(0xffbd5c, 0, 35); 
+    this.torchLight.visible = true;
     this.player.camera.add(this.torchLight);
     this.player.camera.add(this.fpOffHandArmGroup);
 
@@ -609,7 +609,7 @@ export class PlayerRenderer {
       // Also hide torch light and 3rd person off-hand if charging bow
       if (this.torchLight) {
         const hasTorch = this.player.inventory.slots[36]?.type === ItemType.TORCH || this.player.inventory.slots[this.player.hotbarIndex]?.type === ItemType.TORCH;
-        this.torchLight.visible = hasTorch && !isChargingBow;
+        this.torchLight.intensity = (hasTorch && !isChargingBow) ? 160.0 : 0.0;
       }
       
 
@@ -706,7 +706,7 @@ export class PlayerRenderer {
     const isPerformance = settingsManager.getSettings().performanceMode;
     const isTorch = type === ItemType.TORCH || offHandType === ItemType.TORCH;
     if (this.torchLight) {
-      this.torchLight.visible = isTorch;
+      this.torchLight.intensity = isTorch ? 160.0 : 0.0;
       if (isTorch) {
         if (offHandType === ItemType.TORCH) {
           this.torchLight.position.set(-0.3, 1.2, 0); 

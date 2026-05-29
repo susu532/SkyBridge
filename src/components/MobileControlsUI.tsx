@@ -78,6 +78,7 @@ export const MobileControlsUI: React.FC = () => {
   const [joystick, setJoystick] = useState({ x: 0, y: 0 });
   const joystickRef = useRef<HTMLDivElement>(null);
   const joystickPointerId = useRef<number | null>(null);
+  const joystickOriginRef = useRef<{x: number, y: number} | null>(null);
 
   const [joystickOrigin, setJoystickOrigin] = useState<{x: number, y: number} | null>(null);
 
@@ -89,8 +90,10 @@ export const MobileControlsUI: React.FC = () => {
     joystickPointerId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     
-    setJoystickOrigin({ x: e.clientX, y: e.clientY });
-    updateJoystickInputs(e, { x: e.clientX, y: e.clientY });
+    const origin = { x: e.clientX, y: e.clientY };
+    joystickOriginRef.current = origin;
+    setJoystickOrigin(origin);
+    updateJoystickInputs(e, origin);
   };
 
   const updateJoystick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -101,7 +104,7 @@ export const MobileControlsUI: React.FC = () => {
   };
   
   const updateJoystickInputs = (e: React.PointerEvent<HTMLDivElement>, overrideOrigin?: {x: number, y: number}) => {
-    const origin = overrideOrigin || joystickOrigin;
+    const origin = overrideOrigin || joystickOriginRef.current;
     if (!origin) return;
     
     const centerX = origin.x;
@@ -149,6 +152,7 @@ export const MobileControlsUI: React.FC = () => {
     window.mobileInputs.joystickY = 0;
     window.mobileInputs.isSprinting = false;
     setJoystick({ x: 0, y: 0 });
+    joystickOriginRef.current = null;
     setJoystickOrigin(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
@@ -170,9 +174,9 @@ export const MobileControlsUI: React.FC = () => {
     const handleTouchStart = (e: TouchEvent) => {
       if (isAnyMenuOpen) return;
       
-      // Prevent default to stop scrolling, specifically if they touch the canvas
+      // Prevent default to stop ALL scrolling, Safari swipe-backs, and zoom gestures during gameplay
       const target = e.target as HTMLElement;
-      if (target.tagName === 'CANVAS' || target === document.body) {
+      if (target && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
         e.preventDefault();
       }
       
@@ -234,8 +238,8 @@ export const MobileControlsUI: React.FC = () => {
           const dx = touch.clientX - lastLookPos.current.x;
           const dy = touch.clientY - lastLookPos.current.y;
           
-          // Scale look sensitivity based on screen size so users don't have to swipe as far to turn around
-          const scale = window.innerWidth >= 768 ? 2.5 : 1.5;
+          // Keep scale consistent or slightly lower on tablets to avoid excessive sensitivity
+          const scale = window.innerWidth >= 768 ? 1.0 : 1.5;
           
           window.mobileInputs.lookDeltaX += dx * scale;
           window.mobileInputs.lookDeltaY += dy * scale;
@@ -297,6 +301,8 @@ export const MobileControlsUI: React.FC = () => {
       window.mobileInputs.isZooming = false;
       
       setJoystick({ x: 0, y: 0 });
+      joystickOriginRef.current = null;
+      setJoystickOrigin(null);
       joystickPointerId.current = null;
     }
   }, [isAnyMenuOpen]);

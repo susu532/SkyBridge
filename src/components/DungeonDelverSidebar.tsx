@@ -15,7 +15,7 @@ export const DungeonDelverSidebar: React.FC<DungeonDelverSidebarProps> = ({ isMo
 
   return (
     <div 
-      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all top-10 sm:top-14 md:top-28 transform origin-top-right scale-[0.55] sm:scale-75 md:scale-90 lg:scale-100 landscape:scale-[0.5] md:landscape:scale-75 lg:landscape:scale-90 xl:landscape:scale-100`}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all top-0 sm:top-14 md:top-28 transform origin-top-right scale-[0.40] sm:scale-75 md:scale-90 lg:scale-100 landscape:scale-[0.40] md:landscape:scale-75 lg:landscape:scale-90 xl:landscape:scale-100`}
     >
       <div className="bg-black/60 p-3 md:p-4 border-l-4 border-red-500 text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
         <div className="text-red-500 font-bold mb-1 text-center uppercase tracking-[0.1em] text-lg mc-text-shadow">DUNGEON DELVER</div>

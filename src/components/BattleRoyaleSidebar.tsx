@@ -190,9 +190,9 @@ export const BattleRoyaleSidebar: React.FC<BattleRoyaleSidebarProps> = ({ isMobi
 
   return (
     <div 
-      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all ${isMobile ? 'top-1 landscape:top-16' : 'top-16 md:top-32'}`}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all ${isMobile ? 'top-0 landscape:top-0' : 'top-16 md:top-32'}`}
       style={{ 
-        transform: isMobile ? 'scale(0.5)' : 'scale(clamp(0.4, 40vw / 100, 1))', 
+        transform: isMobile ? 'scale(0.40)' : 'scale(clamp(0.4, 40vw / 100, 1))', 
         transformOrigin: 'top right' 
       }}
     >

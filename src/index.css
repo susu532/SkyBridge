@@ -12,6 +12,7 @@
     font-family: var(--font-sans);
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
     touch-action: none;
     overscroll-behavior: none;
   }
@@ -54,6 +55,11 @@
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-white;
+  }
+
+  .custom-scrollbar,
+  .overflow-y-auto {
+    touch-action: pan-y !important;
   }
 
   .perspective-1000 {
