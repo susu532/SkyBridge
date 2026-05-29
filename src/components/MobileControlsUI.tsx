@@ -389,6 +389,7 @@ export const MobileControlsUI: React.FC = () => {
       {/* Floating Joystick Area (Left half) */}
       <div 
         ref={joystickRef}
+        data-joystick-area="true"
         className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-auto touch-none"
         style={{ 
           left: 'calc(0px + env(safe-area-inset-left))',

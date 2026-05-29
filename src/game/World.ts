@@ -1,6 +1,7 @@
 import { generateChunkMethod } from "./ChunkGenerator";
 import MesherWorker from "./ChunkMesher.worker?worker";
 import * as THREE from "three";
+import { useGameStore } from "../store/gameStore";
 import { Chunk, CHUNK_SIZE, CHUNK_HEIGHT, WORLD_Y_OFFSET } from "./Chunk";
 import {
   BLOCK,
@@ -115,7 +116,7 @@ export class World {
       (navigator.maxTouchPoints > 0));
 
     // Limit workers to prevent Context Switching overhead on low-end CPUs
-    const workerCount = isMobileDevice ? 1 : Math.max(1, Math.floor(hwConcurrency / 2));
+    const workerCount = isMobileDevice ? 2 : Math.max(1, Math.floor(hwConcurrency / 2));
 
     for (let i = 0; i < workerCount; i++) {
       const worker = new MesherWorker();
@@ -1407,10 +1408,13 @@ export class World {
       }
     };
 
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processMesh);
-    } else {
+    // requestIdleCallback can be starved on mobile devices under heavy load
+    // so we execute immediately during map loading or fallback to setTimeout
+    const isMapLoading = useGameStore.getState().isMapLoading;
+    if (isMapLoading || !window.requestIdleCallback) {
       setTimeout(processMesh, 0);
+    } else {
+      window.requestIdleCallback(processMesh, { timeout: 100 });
     }
   }
   update(playerPosition: THREE.Vector3, camera?: THREE.Camera) {

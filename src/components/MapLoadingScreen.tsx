@@ -14,15 +14,29 @@ export function MapLoadingScreen() {
   useEffect(() => {
     if (isMapLoading) {
       document.exitPointerLock?.();
-      setShowTapToPlay(false);
-      const timer = setTimeout(() => {
+      
+      let timer: any;
+      if (loadingProgress >= 1) {
         setShowTapToPlay(true);
-      }, 5000);
+      } else {
+        setShowTapToPlay(false);
+        // Fallback: if somehow progress never reaches 1, show it after 5 seconds
+        timer = setTimeout(() => {
+          setShowTapToPlay(true);
+        }, 5000);
+      }
       return () => clearTimeout(timer);
     } else {
       setShowTapToPlay(false);
     }
-  }, [isMapLoading]);
+  }, [isMapLoading, loadingProgress]);
+
+  const handleTapToPlay = () => {
+    if (showTapToPlay) {
+      setIsMapLoading(false);
+      document.body.requestPointerLock?.();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -32,12 +46,8 @@ export function MapLoadingScreen() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: showTapToPlay ? 0 : 0.5 } }}
           className="fixed inset-0 z-[100] flex items-center justify-center mc-font cursor-pointer"
-          onClick={() => {
-            if (showTapToPlay) {
-              setIsMapLoading(false);
-              document.body.requestPointerLock?.();
-            }
-          }}
+          onPointerDown={handleTapToPlay}
+          onClick={handleTapToPlay}
           style={showTapToPlay ? { backgroundColor: 'rgba(0, 0, 0, 0.8)' } : {
             backgroundColor: '#1E1E24',
             backgroundImage: 'repeating-linear-gradient(45deg, #2A2A35 25%, transparent 25%, transparent 75%, #2A2A35 75%, #2A2A35), repeating-linear-gradient(45deg, #2A2A35 25%, #1E1E24 25%, #1E1E24 75%, #2A2A35 75%, #2A2A35)',

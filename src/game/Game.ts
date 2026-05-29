@@ -375,7 +375,7 @@ export class Game {
        
        let loadedCount = 0;
        let meshedCount = 0;
-       const radius = 2; // 5x5 chunks
+       const radius = Math.min(2, this.world.renderDistance);
        const TOTAL_CHUNKS = Math.pow(radius * 2 + 1, 2);
        
        for (let x = -radius; x <= radius; x++) {
@@ -383,7 +383,7 @@ export class Game {
              const chunk = this.world.getChunk(pcx + x, pcz + z);
              if (chunk) {
                 loadedCount++;
-                if (chunk.mesh) meshedCount++;
+                if (chunk.mesh || (!chunk.needsUpdate && !chunk.isMeshing)) meshedCount++;
              }
           }
        }

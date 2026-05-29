@@ -62,7 +62,57 @@ export default function App() {
 
       {/* Force Landscape Overlay for Mobile Phones */}
       {isMobile && (
-        <div className="hidden portrait:flex md:portrait:hidden fixed inset-0 z-[99999] bg-zinc-950 text-white flex-col items-center justify-center text-center p-8 select-none touch-none">
+        <div 
+          className="hidden portrait:flex md:portrait:hidden fixed inset-0 z-[99999] bg-zinc-950 text-white flex-col items-center justify-center text-center p-8 select-none touch-none cursor-pointer"
+          onPointerDown={() => {
+             const docEl = document.documentElement as any;
+             const requestFullscreen = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+             
+             if (requestFullscreen && !document.fullscreenElement) {
+               try {
+                 const promise = requestFullscreen.call(docEl);
+                 if (promise && promise.then) {
+                   promise.then(() => {
+                     if (window.screen && screen.orientation && screen.orientation.lock) {
+                       screen.orientation.lock('landscape').catch(e => console.log(e));
+                     }
+                   }).catch((e: Error) => console.log('Fullscreen failed:', e));
+                 } else {
+                   // Fallback for older browsers that don't return a promise
+                   if (window.screen && screen.orientation && screen.orientation.lock) {
+                     screen.orientation.lock('landscape').catch(e => console.log(e));
+                   }
+                 }
+               } catch (e) {
+                 console.log('Fullscreen request error:', e);
+               }
+             }
+          }}
+          onClick={() => {
+             const docEl = document.documentElement as any;
+             const requestFullscreen = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+             
+             if (requestFullscreen && !document.fullscreenElement) {
+               try {
+                 const promise = requestFullscreen.call(docEl);
+                 if (promise && promise.then) {
+                   promise.then(() => {
+                     if (window.screen && screen.orientation && screen.orientation.lock) {
+                       screen.orientation.lock('landscape').catch(e => console.log(e));
+                     }
+                   }).catch((e: Error) => console.log('Fullscreen failed:', e));
+                 } else {
+                   // Fallback for older browsers that don't return a promise
+                   if (window.screen && screen.orientation && screen.orientation.lock) {
+                     screen.orientation.lock('landscape').catch(e => console.log(e));
+                   }
+                 }
+               } catch (e) {
+                 console.log('Fullscreen request error:', e);
+               }
+             }
+          }}
+        >
           <div className="w-16 h-28 border-4 border-zinc-500 rounded-xl flex items-center justify-center mb-8 relative">
              <div className="w-8 h-1 bg-zinc-500 rounded-full mt-auto mb-2"></div>
              <div className="absolute inset-0 flex items-center justify-center rotate-90 opacity-50">
@@ -71,9 +121,9 @@ export default function App() {
                </div>
              </div>
           </div>
-          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Rotate Device</h2>
+          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Tap screen</h2>
           <p className="text-zinc-400 text-lg max-w-[280px] mx-auto leading-relaxed">
-            Please rotate your device horizontally to play.
+            Please Tap screen or rotate your device horizontally to play.
           </p>
         </div>
       )}
