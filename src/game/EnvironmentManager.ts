@@ -51,8 +51,8 @@ export class EnvironmentManager implements ISystem {
     dirLight.shadow.camera.far = 300;
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
-    dirLight.shadow.bias = -0.0005; // Negative bias to fix z-fighting in shadows
-    dirLight.shadow.normalBias = 0.05;
+    dirLight.shadow.bias = 0.0015; // Increased to eliminate shadow acne/z-fighting in voxel/dungeon delver mode
+    dirLight.shadow.normalBias = 0.12; // Increased normal bias to smoothly map voxel faces and eliminate edge-on z-fighting
     dirLight.shadow.autoUpdate = true;
     dirLight.shadow.radius = this.game.world.isVoidtrail ? 6 : 1; // Super soft shadow for voidtrail
     
