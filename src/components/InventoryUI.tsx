@@ -499,7 +499,7 @@ export const InventoryUI = React.memo<InventoryUIProps>(({ inventory, isOpen, on
       }}
     >
       <div 
-        className="transform scale-[0.6] sm:scale-[0.8] md:scale-100 landscape:scale-[0.4] sm:landscape:scale-[0.45] md:landscape:scale-[0.7] xl:landscape:scale-100 origin-center pointer-events-none"
+        className="transform scale-[0.6] sm:scale-[0.8] md:scale-[0.9] lg:scale-100 landscape:scale-[0.4] sm:landscape:scale-[0.45] md:landscape:scale-[0.7] lg:landscape:scale-[0.85] xl:landscape:scale-100 origin-center pointer-events-none"
       >
         <div className="pointer-events-auto flex items-center justify-center" onPointerDown={(e) => e.stopPropagation()}>
           <motion.div 

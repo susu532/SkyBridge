@@ -178,7 +178,7 @@ export const CommunitySidebar: React.FC = () => {
     .filter((p: any) => !friends.some(f => f.name.toUpperCase() === p.name.toUpperCase()));
 
   return (
-    <div className="w-full h-full bg-[#9F9F9F] p-4 flex flex-col gap-4 mc-font select-none text-left pointer-events-auto">
+    <div className="w-full h-full bg-[#9F9F9F] p-2 sm:p-4 flex flex-col gap-2 sm:gap-4 mc-font select-none text-left pointer-events-auto">
       {/* Sidebar Header */}
       <div className="border-b-4 border-[#555555] pb-2 flex items-center justify-between shrink-0">
         <span className="font-bold text-white text-base uppercase tracking-wider drop-shadow-[1.5px_1.5px_0_rgba(0,0,0,1)] flex items-center gap-1.5">
@@ -187,9 +187,9 @@ export const CommunitySidebar: React.FC = () => {
       </div>
 
       {/* Profile Account Info Box */}
-      <div className="bg-[#8B8B8B] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] p-3 space-y-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 shrink-0 border-2 border-[#555555] bg-[#C6895C] shadow-md">
+      <div className="bg-[#8B8B8B] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] p-2 sm:p-3 space-y-1.5 sm:space-y-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 border-2 border-[#555555] bg-[#C6895C] shadow-md">
             <svg width="100%" height="100%" viewBox="0 0 8 8" shapeRendering="crispEdges">
               <rect x="0" y="0" width="8" height="8" fill="#C6895C" />
               <rect x="0" y="0" width="8" height="2" fill="#5F3A19" />
@@ -242,7 +242,7 @@ export const CommunitySidebar: React.FC = () => {
 
         {/* CrazyGames Auth */}
         <div className="space-y-1 pt-2 border-t border-black/15 flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold text-black/60 uppercase block">Save </label>
+          <label className="text-[10px] font-bold text-black/60 uppercase block">Cloud Save (CrazyGames)</label>
           {cgUser ? (
              <div className="flex items-center gap-1.5 text-[10px] text-green-300 font-bold uppercase drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/40 px-2 py-1 border border-black/30">
                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
@@ -253,7 +253,7 @@ export const CommunitySidebar: React.FC = () => {
               onClick={handleCGLogin}
               className="w-full flex items-center justify-center gap-2 bg-[#612A9E] hover:bg-[#7236B5] text-white text-[10px] font-bold uppercase py-1.5 border-2 border-[#4A1F7A] shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
             >
-              <LogIn className="w-3.5 h-3.5" /> Login 
+              <LogIn className="w-3.5 h-3.5" /> Login to CrazyGames
             </button>
           )}
           <button
@@ -274,7 +274,7 @@ export const CommunitySidebar: React.FC = () => {
       </div>
 
       {/* Friends Module Box */}
-      <div className="bg-[#8B8B8B] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] p-3 flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
+      <div className="bg-[#8B8B8B] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] p-2 sm:p-3 flex flex-col gap-1 sm:gap-2 flex-1 min-h-0 overflow-hidden">
         {/* Friends Sub-Section */}
         <div className="flex items-center justify-between border-b-2 border-black/15 pb-1 shrink-0">
           <span className="font-bold text-white text-[11px] uppercase tracking-wide flex items-center gap-1">
@@ -283,7 +283,7 @@ export const CommunitySidebar: React.FC = () => {
         </div>
 
         {/* Friends Scroll Container */}
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0 md:max-h-[140px]">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0">
           {friends.map(friend => {
             const info = getDynamicFriendInfo(friend);
             return (
@@ -329,7 +329,7 @@ export const CommunitySidebar: React.FC = () => {
         </div>
 
         {/* Lobby Players Scroll Container */}
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0 md:min-h-[80px]">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1 custom-scrollbar min-h-0">
           {lobbyPlayers.map((p: any) => {
             let locName = 'Lobby';
             try {

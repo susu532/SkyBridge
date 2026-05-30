@@ -54,7 +54,7 @@ export const SkyCastlesSidebar: React.FC<SkyCastlesSidebarProps> = ({ isMobile }
 
   return (
     <div 
-      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt transition-all top-0 sm:top-14 md:top-28 transform origin-top-right scale-[0.40] sm:scale-75 md:scale-90 lg:scale-100 ${isMobile ? 'landscape:-top-2 landscape:scale-[0.15] sm:landscape:scale-[0.40] md:landscape:scale-[0.60] lg:landscape:scale-[0.80] xl:landscape:scale-100' : 'landscape:scale-[0.40] md:landscape:scale-75 lg:landscape:scale-90 xl:landscape:scale-100'}`}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font z-10 safe-pr safe-pt transition-all top-0 sm:top-14 md:top-28 transform origin-top-right scale-[0.40] sm:scale-75 md:scale-90 lg:scale-100 ${isMobile ? 'landscape:top-20 sm:landscape:top-24 landscape:scale-[0.35] sm:landscape:scale-[0.35] md:landscape:scale-[0.45] lg:landscape:scale-[0.55] xl:landscape:scale-[0.55]' : 'landscape:scale-[0.40] md:landscape:scale-75 lg:landscape:scale-90 xl:landscape:scale-100'}`}
     >
       {recentRewards.map(reward => (
         <div key={reward.id} className="absolute -left-32 top-11 text-[#FFFF55] font-bold text-lg mc-text-shadow animate-[slideUpFade_2s_ease-out_forwards]">

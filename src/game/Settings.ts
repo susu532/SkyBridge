@@ -95,7 +95,6 @@ class SettingsManager {
       (navigator.maxTouchPoints > 0));
     
     if (isMobileDevice) {
-      this.settings.performanceMode = true;
       this.settings.premiumShaders = false;
       this.settings.renderDistance = Math.min(this.settings.renderDistance, 3); // lowering default render distance for mobile
     }
@@ -107,6 +106,13 @@ class SettingsManager {
           // Deep merge to ensure all defaults are present (like keybinds)
           const parsed = JSON.parse(saved);
           this.settings = { ...this.settings, ...parsed };
+          
+          // Fix for returning mobile users who had performanceMode forced to true by default previously
+          if (isMobileDevice && !localStorage.getItem('v2_perf_reset_v3')) {
+             this.settings.performanceMode = false;
+             localStorage.setItem('v2_perf_reset_v3', 'true');
+             localStorage.setItem('game_settings_v2', JSON.stringify(this.settings));
+          }
         }
       }
     } catch (e) {
@@ -122,6 +128,15 @@ class SettingsManager {
              if (cgSaved) {
                const parsed = JSON.parse(cgSaved);
                this.settings = { ...this.settings, ...parsed };
+               
+               if (isMobileDevice && !localStorage.getItem('v2_perf_reset_v3_cg')) {
+                  this.settings.performanceMode = false;
+                  localStorage.setItem('v2_perf_reset_v3_cg', 'true');
+                  try {
+                     (window as any).CrazyGames.SDK.data.setItem('game_settings_v2', JSON.stringify(this.settings));
+                  } catch(e) {}
+               }
+               
                this.notify();
              }
            }
