@@ -314,11 +314,7 @@ export const MobileControlsUI: React.FC = () => {
     <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden touch-none">
       {/* Top HUD Buttons */}
       <div 
-        className="absolute flex gap-2 pointer-events-auto transform origin-top-right scale-[0.8] landscape:scale-[0.8]"
-        style={{ 
-          top: 'calc(0.5rem + env(safe-area-inset-top))', 
-          right: 'calc(0.5rem + env(safe-area-inset-right))' 
-        }}
+        className="absolute flex gap-2 pointer-events-auto transform origin-top-right scale-[0.8] landscape:scale-[0.8] top-2 right-2 safe-pt safe-pr"
       >
         <button 
           className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 touch-none mobile-button"
@@ -390,11 +386,7 @@ export const MobileControlsUI: React.FC = () => {
       <div 
         ref={joystickRef}
         data-joystick-area="true"
-        className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-auto touch-none"
-        style={{ 
-          left: 'calc(0px + env(safe-area-inset-left))',
-          width: 'calc(50% - env(safe-area-inset-left))'
-        }}
+        className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-auto touch-none left-0 w-1/2 safe-pl"
         onPointerDown={startJoystick}
         onPointerMove={updateJoystick}
         onPointerUp={stopJoystick}
@@ -425,11 +417,7 @@ export const MobileControlsUI: React.FC = () => {
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
       <div 
-        className="absolute pointer-events-none w-44 h-44 landscape:w-36 landscape:h-36 transform origin-bottom-right scale-[0.75] sm:scale-90 landscape:scale-[0.65] md:landscape:scale-[0.8] lg:landscape:scale-[0.75]"
-        style={{
-          bottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
-          right: 'calc(0.5rem + env(safe-area-inset-right))'
-        }}
+        className="absolute pointer-events-none w-44 h-44 landscape:w-36 landscape:h-36 transform origin-bottom-right scale-[0.75] sm:scale-90 landscape:scale-[0.65] md:landscape:scale-[0.8] lg:landscape:scale-[0.75] bottom-2 right-2 safe-pb safe-pr"
       >
         {/* Jump Button (Top) */}
         <button 

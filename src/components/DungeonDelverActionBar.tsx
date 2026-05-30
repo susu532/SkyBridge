@@ -21,7 +21,7 @@ export const DungeonDelverActionBar: React.FC<{ isMobile?: boolean }> = ({ isMob
   }, []);
 
   return (
-    <div className={`absolute bottom-[44px] sm:bottom-16 md:bottom-20 lg:bottom-24 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 sm:gap-4 md:gap-12 pointer-events-none select-none mc-font w-full px-1 transform origin-bottom z-50 scale-[0.45] sm:scale-85 md:scale-100 ${isMobile ? 'landscape:scale-[0.15] sm:landscape:scale-[0.40] md:landscape:scale-90 lg:landscape:scale-100' : 'landscape:scale-[0.45] sm:landscape:scale-85 md:landscape:scale-100'}`}>
+    <div className={`absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 pointer-events-none select-none mc-font w-full px-1 transform origin-bottom z-50 ${isMobile ? 'bottom-[42px] scale-[0.45] landscape:scale-[0.16] landscape:bottom-[2px]' : 'bottom-[44px] sm:bottom-16 md:bottom-20 lg:bottom-24 scale-[0.45] sm:scale-85 md:scale-100 landscape:scale-[0.45] sm:landscape:scale-85 md:landscape:scale-100 sm:gap-4 md:gap-12'}`}>
       {/* Health */}
       <div className="flex flex-col items-center">
         <div className="text-[#FF5555] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow mb-0.5 md:mb-1 whitespace-nowrap">
