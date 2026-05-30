@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
-import { getSecureBackendUrl } from '../utils/security';
+import { CrazyGamesManager } from "./CrazyGamesManager";
 
 class FakeClientSocket {
   public connected = false;
@@ -207,7 +207,22 @@ export class NetworkManager {
       this.reconnectAttempt = 0;
     }
     const urlParams = new URLSearchParams(window.location.search);
-    const mode = modeOverride || urlParams.get("server") || "dungeondelver";
+    let mode = modeOverride || urlParams.get("server");
+
+    // Check for CrazyGames invite params
+    if (!modeOverride) {
+       const inviteParams = CrazyGamesManager.inviteParams;
+       if (inviteParams && inviteParams.server) {
+           mode = inviteParams.server;
+       }
+    }
+    
+    // Check if we should instantly join multiplayer (skip hub)
+    if (!mode && CrazyGamesManager.isInstantMultiplayer) {
+       mode = "dungeondelver"; // Or whichever is default multiplayer
+    }
+    
+    if (!mode) mode = "dungeondelver";
 
     // Immediately update URL to provide instant visual feedback of server transition
     if (modeOverride) {
@@ -287,6 +302,7 @@ export class NetworkManager {
     useGameStore.getState().setIsMapLoading(true);
     useGameStore.getState().clearLeaderboard();
     if (this.socket) {
+      CrazyGamesManager.leftRoom();
       this.socket.disconnect();
       this.socket.removeAllListeners();
     }
@@ -311,6 +327,11 @@ export class NetworkManager {
     };
 
     this.socket.on("connect", () => {
+      CrazyGamesManager.updateRoom({
+        roomId: this.serverName,
+        isJoinable: true,
+        inviteParams: { server: this.serverName }
+      });
       for (const pending of this.pendingEmits) {
         this.socket.emit(pending.event, ...pending.args);
       }

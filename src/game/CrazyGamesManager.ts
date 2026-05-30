@@ -86,4 +86,42 @@ export class CrazyGamesManager {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     return url.toString();
   }
+
+  static updateRoom(data: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }) {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.updateRoom(data); } catch(e) {}
+    }
+  }
+
+  static leftRoom() {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.leftRoom(); } catch(e) {}
+    }
+  }
+
+  static addJoinRoomListener(listener: (inviteParams: Record<string, string>) => void) {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.addJoinRoomListener(listener); } catch(e) {}
+    }
+  }
+
+  static removeJoinRoomListener(listener: (inviteParams: Record<string, string>) => void) {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.removeJoinRoomListener(listener); } catch(e) {}
+    }
+  }
+
+  static get isInstantMultiplayer(): boolean {
+    if (this.initialized) {
+      try { return !!(window as any).CrazyGames.SDK.game.isInstantMultiplayer; } catch(e) { return false; }
+    }
+    return false;
+  }
+
+  static get inviteParams(): Record<string, string> | null {
+    if (this.initialized) {
+      try { return (window as any).CrazyGames.SDK.game.inviteParams || null; } catch(e) { return null; }
+    }
+    return null;
+  }
 }

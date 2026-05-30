@@ -411,10 +411,6 @@ export const MobileControlsUI: React.FC = () => {
           left: 'calc(0px + env(safe-area-inset-left))',
           width: 'calc(50% - env(safe-area-inset-left))'
         }}
-        onTouchStart={startJoystick}
-        onTouchMove={updateJoystick}
-        onTouchEnd={stopJoystick}
-        onTouchCancel={stopJoystick}
         onPointerDown={startJoystick}
         onPointerMove={updateJoystick}
         onPointerUp={stopJoystick}
@@ -423,7 +419,7 @@ export const MobileControlsUI: React.FC = () => {
       >
         {!joystickOrigin && (
           <div 
-            className="absolute w-32 h-32 md:w-36 md:h-36 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center pointer-events-none -translate-x-1/2 -translate-y-1/2 left-[30%] top-[60%] landscape:left-[15%] landscape:top-[80%]"
+            className="absolute w-32 h-32 md:w-36 md:h-36 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center pointer-events-none -translate-x-1/2 -translate-y-1/2 left-[30%] top-[60%] landscape:left-[25%] landscape:top-[75%]"
           >
              <div className="w-12 h-12 md:w-16 md:h-16 border-2 border-white/20 bg-white/10 rounded-full shadow-lg pointer-events-none" />
           </div>

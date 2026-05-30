@@ -131,7 +131,8 @@ export class PlayerInputController {
             const near: any = nearest;
             const nearPos = near.position || (near.group && near.group.position);
             if (nearPos && this.player.worldPosition.distanceTo(nearPos) < 5) {
-              const dirToNearest = nearPos.clone().sub(this.player.worldPosition).normalize();
+              const targetHeadPos = nearPos.clone().add(new THREE.Vector3(0, 1.0, 0));
+              const dirToNearest = targetHeadPos.clone().sub(this.player.worldPosition).normalize();
               const lookDir = _dirAux.set(
                 -Math.sin(this.player.cameraYaw) * Math.cos(this.player.cameraPitch),
                 Math.sin(this.player.cameraPitch),
@@ -140,6 +141,12 @@ export class PlayerInputController {
               const angle = lookDir.angleTo(dirToNearest);
               if (angle < Math.PI / 4) {
                 hitPlayer = true;
+                
+                // Snap to target immediately
+                const dirToTarget = _targetDirAux.subVectors(nearPos, this.player.worldPosition);
+                this.player.cameraYaw = Math.atan2(dirToTarget.x, dirToTarget.z) + Math.PI;
+                this.player.cameraPitch = Math.atan2(dirToTarget.y + 1.0, Math.sqrt(dirToTarget.x * dirToTarget.x + dirToTarget.z * dirToTarget.z));
+                
                 this.onMouseDown({ button: 0 } as MouseEvent); // Synthesize Left Click to attack
               }
             }
@@ -253,8 +260,9 @@ export class PlayerInputController {
       // Convert delta to mouse Delta format so Player.ts update handles it
       // player.mouseDeltaX reduces cameraYaw by 0.002 * mouseDeltaX
       // so mouseDeltaX = -yawDiff / 0.002
+      const invertFactor = settingsManager.getSettings().invertMouse ? -1 : 1;
       this.player.mouseDeltaX += -(yawDiff * 0.1) / 0.002;
-      this.player.mouseDeltaY += (pitchDiff * 0.1) / 0.002;
+      this.player.mouseDeltaY += -(pitchDiff * 0.1) / (0.002 * invertFactor);
     }
   }
 

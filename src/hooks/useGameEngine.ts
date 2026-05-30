@@ -20,6 +20,16 @@ export function useGameEngine() {
   useEffect(() => {
     CrazyGamesManager.init();
 
+    // Setup Room Join Listener
+    const handleJoinRoom = (params: Record<string, string>) => {
+      console.log("CrazyGames join room listener triggered", params);
+      if (params && params.server) {
+        useUIStore.getState().setPauseMenuOpen(false);
+        networkManager.initMatchmaking(params.server);
+      }
+    };
+    CrazyGamesManager.addJoinRoomListener(handleJoinRoom);
+
     const checkPointer = () => {
       const touchCapable = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       const isActuallyMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -40,6 +50,7 @@ export function useGameEngine() {
     }
 
     return () => {
+      CrazyGamesManager.removeJoinRoomListener(handleJoinRoom);
       if (mediaQuery.removeEventListener) {
         mediaQuery.removeEventListener('change', handler);
       } else if (mediaQuery.removeListener) {
