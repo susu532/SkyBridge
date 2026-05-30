@@ -4,6 +4,7 @@ import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
 import { CrazyGamesManager } from "./CrazyGamesManager";
+import { getSecureBackendUrl } from '../utils/security';
 
 class FakeClientSocket {
   public connected = false;
