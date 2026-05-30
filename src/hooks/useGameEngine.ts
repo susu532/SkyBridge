@@ -22,12 +22,9 @@ export function useGameEngine() {
 
     const checkPointer = () => {
       const touchCapable = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      // Devices with a fine pointer (like a mouse/trackpad) shouldn't be forced into touch controls
-      const hasFinePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
-      // If it's touch capable but DOES NOT have a fine pointer, we treat it as mobile.
-      // E.g., iPhones, iPads (without magic keyboard), Androids.
-      // If an iPad connects a mouse, hasFinePointer becomes true, and isMobile becomes false!
-      setIsMobile(touchCapable && !hasFinePointer);
+      const isActuallyMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isMacTouch = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1; // iPad on iOS 13+
+      setIsMobile(isActuallyMobile || isMacTouch || (touchCapable && window.innerWidth < 1024));
     };
 
     checkPointer();

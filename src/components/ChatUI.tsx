@@ -74,7 +74,11 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
 
   return (
     <div 
-      className={`absolute pointer-events-none z-[60] origin-top-left ${isMobile ? 'top-1 left-2 w-72 flex flex-col gap-1 scale-[0.55] landscape:scale-[0.32] landscape:top-1 landscape:left-2' : 'top-0 md:bottom-24 md:top-auto landscape:top-4 left-0 md:left-4 w-72 md:w-96 lg:w-[400px] flex flex-col gap-1 scale-[0.55] sm:scale-[0.8] md:scale-100 origin-top-left md:origin-bottom-left landscape:scale-[0.55] sm:landscape:scale-[0.8] md:landscape:scale-[0.85] lg:landscape:scale-100'}`}
+      className={`absolute left-0 md:left-4 w-72 md:w-96 lg:w-[400px] flex flex-col gap-1 pointer-events-none z-[60] transform origin-top-left flex flex-col gap-1 
+        ${isMobile 
+          ? 'top-4 md:top-4 landscape:top-12 landscape:bottom-auto landscape:scale-[0.45] sm:landscape:scale-[0.45] md:landscape:scale-[0.55] lg:landscape:scale-[0.60] scale-[0.55] sm:scale-[0.8] md:scale-100' 
+          : 'top-0 md:bottom-24 md:top-auto landscape:top-0 md:landscape:top-4 lg:landscape:top-auto lg:landscape:bottom-24 scale-[0.55] sm:scale-[0.8] md:scale-[0.85] lg:scale-100 origin-top-left md:origin-bottom-left'
+        }`}
     >
       <div 
         ref={chatContainerRef}

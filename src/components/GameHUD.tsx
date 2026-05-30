@@ -162,7 +162,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverSidebar isMobile={isMobile} />}
 
       {/* SkyBridge UI */}
-      {/* {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar isMobile={isMobile} />} */}
+      {/* {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />} */}
       {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverActionBar isMobile={isMobile} />}
       {/* {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeXPPopup />} */}
       

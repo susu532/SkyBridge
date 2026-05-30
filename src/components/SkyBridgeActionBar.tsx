@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { skyBridgeManager, PlayerStats } from '../game/SkyBridgeManager';
 
-export const SkyBridgeActionBar: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
+export const SkyBridgeActionBar: React.FC = () => {
   const [stats, setStats] = useState<PlayerStats>(skyBridgeManager.effectiveStats);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export const SkyBridgeActionBar: React.FC<{ isMobile?: boolean }> = ({ isMobile 
   }, []);
 
   return (
-    <div className={`absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 pointer-events-none select-none mc-font w-full max-w-[100vw] px-1 transform origin-bottom z-50 ${isMobile ? 'bottom-[42px] scale-[0.35] landscape:scale-[0.16] landscape:bottom-[2px]' : 'bottom-[55px] md:bottom-24 scale-[0.35] sm:scale-100 landscape:scale-[0.35] sm:landscape:scale-[0.85] md:landscape:scale-[0.5] xl:landscape:scale-100 sm:gap-4 md:gap-12'}`}>
+    <div className="absolute bottom-[55px] md:bottom-24 landscape:bottom-[45px] xl:landscape:bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 md:gap-12 pointer-events-none select-none mc-font w-full max-w-[100vw] justify-center px-1 transform scale-[0.35] sm:scale-100 origin-bottom landscape:scale-[0.35] sm:landscape:scale-[0.85] md:landscape:scale-[0.5] xl:landscape:scale-100">
       {/* Health */}
       <div className="flex flex-col items-center">
         <div className="text-[#FF5555] font-bold text-xs sm:text-base md:text-2xl mc-text-shadow mb-0.5 md:mb-1 whitespace-nowrap">
