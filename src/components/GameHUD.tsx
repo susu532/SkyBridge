@@ -147,7 +147,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
       )}
 
       {/* Chat */}
-      {isHUDVisible && <ChatUI isLocked={isLocked} isTyping={isTyping} setIsTyping={setTyping} />}
+      {isHUDVisible && <ChatUI isLocked={isLocked} isTyping={isTyping} setIsTyping={setTyping} isMobile={isMobile} />}
 
       {/* Mob Tags */}
       {isHUDVisible && <EntityTags game={game} />}
@@ -163,7 +163,7 @@ export function GameHUD({ game, isMobile, showDebug, setPauseMenuOpen }: any) {
 
       {/* SkyBridge UI */}
       {/* {isHUDVisible && (currentMode === 'skybridge' || currentMode === 'skycastles') && <SkyBridgeActionBar />} */}
-      {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverActionBar />}
+      {isHUDVisible && currentMode === 'dungeondelver' && <DungeonDelverActionBar isMobile={isMobile} />}
       {/* {isHUDVisible && currentMode === 'skybridge' && <SkyBridgeXPPopup />} */}
       
       {isHUDVisible && (

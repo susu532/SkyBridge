@@ -51,6 +51,7 @@ export default function App() {
         targetServer={targetServer} 
         handleStart={handleStart} 
         setGameKey={setGameKey} 
+        isMobile={isMobile}
       />
 
       <LoadoutUI game={game} />
@@ -121,9 +122,9 @@ export default function App() {
                </div>
              </div>
           </div>
-          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Tap screen</h2>
+          <h2 className="text-3xl font-bold mb-3 font-sans tracking-tight text-white">Tap screen x2 times</h2>
           <p className="text-zinc-400 text-lg max-w-[280px] mx-auto leading-relaxed">
-            Please Tap screen or rotate your device horizontally to play.
+            Please double Tap screen or rotate your device horizontally to play.
           </p>
         </div>
       )}

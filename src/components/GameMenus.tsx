@@ -14,7 +14,7 @@ import { Game } from '../game/Game';
 import { networkManager } from '../game/NetworkManager';
 import * as THREE from 'three';
 
-export function GameMenus({ game, targetServer, handleStart, setGameKey }: any) {
+export function GameMenus({ game, targetServer, handleStart, setGameKey, isMobile }: any) {
   const isInventoryOpen = useUI(state => state.isInventoryOpen);
   const setInventoryOpen = useUI(state => state.setInventoryOpen);
   const isChestOpen = useUI(state => state.isChestOpen);
@@ -106,6 +106,7 @@ export function GameMenus({ game, targetServer, handleStart, setGameKey }: any) 
                 setPauseMenuOpen(false);
                 setSettingsOpen(true);
               }}
+              isMobile={isMobile}
             />
           )}
           {isServerJoinOpen && (

@@ -11,12 +11,14 @@ interface PauseMenuUIProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
+  isMobile?: boolean;
 }
 
 export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({ 
   isOpen, 
   onClose, 
-  onOpenSettings 
+  onOpenSettings,
+  isMobile
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -82,14 +84,14 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
           transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-          className="fixed top-0 right-0 bottom-0 h-full w-64 md:w-80 landscape:w-48 landscape:md:w-64 bg-[#9F9F9F] border-l-4 border-[#555555] shrink-0 z-[95] overflow-hidden flex flex-col shadow-2xl origin-right transform landscape:scale-[0.8] sm:landscape:scale-100"
+          className={`fixed top-0 right-0 bottom-0 h-full w-64 md:w-80 bg-[#9F9F9F] border-l-4 border-[#555555] shrink-0 z-[95] overflow-hidden flex flex-col shadow-2xl origin-right transform ${isMobile ? 'landscape:w-48 landscape:md:w-64 landscape:scale-[0.8] sm:landscape:scale-100' : ''}`}
           onPointerDown={(e) => e.stopPropagation()}
         >
           <CommunitySidebar />
         </motion.div>
 
         {/* Primary Centered Pause Menu Card */}
-        <div className="w-full max-w-xs relative transform scale-100 landscape:scale-[0.55] sm:landscape:scale-[0.6] md:landscape:scale-[0.8] xl:landscape:scale-100 origin-center p-4">
+        <div className={`w-full max-w-xs relative transform scale-100 origin-center p-4 ${isMobile ? 'landscape:scale-[0.55] sm:landscape:scale-[0.6] md:landscape:scale-[0.8] xl:landscape:scale-100' : ''}`}>
           <motion.div
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}

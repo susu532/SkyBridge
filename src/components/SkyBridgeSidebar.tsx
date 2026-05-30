@@ -21,11 +21,7 @@ export const SkyBridgeSidebar: React.FC<SkyBridgeSidebarProps> = ({ isMobile }) 
 
   return (
     <div 
-      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all ${isMobile ? 'top-0 landscape:top-0' : 'top-16 md:top-32'}`}
-      style={{ 
-        transform: isMobile ? 'scale(0.40)' : 'scale(clamp(0.4, 40vw / 100, 1))', 
-        transformOrigin: 'top right' 
-      }}
+      className={`absolute right-0 flex flex-col gap-2 pointer-events-none mc-font safe-pr safe-pt transition-all top-0 sm:top-14 md:top-28 transform origin-top-right scale-[0.40] sm:scale-75 md:scale-90 lg:scale-100 ${isMobile ? 'landscape:-top-2 landscape:scale-[0.15] sm:landscape:scale-[0.40] md:landscape:scale-[0.60] lg:landscape:scale-[0.80] xl:landscape:scale-100' : 'landscape:scale-[0.40] md:landscape:scale-75 lg:landscape:scale-90 xl:landscape:scale-100'}`}
     >
       {/* Sidebar Container */}
       <div className="bg-black/60  p-3 md:p-4 border-l-4 border-[#FFFF55] text-white text-sm md:text-base shadow-2xl min-w-[160px] md:min-w-[200px]">
