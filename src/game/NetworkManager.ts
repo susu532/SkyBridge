@@ -304,6 +304,7 @@ export class NetworkManager {
     useGameStore.getState().clearLeaderboard();
     if (this.socket) {
       CrazyGamesManager.leftRoom();
+      CrazyGamesManager.hideInviteButton();
       this.socket.disconnect();
       this.socket.removeAllListeners();
     }
@@ -333,6 +334,7 @@ export class NetworkManager {
         isJoinable: true,
         inviteParams: { server: this.serverName }
       });
+      CrazyGamesManager.showInviteButton({ server: this.serverName });
       for (const pending of this.pendingEmits) {
         this.socket.emit(pending.event, ...pending.args);
       }

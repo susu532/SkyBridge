@@ -17,6 +17,18 @@ export class CrazyGamesManager {
     }
   }
 
+  static loadingStart() {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.loadingStart(); } catch(e){}
+    }
+  }
+
+  static loadingStop() {
+    if (this.initialized) {
+      try { (window as any).CrazyGames.SDK.game.loadingStop(); } catch(e){}
+    }
+  }
+
   static gameplayStart() {
     if (this.initialized) {
       try { (window as any).CrazyGames.SDK.game.gameplayStart(); } catch(e){}
@@ -111,17 +123,19 @@ export class CrazyGamesManager {
     }
   }
 
+  static showInviteButton(params: Record<string, string>) {
+    try { (window as any).CrazyGames.SDK.game.showInviteButton(params); } catch(e) {}
+  }
+
+  static hideInviteButton() {
+    try { (window as any).CrazyGames.SDK.game.hideInviteButton(); } catch(e) {}
+  }
+
   static get isInstantMultiplayer(): boolean {
-    if (this.initialized) {
-      try { return !!(window as any).CrazyGames.SDK.game.isInstantMultiplayer; } catch(e) { return false; }
-    }
-    return false;
+    try { return !!(window as any).CrazyGames.SDK.game.isInstantMultiplayer; } catch(e) { return false; }
   }
 
   static get inviteParams(): Record<string, string> | null {
-    if (this.initialized) {
-      try { return (window as any).CrazyGames.SDK.game.inviteParams || null; } catch(e) { return null; }
-    }
-    return null;
+    try { return (window as any).CrazyGames.SDK.game.inviteParams || null; } catch(e) { return null; }
   }
 }

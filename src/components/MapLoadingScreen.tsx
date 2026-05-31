@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
+import { CrazyGamesManager } from '../game/CrazyGamesManager';
 
 export function MapLoadingScreen() {
   const isMapLoading = useGameStore(state => state.isMapLoading);
@@ -13,16 +14,19 @@ export function MapLoadingScreen() {
 
   useEffect(() => {
     if (isMapLoading) {
+      CrazyGamesManager.loadingStart();
       document.exitPointerLock?.();
       
       let timer: any;
       if (loadingProgress >= 1) {
         setShowTapToPlay(true);
+        CrazyGamesManager.loadingStop();
       } else {
         setShowTapToPlay(false);
         // Fallback: if somehow progress never reaches 1, show it after 5 seconds
         timer = setTimeout(() => {
           setShowTapToPlay(true);
+          CrazyGamesManager.loadingStop();
         }, 5000);
       }
       return () => clearTimeout(timer);

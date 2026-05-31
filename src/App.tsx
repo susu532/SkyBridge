@@ -74,14 +74,14 @@ export default function App() {
                  const promise = requestFullscreen.call(docEl);
                  if (promise && promise.then) {
                    promise.then(() => {
-                     if (window.screen && screen.orientation && screen.orientation.lock) {
-                       screen.orientation.lock('landscape').catch(e => console.log(e));
+                     if (window.screen && screen.orientation && (screen.orientation as any).lock) {
+                       (screen.orientation as any).lock('landscape').catch((e: Error) => console.log(e));
                      }
                    }).catch((e: Error) => console.log('Fullscreen failed:', e));
                  } else {
                    // Fallback for older browsers that don't return a promise
-                   if (window.screen && screen.orientation && screen.orientation.lock) {
-                     screen.orientation.lock('landscape').catch(e => console.log(e));
+                   if (window.screen && screen.orientation && (screen.orientation as any).lock) {
+                     (screen.orientation as any).lock('landscape').catch((e: Error) => console.log(e));
                    }
                  }
                } catch (e) {
@@ -98,14 +98,14 @@ export default function App() {
                  const promise = requestFullscreen.call(docEl);
                  if (promise && promise.then) {
                    promise.then(() => {
-                     if (window.screen && screen.orientation && screen.orientation.lock) {
-                       screen.orientation.lock('landscape').catch(e => console.log(e));
+                     if (window.screen && screen.orientation && (screen.orientation as any).lock) {
+                       (screen.orientation as any).lock('landscape').catch((e: Error) => console.log(e));
                      }
                    }).catch((e: Error) => console.log('Fullscreen failed:', e));
                  } else {
                    // Fallback for older browsers that don't return a promise
-                   if (window.screen && screen.orientation && screen.orientation.lock) {
-                     screen.orientation.lock('landscape').catch(e => console.log(e));
+                   if (window.screen && screen.orientation && (screen.orientation as any).lock) {
+                     (screen.orientation as any).lock('landscape').catch((e: Error) => console.log(e));
                    }
                  }
                } catch (e) {

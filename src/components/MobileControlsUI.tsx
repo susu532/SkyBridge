@@ -82,95 +82,6 @@ export const MobileControlsUI: React.FC = () => {
 
   const [joystickOrigin, setJoystickOrigin] = useState<{x: number, y: number} | null>(null);
 
-  const startJoystick = (e: React.PointerEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if ('pointerType' in e && e.pointerType === 'mouse' && e.button !== 0) return;
-    if ('pointerId' in e && joystickPointerId.current !== null) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if ('pointerId' in e) {
-      joystickPointerId.current = e.pointerId;
-      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    }
-    
-    const clientX = 'touches' in e ? e.targetTouches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.targetTouches[0].clientY : e.clientY;
-    
-    const origin = { x: clientX, y: clientY };
-    joystickOriginRef.current = origin;
-    setJoystickOrigin(origin);
-    updateJoystickInputs(clientX, clientY, origin);
-  };
-
-  const updateJoystick = (e: React.PointerEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if ('pointerId' in e && joystickPointerId.current !== e.pointerId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const clientX = 'touches' in e ? e.targetTouches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.targetTouches[0].clientY : e.clientY;
-    updateJoystickInputs(clientX, clientY);
-  };
-  
-  const updateJoystickInputs = (clientX: number, clientY: number, overrideOrigin?: {x: number, y: number}) => {
-    const origin = overrideOrigin || joystickOriginRef.current;
-    if (!origin) return;
-    
-    const centerX = origin.x;
-    const centerY = origin.y;
-    const dx = clientX - centerX;
-    const dy = clientY - centerY;
-
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    // Base max radius on viewport width/height roughly
-    const isTablet = window.innerWidth >= 768;
-    const currentMaxRadius = isTablet ? 96 : 56; 
-    
-    let normalizedX = dx / currentMaxRadius;
-    let normalizedY = dy / currentMaxRadius;
-    let isSprinting = false;
-
-    if (distance > currentMaxRadius) {
-      normalizedX = dx / distance;
-      normalizedY = dy / distance;
-      
-      // Sprint when pushing significantly forward
-      if (distance > currentMaxRadius * 1.3 && normalizedY < -0.5) {
-        isSprinting = true;
-      }
-    }
-    
-    // Add visual deadzone
-    if (distance < currentMaxRadius * 0.25) {
-      normalizedX = 0;
-      normalizedY = 0;
-    }
-    
-    setJoystick({ x: normalizedX, y: normalizedY });
-    window.mobileInputs.joystickX = normalizedX;
-    window.mobileInputs.joystickY = normalizedY;
-    window.mobileInputs.isSprinting = isSprinting;
-  };
-
-  const stopJoystick = (e: React.PointerEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if ('pointerId' in e && joystickPointerId.current !== e.pointerId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    joystickPointerId.current = null;
-    window.mobileInputs.joystickX = 0;
-    window.mobileInputs.joystickY = 0;
-    window.mobileInputs.isSprinting = false;
-    setJoystick({ x: 0, y: 0 });
-    joystickOriginRef.current = null;
-    setJoystickOrigin(null);
-    if ('pointerId' in e) {
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-      } catch(err) {}
-    }
-  };
-
   useEffect(() => {
     const isTablet = window.innerWidth >= 768;
     maxRadius.current = isTablet ? 96 : 56;
@@ -186,7 +97,6 @@ export const MobileControlsUI: React.FC = () => {
     const handleTouchStart = (e: TouchEvent) => {
       if (isAnyMenuOpen) return;
       
-      // Prevent default to stop ALL scrolling, Safari swipe-backs, and zoom gestures during gameplay
       const target = e.target as HTMLElement;
       if (target && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && !target.closest('button')) {
         e.preventDefault();
@@ -195,28 +105,39 @@ export const MobileControlsUI: React.FC = () => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         
-        if (target && !target.closest('.mobile-button') && !target.closest('.pointer-events-auto')) {
-          if (lookTouchId.current === null) {
+        if (target && target.closest('.mobile-button')) continue;
+
+        const isBottomLeft = touch.clientX < window.innerWidth * 0.5 && touch.clientY > window.innerHeight * 0.2;
+        
+        if (isBottomLeft && joystickTouchId.current === null) {
+            joystickTouchId.current = touch.identifier;
+            joystickOriginRef.current = { x: touch.clientX, y: touch.clientY };
+            setJoystickOrigin({ x: touch.clientX, y: touch.clientY });
+            continue; // Dedicated joystick touch
+        }
+
+        if (lookTouchId.current === null && joystickTouchId.current !== touch.identifier) {
             lookTouchId.current = touch.identifier;
             lastLookPos.current = { x: touch.clientX, y: touch.clientY };
-          }
+        }
 
-          const holdTimeout = setTimeout(() => {
+        if (joystickTouchId.current !== touch.identifier) {
+            const holdTimeout = setTimeout(() => {
             const tap = activeTaps.current.get(touch.identifier);
             if (tap && !tap.isSwipe) {
-              window.mobileInputs.isAttacking = true;
-              tap.isHolding = true;
+                window.mobileInputs.isAttacking = true;
+                tap.isHolding = true;
             }
-          }, 300);
+            }, 300);
 
-          activeTaps.current.set(touch.identifier, {
+            activeTaps.current.set(touch.identifier, {
             x: touch.clientX,
             y: touch.clientY,
             time: Date.now(),
             isSwipe: false,
             holdTimeout,
             isHolding: false
-          });
+            });
         }
       }
     };
@@ -228,6 +149,35 @@ export const MobileControlsUI: React.FC = () => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         
+        if (touch.identifier === joystickTouchId.current) {
+            const origin = joystickOriginRef.current;
+            if (origin) {
+                const dx = touch.clientX - origin.x;
+                const dy = touch.clientY - origin.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                let normalizedX = dx / maxRadius.current;
+                let normalizedY = dy / maxRadius.current;
+                
+                let isSprinting = false;
+                if (distance > maxRadius.current) {
+                    normalizedX = dx / distance;
+                    normalizedY = dy / distance;
+                    if (distance > maxRadius.current * 1.3 && normalizedY < -0.5) isSprinting = true;
+                }
+                
+                if (distance < maxRadius.current * 0.25) {
+                    normalizedX = 0;
+                    normalizedY = 0;
+                }
+                
+                setJoystick({ x: normalizedX, y: normalizedY });
+                window.mobileInputs.joystickX = normalizedX;
+                window.mobileInputs.joystickY = normalizedY;
+                window.mobileInputs.isSprinting = isSprinting;
+            }
+            continue;
+        }
+        
         const tap = activeTaps.current.get(touch.identifier);
         if (tap) {
             const dx = touch.clientX - tap.x;
@@ -236,12 +186,6 @@ export const MobileControlsUI: React.FC = () => {
                 tap.isSwipe = true;
                 if (!tap.isHolding) {
                    clearTimeout(tap.holdTimeout);
-                } else if (touch.identifier === joystickTouchId.current) {
-                   // Only cancel mining if they swiped on the joystick side
-                   tap.isHolding = false;
-                   let anyHolding = false;
-                   activeTaps.current.forEach(t => { if (t.isHolding) anyHolding = true; });
-                   window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
                 }
             }
         }
@@ -250,9 +194,7 @@ export const MobileControlsUI: React.FC = () => {
           const dx = touch.clientX - lastLookPos.current.x;
           const dy = touch.clientY - lastLookPos.current.y;
           
-          // Keep scale consistent or slightly lower on tablets to avoid excessive sensitivity
           const scale = window.innerWidth >= 768 ? 1.0 : 1.5;
-          
           window.mobileInputs.lookDeltaX += dx * scale;
           window.mobileInputs.lookDeltaY += dy * scale;
           lastLookPos.current = { x: touch.clientX, y: touch.clientY };
@@ -264,6 +206,17 @@ export const MobileControlsUI: React.FC = () => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         
+        if (touch.identifier === joystickTouchId.current) {
+            joystickTouchId.current = null;
+            joystickOriginRef.current = null;
+            setJoystickOrigin(null);
+            setJoystick({ x: 0, y: 0 });
+            window.mobileInputs.joystickX = 0;
+            window.mobileInputs.joystickY = 0;
+            window.mobileInputs.isSprinting = false;
+            continue;
+        }
+
         const tap = activeTaps.current.get(touch.identifier);
         if (tap) {
             clearTimeout(tap.holdTimeout);
@@ -406,16 +359,11 @@ export const MobileControlsUI: React.FC = () => {
       <div 
         ref={joystickRef}
         data-joystick-area="true"
-        className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-auto touch-none"
+        className="absolute top-0 bottom-16 landscape:bottom-24 z-50 pointer-events-none touch-none"
         style={{ 
           left: 'calc(0px + env(safe-area-inset-left))',
           width: 'calc(50% - env(safe-area-inset-left))'
         }}
-        onPointerDown={startJoystick}
-        onPointerMove={updateJoystick}
-        onPointerUp={stopJoystick}
-        onPointerCancel={stopJoystick}
-        onContextMenu={(e) => e.preventDefault()}
       >
         {!joystickOrigin && (
           <div 
