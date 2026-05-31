@@ -276,7 +276,7 @@ export const CommunitySidebar: React.FC = () => {
 
           {/* CrazyGames Auth */}
           <div className="space-y-1 pt-2 border-t border-black/15 flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-black/60 uppercase block">Cloud Save (CrazyGames)</label>
+            <label className="text-[10px] font-bold text-black/60 uppercase block">Save</label>
             {cgUser ? (
                <div className="flex items-center gap-1.5 text-[10px] text-green-300 font-bold uppercase drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/40 px-2 py-1 border border-black/30">
                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
@@ -287,7 +287,7 @@ export const CommunitySidebar: React.FC = () => {
                 onClick={handleCGLogin}
                 className="w-full flex items-center justify-center gap-2 bg-[#612A9E] hover:bg-[#7236B5] text-white text-[10px] font-bold uppercase py-1.5 border-2 border-[#4A1F7A] shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
               >
-                <LogIn className="w-3.5 h-3.5" /> Login to CrazyGames
+                <LogIn className="w-3.5 h-3.5" /> Login
               </button>
             )}
             <button

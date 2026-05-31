@@ -99,7 +99,7 @@ export class CrazyGamesManager {
     return url.toString();
   }
 
-  static updateRoom(data: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }) {
+  static updateRoom(data: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string>; minPlayers?: number; maxPlayers?: number }) {
     if (this.initialized) {
       try { (window as any).CrazyGames.SDK.game.updateRoom(data); } catch(e) {}
     }

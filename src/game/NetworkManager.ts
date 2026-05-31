@@ -332,7 +332,9 @@ export class NetworkManager {
       CrazyGamesManager.updateRoom({
         roomId: this.serverName,
         isJoinable: true,
-        inviteParams: { server: this.serverName }
+        inviteParams: { server: this.serverName },
+        minPlayers: 2,
+        maxPlayers: 30
       });
       CrazyGamesManager.showInviteButton({ server: this.serverName });
       for (const pending of this.pendingEmits) {
