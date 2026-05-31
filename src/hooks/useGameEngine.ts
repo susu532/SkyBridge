@@ -18,9 +18,7 @@ export function useGameEngine() {
   const currentMode = useGameStore(state => state.currentMode);
 
   useEffect(() => {
-    CrazyGamesManager.init();
-
-    // Setup Room Join Listener
+    let active = true;
     const handleJoinRoom = (params: Record<string, string>) => {
       console.log("CrazyGames join room listener triggered", params);
       if (params && params.server) {
@@ -28,7 +26,12 @@ export function useGameEngine() {
         networkManager.initMatchmaking(params.server);
       }
     };
-    CrazyGamesManager.addJoinRoomListener(handleJoinRoom);
+
+    (async () => {
+      await CrazyGamesManager.init();
+      if (!active) return;
+      CrazyGamesManager.addJoinRoomListener(handleJoinRoom);
+    })();
 
     const checkPointer = () => {
       const touchCapable = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -50,6 +53,7 @@ export function useGameEngine() {
     }
 
     return () => {
+      active = false;
       CrazyGamesManager.removeJoinRoomListener(handleJoinRoom);
       if (mediaQuery.removeEventListener) {
         mediaQuery.removeEventListener('change', handler);

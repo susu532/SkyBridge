@@ -220,7 +220,7 @@ export class NetworkManager {
     
     // Check if we should instantly join multiplayer (skip hub)
     if (!mode && CrazyGamesManager.isInstantMultiplayer) {
-       mode = "dungeondelver"; // Or whichever is default multiplayer
+       mode = "dungeondelver_" + Math.random().toString(36).substring(2, 9);
     }
     
     if (!mode) mode = "dungeondelver";
@@ -619,6 +619,24 @@ export class NetworkManager {
       useGameStore.getState().addChatMessage(data.sender, data.message, data.team);
     });
 
+    this.socket.on("friendRequest", (data: { sourceId: string, sourceName: string }) => {
+      useGameStore.getState().addFriendRequest(data.sourceId, data.sourceName);
+    });
+
+    this.socket.on("friendAccept", (data: { sourceId: string, sourceName: string }) => {
+      useGameStore.getState().addChatMessage("System", `§e${data.sourceName} accepted your friend request!`);
+      // It is up to CommunitySidebar to actually add to 'friends' array locally, or we can trigger an event
+      window.dispatchEvent(new CustomEvent('friendAcceptedNetwork', { detail: data.sourceName }));
+    });
+
+    this.socket.on("partyInvite", (data: { sourceId: string, sourceName: string, server: string }) => {
+      useGameStore.getState().addPartyInvite(data.sourceId, data.sourceName, data.server);
+    });
+
+    this.socket.on("partyAccept", (data: { sourceId: string, sourceName: string }) => {
+      useGameStore.getState().addChatMessage("System", `§e${data.sourceName} joined your party.`);
+    });
+
     this.socket.on("shootArrow", (data) => {
       window.dispatchEvent(new CustomEvent("networkShootArrow", { detail: data }));
     });
@@ -717,6 +735,22 @@ export class NetworkManager {
 
   spawnMinion(type: number, position: { x: number; y: number; z: number }) {
     this._emit("spawnMinion", { type, position });
+  }
+
+  sendFriendRequest(targetName: string) {
+    this._emit("friendRequest", targetName);
+  }
+
+  acceptFriendRequest(targetId: string) {
+    this._emit("friendAccept", targetId);
+  }
+
+  sendPartyInvite(targetName: string) {
+    this._emit("partyInvite", targetName);
+  }
+
+  acceptPartyInvite(targetId: string) {
+    this._emit("partyAccept", targetId);
   }
 
   async requestChunkChanges(cx: number, cz: number): Promise<Uint16Array | null> {
