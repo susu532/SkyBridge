@@ -4,6 +4,7 @@ import { encodePacketClient, decodePacketClient } from "./WSHelpersClient";
 import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
 import { CrazyGamesManager } from "./CrazyGamesManager";
+import { getSecureBackendUrl } from '../utils/security';
 
 class FakeClientSocket {
   public connected = false;
@@ -230,7 +231,7 @@ export class NetworkManager {
     }
 
     try {
-      const baseUrl = "https://skybridge-server.onrender.com";
+      const baseUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
       const resp = await fetch(`${baseUrl}/api/matchmake?mode=${mode}`);
       const data = await resp.json();
       if (data.serverId) {
@@ -316,7 +317,7 @@ export class NetworkManager {
     useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "dungeondelver");
     useGameStore.getState().setServerId(serverName);
 
-    const backendUrl = "https://skybridge-server.onrender.com";
+    const backendUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     const wsUrl = backendUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
     this.socket = new FakeClientSocket(`${wsUrl}/ws/${serverName}`);
     
