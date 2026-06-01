@@ -1236,6 +1236,7 @@ export class World {
     const bz = z & 15;
     const oldType = chunk.getBlock(bx, cy, bz);
     chunk.setBlock(bx, cy, bz, type);
+    chunk.needsUpdate = true;
 
     // Light update
     const isEmissive =

@@ -59,8 +59,6 @@ export class Chunk {
 
 
   applyMesh(opaque: any, transparent: any, opaqueMaterial: THREE.Material, transparentMaterial: THREE.Material, opaqueDepthMaterial: THREE.MeshDepthMaterial, transparentDepthMaterial: THREE.MeshDepthMaterial, performanceMode: boolean = false) {
-    this.needsUpdate = false;
-    
     const updateMesh = (layer: any, mesh: THREE.Mesh | null, material: THREE.Material) => {
       if (!layer || layer.positions.length === 0) {
         if (mesh) { mesh.geometry.dispose(); mesh.parent?.remove(mesh); }
