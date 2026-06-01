@@ -7,7 +7,7 @@ import { settingsManager } from './Settings';
 import { ItemType } from './Inventory';
 import { audioManager } from './AudioManager';
 import { useGameStore } from '../store/gameStore';
-import { applyMilestoneColor } from './Milestonecolor';
+import { applyMilestoneColor } from './MilestoneColor';
 
 const _zeroVec = new THREE.Vector3(0, 0, 0);
 
