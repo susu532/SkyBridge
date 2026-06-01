@@ -54,14 +54,16 @@ export const PauseMenuUI: React.FC<PauseMenuUIProps> = ({
       icon: <Settings className="w-5 h-5" />, 
       onClick: onOpenSettings 
     },
+    /*
     { 
       label: 'Quit Game', 
       icon: <LogOut className="w-5 h-5" />, 
       onClick: () => {
-        networkManager.initMatchmaking('hub');
+        networkManager.initMatchmaking('dungeondelver');
         window.dispatchEvent(new CustomEvent('requestGameRestart'));
       }
     },
+    */
   ];
 
   return (

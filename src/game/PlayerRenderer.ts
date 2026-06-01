@@ -7,6 +7,9 @@ import { ItemType } from './Inventory';
 import { createItemModel } from './ItemModels';
 import { settingsManager } from './Settings';
 import { audioManager } from './AudioManager';
+import { useGameStore } from '../store/gameStore';
+import { applyMilestoneColor } from './MilestoneColor';
+import { networkManager } from './NetworkManager';
 
 export class PlayerRenderer {
   player: Player;
@@ -1433,5 +1436,21 @@ export class PlayerRenderer {
         Math.max(-limitDown, Math.min(limitUp, this.player.headMesh.rotation.x)) +
         headPitchOffset;
     }
+
+    const activeTool = this.player.inventory.slots[this.player.hotbarIndex];
+    if (activeTool && activeTool.type >= ItemType.WOODEN_SWORD && activeTool.type <= ItemType.DIAMOND_SWORD) {
+        let kills = 0;
+        if (networkManager.id) {
+           const leaderboardObj = useGameStore.getState().leaderboard[networkManager.id];
+           if (leaderboardObj) kills = leaderboardObj.kills || 0;
+        }
+        if (this.currentModelType === activeTool.type && this.heldItemModel) {
+           applyMilestoneColor(kills, this.heldItemModel);
+        }
+        if (this.currentFpModelType === activeTool.type && this.fpHeldItemModel) {
+           applyMilestoneColor(kills, this.fpHeldItemModel);
+        }
+    }
   }
 }
+

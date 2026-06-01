@@ -56,6 +56,7 @@ export class CrazyGamesManager {
     // Auto-detect if audio should be muted etc...
     try {
        const cg = (window as any).CrazyGames.SDK;
+       const wasMutedBeforeAd = audioManager.getMuted();
        cg.ad.requestAd(type, {
          adStarted: () => {
            console.log("Ad started");
@@ -64,12 +65,12 @@ export class CrazyGamesManager {
          },
          adFinished: () => {
            console.log("Ad finished");
-           audioManager.setMuted(false);
+           if (!wasMutedBeforeAd) audioManager.setMuted(false);
            callbacks?.adFinished?.();
          },
          adError: (error: string) => {
             console.log("Ad Error", error);
-            audioManager.setMuted(false);
+            if (!wasMutedBeforeAd) audioManager.setMuted(false);
             callbacks?.adError?.(error);
             if (callbacks?.adFinished && !callbacks?.adError) {
               callbacks.adFinished(); // Fallback if no error handler

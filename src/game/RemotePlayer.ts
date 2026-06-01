@@ -6,6 +6,8 @@ import { createVoidtrailTextureAtlas } from './VoidTrailTextureAtlas';
 import { settingsManager } from './Settings';
 import { ItemType } from './Inventory';
 import { audioManager } from './AudioManager';
+import { useGameStore } from '../store/gameStore';
+import { applyMilestoneColor } from './MilestoneColor';
 
 const _zeroVec = new THREE.Vector3(0, 0, 0);
 
@@ -1490,6 +1492,13 @@ export class RemotePlayer {
       this.rightLegMesh.rotation.x -= hitT * 0.15;
       this.leftLegMesh.rotation.z += hitT * 0.1;
       this.rightLegMesh.rotation.z -= hitT * 0.1;
+    }
+
+    if (this.heldItemType >= ItemType.WOODEN_SWORD && this.heldItemType <= ItemType.DIAMOND_SWORD && this.heldItemModel) {
+        let kills = 0;
+        const leaderboardObj = useGameStore.getState().leaderboard[this.id];
+        if (leaderboardObj) kills = leaderboardObj.kills || 0;
+        applyMilestoneColor(kills, this.heldItemModel);
     }
   }
 

@@ -1115,6 +1115,10 @@ export class World {
     if (this.isDungeonDelver && Math.floor(x) === 0 && Math.floor(y) === 0 && Math.floor(z) === 0) {
       return true;
     }
+    
+    if (this.isDungeonDelver && this.getBlock(x, y, z) === BLOCK.OBSIDIAN) {
+      return true;
+    }
 
     const absX = Math.abs(Math.floor(x));
     const absZ = Math.abs(Math.floor(z));

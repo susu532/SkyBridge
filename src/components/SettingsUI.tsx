@@ -368,8 +368,10 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {Object.entries(settings.keybinds).map(([name, code]) => (
-                  <div key={name} className="flex items-center justify-between p-2 bg-[#A0A0A0] border-2 border-black/10">
+                {Object.entries(settings.keybinds)
+                  .filter(([name]) => name !== 'fly')
+                  .map(([name, code]) => (
+                    <div key={name} className="flex items-center justify-between p-2 bg-[#A0A0A0] border-2 border-black/10">
                     <span className="text-[10px] font-bold text-[#444] uppercase tracking-wider">
                       {name.replace(/([A-Z0-9])/g, ' $1').trim()}
                     </span>

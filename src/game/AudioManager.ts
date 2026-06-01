@@ -68,6 +68,13 @@ class AudioManager {
     }
   }
 
+  public getMuted(): boolean {
+    if (this.listener) {
+      return this.listener.getMasterVolume() === 0;
+    }
+    return false;
+  }
+
   public init(camera: THREE.Camera) {
     if (this.listener.parent) {
       this.listener.parent.remove(this.listener);

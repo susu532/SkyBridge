@@ -301,12 +301,12 @@ export class PlayerInputController {
       case keybinds.slot7: if (!this.player.world.isHub) { this.player.hotbarIndex = 6; this.resetItemState(); } break;
       case keybinds.slot8: if (!this.player.world.isHub) { this.player.hotbarIndex = 7; this.resetItemState(); } break;
       case keybinds.slot9: if (!this.player.world.isHub) { this.player.hotbarIndex = 8; this.resetItemState(); } break;
-      case keybinds.fly: 
-       /*
-          this.player.isFlying = !this.player.isFlying;
-          this.player.velocity.set(0, 0, 0);
-       */
-        break;
+//       case keybinds.fly: 
+//        /*
+//           this.player.isFlying = !this.player.isFlying;
+//           this.player.velocity.set(0, 0, 0);
+//        */
+//         break;
       case keybinds.jump: 
         this.moveUp = true;
         if (!this.player.isFlying && !this.player.isSwimming && this.player.canJump) {
