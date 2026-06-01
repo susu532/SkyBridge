@@ -8,7 +8,7 @@ import { createItemModel } from './ItemModels';
 import { settingsManager } from './Settings';
 import { audioManager } from './AudioManager';
 import { useGameStore } from '../store/gameStore';
-import { applyMilestoneColor } from './MilestoneColor';
+import { applyMilestoneColor } from './Milestonecolor';
 import { networkManager } from './NetworkManager';
 
 export class PlayerRenderer {
