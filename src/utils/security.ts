@@ -14,8 +14,7 @@ export const isHeadless = (): boolean => {
   // PhantomJS / Nightmare
   if (w._phantom || w.__nightmare || w.callPhantom) return true;
   // Note: navigator.plugins.length === 0 check was removed because mobile browsers don't support plugins and were being falsely flagged as bots
-  // Headless Chrome missing window.chrome
-  if (navigator.userAgent.includes('Chrome') && !w.chrome) return true;
+  // Note: navigator.userAgent.includes('Chrome') && !w.chrome check was removed to fix mobile WebView false positives
   // Empty languages string (headless)
   if ((navigator as any).languages === '') return true;
 
