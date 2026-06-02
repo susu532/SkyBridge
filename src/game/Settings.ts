@@ -16,6 +16,7 @@ export interface Keybinds {
   fly: string;
   toggleHUD: string;
   leaderboard: string;
+  feedback: string;
   slot1: string;
   slot2: string;
   slot3: string;
@@ -57,6 +58,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   fly: 'KeyP',
   toggleHUD: 'KeyN',
   leaderboard: 'Tab',
+  feedback: 'KeyG',
   slot1: 'Digit1',
   slot2: 'Digit2',
   slot3: 'Digit3',

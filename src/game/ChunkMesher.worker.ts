@@ -70,8 +70,8 @@ export function runMesher(data: ChunkMesherRequest): ChunkMesherResponse {
 
   const performanceMode = data.performanceMode;
   const CHUNK_SIZE = 16;
-  const CHUNK_HEIGHT = 256;
-  const WORLD_Y_OFFSET = -60;
+  const CHUNK_HEIGHT = 16;
+  const WORLD_Y_OFFSET = -5;
 
 
 class DynamicFloat32Buffer {
@@ -687,7 +687,7 @@ class LayerData {
                 ao3 = getAO(isSolid(x,y,z,1,1,0), isSolid(x,y,z,1,0,1), isSolid(x,y,z,1,1,1));
               }
               const light = getLightLevel(x,y,z,1,0,0);
-              masks[0][z + y * 16 + x * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[0][z + y * 16 + x * 16 * CHUNK_HEIGHT] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 0, type, layer);
             }
@@ -711,7 +711,7 @@ class LayerData {
                 ao3 = getAO(isSolid(x,y,z,-1,1,0), isSolid(x,y,z,-1,0,-1), isSolid(x,y,z,-1,1,-1));
               }
               const light = getLightLevel(x,y,z,-1,0,0);
-              masks[1][z + y * 16 + x * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[1][z + y * 16 + x * 16 * CHUNK_HEIGHT] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 1, type, layer);
             }
@@ -771,7 +771,7 @@ class LayerData {
                 ao3 = getAO(isSolid(x,y,z,-1,0,1), isSolid(x,y,z,0,1,1), isSolid(x,y,z,-1,1,1));
               }
               const light = getLightLevel(x,y,z,0,0,1);
-              masks[4][x + y * 16 + z * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[4][x + y * 16 + z * 16 * CHUNK_HEIGHT] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 4, type, layer);
             }
@@ -795,7 +795,7 @@ class LayerData {
                 ao3 = getAO(isSolid(x,y,z,1,0,-1), isSolid(x,y,z,0,1,-1), isSolid(x,y,z,1,1,-1));
               }
               const light = getLightLevel(x,y,z,0,0,-1);
-              masks[5][x + y * 16 + z * 4096] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
+              masks[5][x + y * 16 + z * 16 * CHUNK_HEIGHT] = type | (ao0 << 10) | (ao1 << 12) | (ao2 << 14) | (ao3 << 16) | (layer === transparent ? 1 << 18 : 0) | (light << 19);
             } else {
               addFace(x, y, z, 5, type, layer);
             }

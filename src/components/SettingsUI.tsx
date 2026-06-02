@@ -121,6 +121,14 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
         setRebindingKey(null);
         return;
       }
+      
+      const isDuplicate = Object.entries(settings.keybinds).find(([key, code]) => code === e.code && key !== rebindingKey);
+      if (isDuplicate) {
+        alert("This keybind is already in use for: " + isDuplicate[0]);
+        setRebindingKey(null);
+        return;
+      }
+
       const newKeybinds = { ...settings.keybinds, [rebindingKey]: e.code };
       settingsManager.updateSettings({ keybinds: newKeybinds });
       setRebindingKey(null);

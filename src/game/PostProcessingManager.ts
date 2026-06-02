@@ -23,7 +23,7 @@ export class PostProcessingManager {
         this.game.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.game.renderer.toneMappingExposure = 1.0;
         this.game.renderer.shadowMap.enabled = true;
-        this.game.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.game.renderer.shadowMap.type = THREE.PCFShadowMap;
       } else {
         this.game.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.game.renderer.toneMappingExposure = 1.1; // Bright punchy lighting

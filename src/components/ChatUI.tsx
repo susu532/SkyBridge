@@ -36,12 +36,24 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
   const inputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Handle focus when typing starts
+  const showFullChat = isTyping;
+  const visibleMessages = showFullChat ? messages : messages.slice(-10);
+  const isScrolledUp = useRef(false);
+
+  // Handle scroll position when transitioning back to showing full chat or activating typing
   useEffect(() => {
-    if (isTyping) {
-      setTimeout(() => inputRef.current?.focus(), 10);
+    if (showFullChat) {
+      isScrolledUp.current = false;
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+        if (isTyping) {
+          inputRef.current?.focus();
+        }
+      }, 50);
     }
-  }, [isTyping]);
+  }, [showFullChat, isTyping]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -66,43 +78,84 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
     }
   };
 
+  const handleScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    // If the user has scrolled up by more than 25 pixels from bottom, mark as scrolledUp
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 25;
+    isScrolledUp.current = !isAtBottom;
+  };
+
   useEffect(() => {
-    if (chatContainerRef.current) {
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    const stopPropagation = (e: Event) => {
+      if (showFullChat) {
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener('touchstart', stopPropagation, { passive: true });
+    el.addEventListener('touchmove', stopPropagation, { passive: true });
+    el.addEventListener('touchend', stopPropagation, { passive: true });
+    el.addEventListener('pointerdown', stopPropagation, { passive: true });
+    el.addEventListener('pointermove', stopPropagation, { passive: true });
+    el.addEventListener('pointerup', stopPropagation, { passive: true });
+    el.addEventListener('wheel', stopPropagation, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', stopPropagation);
+      el.removeEventListener('touchmove', stopPropagation);
+      el.removeEventListener('touchend', stopPropagation);
+      el.removeEventListener('pointerdown', stopPropagation);
+      el.removeEventListener('pointermove', stopPropagation);
+      el.removeEventListener('pointerup', stopPropagation);
+      el.removeEventListener('wheel', stopPropagation);
+    };
+  }, [showFullChat]);
+
+  useEffect(() => {
+    if (chatContainerRef.current && (!isScrolledUp.current || !showFullChat)) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [visibleMessages, showFullChat]);
 
   return (
     <div 
-      className={`absolute left-0 w-72 md:w-96 lg:w-[400px] flex flex-col gap-1 pointer-events-none z-[60] transform origin-top-left flex flex-col gap-1 
-        ${isMobile 
-          ? 'top-4 md:top-4 md:left-4 landscape:!top-0 landscape:bottom-auto landscape:scale-[0.40] sm:landscape:scale-[0.45] md:landscape:scale-[0.55] lg:landscape:scale-[0.60] scale-[0.55] sm:scale-[0.8] md:scale-100' 
-          : 'top-0 md:bottom-24 md:top-auto md:left-4 landscape:top-0 md:landscape:top-4 lg:landscape:top-auto lg:landscape:bottom-24 scale-[0.55] sm:scale-[0.8] md:scale-[0.85] lg:scale-100 origin-top-left md:origin-bottom-left'
-        }`}
+      className="absolute left-4 top-10 sm:top-[12vh] md:top-[15vh] lg:top-[18vh] z-[60] w-[60vw] sm:w-[45vw] md:w-[40vw] lg:w-[35vw] xl:w-[30vw] min-w-[200px] max-w-[500px] flex flex-col gap-1 pointer-events-none transition-all landscape:top-[10vh] landscape:w-[45vw] lg:landscape:w-[35vw]"
     >
       <div 
         ref={chatContainerRef}
-        className="max-h-32 sm:max-h-48 md:max-h-64 overflow-y-auto flex flex-col justify-end gap-0.5"
-        style={{ scrollbarWidth: 'none' }}
+        onScroll={handleScroll}
+        className={`max-h-[25vh] sm:max-h-[30vh] md:max-h-[38vh] lg:max-h-[45vh] overflow-y-auto flex flex-col gap-0.5 rounded-sm transition-all
+          ${showFullChat 
+            ? 'pointer-events-auto bg-black/45 border border-white/10 p-2 custom-scrollbar' 
+            : 'pointer-events-none bg-transparent'
+          }`}
+        style={!showFullChat ? { scrollbarWidth: 'none' } : undefined}
       >
-        {messages.map((msg) => {
-          const isDungeonDelver = currentMode.startsWith('dungeondelver');
-          let senderColor = "text-[#FFFF55]"; // default yellow
-          if (isDungeonDelver && msg.sender !== 'System') {
-            senderColor = "text-[#FF5555]";
-          } else if (msg.team === 'red') {
-            senderColor = "text-[#FF5555]";
-          } else if (msg.team === 'blue') {
-            senderColor = "text-[#5555FF]";
-          }
+        <div className="flex flex-col min-h-full gap-0.5">
+          {visibleMessages.length > 0 && <div className="mt-auto" />}
+          {visibleMessages.map((msg) => {
+            const isDungeonDelver = currentMode.startsWith('dungeondelver');
+            let senderColor = "text-[#FFFF55]"; // default yellow
+            if (isDungeonDelver && msg.sender !== 'System') {
+              senderColor = "text-[#FF5555]";
+            } else if (msg.team === 'red') {
+              senderColor = "text-[#FF5555]";
+            } else if (msg.team === 'blue') {
+              senderColor = "text-[#5555FF]";
+            }
 
-          return (
-          <div key={msg.id} className="text-[12px] md:text-[14px] text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/0 px-1 py-0.5 rounded w-fit max-w-full break-words font-sans selection:bg-white/30">
-            <span className={`font-bold ${senderColor}`}>{msg.sender}: </span>
-            {formatMessage(msg.message)}
-          </div>
-          );
-        })}
+            return (
+              <div key={msg.id} className="text-[11px] sm:text-[12px] md:text-[13px] lg:text-[14px] text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)] bg-black/0 px-1 py-0.5 rounded w-fit max-w-full break-words font-sans selection:bg-white/30">
+                <span className={`font-bold ${senderColor}`}>{msg.sender}: </span>
+                {formatMessage(msg.message)}
+              </div>
+            );
+          })}
+        </div>
       </div>
       
       {isTyping && (
@@ -113,7 +166,7 @@ export const ChatUI = React.memo(function ChatUI({ isLocked, isTyping, setIsTypi
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleInputKeyDown}
-            className="bg-transparent text-white outline-none w-full font-sans text-[12px] md:text-[14px]"
+            className="bg-transparent text-white outline-none w-full font-sans text-[13px] sm:text-[14px] md:text-[15px]"
             placeholder=""
             maxLength={100}
             onBlur={() => {

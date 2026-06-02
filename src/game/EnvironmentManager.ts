@@ -689,7 +689,7 @@ export class EnvironmentManager implements ISystem {
       
       if (this.game.world.isDungeonDelver) {
         dirLight.intensity = 0.25; // Faint dungeon moonlight/ambient leak
-        dirLight.castShadow = !isPerformance;
+        dirLight.castShadow = false;
       } else {
         dirLight.intensity = targetIntensity;
         dirLight.castShadow = !isPerformance;

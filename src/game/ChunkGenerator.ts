@@ -45,10 +45,10 @@ export async function generateChunkMethod(
       }
 
       if (world.isDungeonDelver) {
-        // Iterate only over the playable vertical space (worldY -2 to 7, which is y 58 to 67)
-        // to prevent generating massive useless blocks under y < -2 and above y > 7.
-        for (let y = 58; y <= 67; y++) {
+        // Iterate only over the playable vertical space
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
           const worldY = y + WORLD_Y_OFFSET;
+          if (worldY < -2 || worldY > 7) continue;
           
           const blockKey = `${Math.floor(worldX)},${Math.floor(worldY)},${Math.floor(worldZ)}`;
           if (dungeonBakedBlocks.has(blockKey)) {

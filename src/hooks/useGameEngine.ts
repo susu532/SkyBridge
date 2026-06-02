@@ -176,7 +176,12 @@ export function useGameEngine() {
         } = state;
 
         if (isInputFocused) {
+          suppressPauseMenu.current = true;
           (e.target as HTMLElement).blur();
+          state.setTyping(false);
+          if (!isMobile) {
+            trySafeLock(true);
+          }
           return;
         }
 
@@ -268,6 +273,23 @@ export function useGameEngine() {
     const handleWheel = (e: WheelEvent) => {
       if (document.pointerLockElement !== document.body) return;
       if (newGame.world.isHub) return;
+      
+      const uiState = useUIStore.getState();
+      const gameState = useGameStore.getState();
+      if (
+        uiState.isTyping ||
+        gameState.showLeaderboard ||
+        uiState.isInventoryOpen ||
+        uiState.isShopOpen ||
+        uiState.isSettingsOpen ||
+        uiState.isPauseMenuOpen ||
+        uiState.isServerJoinOpen ||
+        uiState.isLaunchMenuOpen ||
+        uiState.isChestOpen ||
+        uiState.isLoadoutOpen
+      ) {
+        return;
+      }
       
       let nextIndex = newGame.player.hotbarIndex + (e.deltaY > 0 ? 1 : -1);
       
