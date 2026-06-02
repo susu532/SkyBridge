@@ -13,8 +13,7 @@ export const isHeadless = (): boolean => {
   if (navigator.webdriver) return true;
   // PhantomJS / Nightmare
   if (w._phantom || w.__nightmare || w.callPhantom) return true;
-  // Headless Chrome has no plugins
-  if (navigator.plugins && navigator.plugins.length === 0 && navigator.userAgent.includes('Chrome')) return true;
+  // Note: navigator.plugins.length === 0 check was removed because mobile browsers don't support plugins and were being falsely flagged as bots
   // Headless Chrome missing window.chrome
   if (navigator.userAgent.includes('Chrome') && !w.chrome) return true;
   // Empty languages string (headless)
@@ -26,7 +25,15 @@ export const isHeadless = (): boolean => {
 // ===== DOMAIN LOCK =====
 const ALLOWED_DOMAINS = [
   'starplex-io.vercel.app',
-  'skybridge-server.onrender.com'
+  'skybridge-server.onrender.com',
+  'crazygames.com',
+  '1001juegos.com',
+  'speelspelletjes.nl',
+  '1001jeux.fr',
+  'onlinegame.co.id',
+  'crazygames.fr',
+  'crazygames.es',
+  'crazygames.com.br'
 ];
 
 export const isDomainValid = (): boolean => {
