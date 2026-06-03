@@ -5,6 +5,7 @@ import { encodeRLE, decodeRLE } from "./RLE";
 import { audioManager } from "./AudioManager";
 import { CrazyGamesManager } from "./CrazyGamesManager";
 import { getSecureBackendUrl } from '../utils/security';
+import { settingsManager } from "./Settings";
 
 class FakeClientSocket {
   public connected = false;
@@ -167,6 +168,7 @@ export class NetworkManager {
   onTimeUpdate?: (data: { dayTime: number }) => void;
   private initData: any = null;
   private reconnectAttempt = 0;
+  private currentBackendUrl: string = "";
 
   resetHandlers() {
     this._onInit = undefined;
@@ -231,7 +233,38 @@ export class NetworkManager {
     }
 
     try {
-      const baseUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+      const region = settingsManager.getSettings().serverRegion || 'auto';
+      const euUrl = import.meta.env.VITE_BACKEND_URL as string;
+      const usUrl = import.meta.env.VITE_BACKEND_URL_US as string || euUrl;
+      let baseUrl = euUrl;
+
+      if (region === 'us') {
+        baseUrl = usUrl;
+      } else if (region === 'eu') {
+        baseUrl = euUrl;
+      } else {
+        try {
+          const promises = [euUrl, usUrl].map(async (url) => {
+            const start = performance.now();
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 2000);
+            try {
+              await fetch(`${getSecureBackendUrl(url)}/api/matchmake?mode=ping`, { signal: controller.signal });
+            } catch(err) {}
+            clearTimeout(id);
+            return { url, time: performance.now() - start };
+          });
+          const results = await Promise.all(promises);
+          results.sort((a, b) => a.time - b.time);
+          baseUrl = results[0].url;
+        } catch(e) {
+          baseUrl = euUrl;
+        }
+      }
+
+      baseUrl = getSecureBackendUrl(baseUrl);
+      this.currentBackendUrl = baseUrl;
+
       const resp = await fetch(`${baseUrl}/api/matchmake?mode=${mode}`);
       const data = await resp.json();
       if (data.serverId) {
@@ -317,7 +350,7 @@ export class NetworkManager {
     useGameStore.getState().setCurrentMode(serverName.split("_")[0] || "dungeondelver");
     useGameStore.getState().setServerId(serverName);
 
-    const backendUrl = getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
+    const backendUrl = this.currentBackendUrl || getSecureBackendUrl(import.meta.env.VITE_BACKEND_URL as string);
     const wsUrl = backendUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
     this.socket = new FakeClientSocket(`${wsUrl}/ws/${serverName}`);
     

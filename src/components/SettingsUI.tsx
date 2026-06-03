@@ -29,8 +29,9 @@ const translations: Record<string, Record<string, string>> = {
     resetButton: "Reset to Defaults",
     doneButton: "Done",
     cancelButton: "Cancel",
-    languageSection: "Language / Idioma",
-    selectLanguage: "Select Language"
+    languageSection: "Language / Region",
+    selectLanguage: "Select Language",
+    serverRegion: "Server Region"
   },
   es: {
     settingsTitle: "Configuración de Ajustes",
@@ -52,8 +53,9 @@ const translations: Record<string, Record<string, string>> = {
     resetButton: "Restablecer Ajustes",
     doneButton: "Aceptar",
     cancelButton: "Cancelar",
-    languageSection: "Idioma / Language",
-    selectLanguage: "Seleccionar Idioma"
+    languageSection: "Idioma / Region",
+    selectLanguage: "Seleccionar Idioma",
+    serverRegion: "Región del Servidor"
   },
   fr: {
     settingsTitle: "Configuration des Options",
@@ -75,8 +77,9 @@ const translations: Record<string, Record<string, string>> = {
     resetButton: "Réinitialiser",
     doneButton: "Confirmer",
     cancelButton: "Annuler",
-    languageSection: "Langue / Language",
-    selectLanguage: "Sélectionner la Langue"
+    languageSection: "Langue / Région",
+    selectLanguage: "Sélectionner la Langue",
+    serverRegion: "Région du Serveur"
   },
   de: {
     settingsTitle: "Einstellungen Konfiguration",
@@ -98,8 +101,9 @@ const translations: Record<string, Record<string, string>> = {
     resetButton: "Zurücksetzen",
     doneButton: "Fertig",
     cancelButton: "Abbrechen",
-    languageSection: "Sprache / Language",
-    selectLanguage: "Sprache Auswählen"
+    languageSection: "Sprache / Region",
+    selectLanguage: "Sprache Auswählen",
+    serverRegion: "Server Region"
   }
 };
 
@@ -217,6 +221,20 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
                     <option value="es">Español (ES)</option>
                     <option value="fr">Français (FR)</option>
                     <option value="de">Deutsch (DE)</option>
+                  </select>
+                </div>
+                <div className="space-y-1 bg-[#A0A0A0] p-3 border-2 border-black/10">
+                  <label className="text-xs font-bold text-[#333] uppercase block">
+                    {t.serverRegion || "Server Region"}
+                  </label>
+                  <select 
+                    value={settings.serverRegion || 'auto'}
+                    onChange={(e) => handleChange('serverRegion', e.target.value)}
+                    className="w-full text-sm font-bold bg-[#C6C6C6] border-2 border-black/30 text-[#222] px-2 py-1.5 focus:outline-none uppercase font-mono"
+                  >
+                    <option value="auto">Auto (Fastest)</option>
+                    <option value="eu">Europe</option>
+                    <option value="us">US East</option>
                   </select>
                 </div>
               </div>

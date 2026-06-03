@@ -40,6 +40,7 @@ export interface GameSettings {
   premiumShaders: boolean;
   hideShininess: boolean;
   language: string;
+  serverRegion: string;
   keybinds: Keybinds;
 }
 
@@ -82,6 +83,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   premiumShaders: false,
   hideShininess: true,
   language: 'en',
+  serverRegion: 'auto',
   keybinds: { ...DEFAULT_KEYBINDS },
 };
 
