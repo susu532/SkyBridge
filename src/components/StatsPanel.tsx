@@ -101,7 +101,8 @@ export const StatsPanel: React.FC = () => {
         className="bg-black/80  border-[3px] border-white/20 p-6 rounded shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto pointer-events-auto shadow-[0_10px_30px_rgba(0,0,0,0.8)] custom-scrollbar relative"
       >
         <button 
-          onClick={() => setShowLeaderboard(false)}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(false); }}
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(false); }}
           className="absolute top-2 right-2 text-white/50 hover:text-white bg-black/50 p-2 rounded-full md:hidden"
         >
           ✕

@@ -335,8 +335,8 @@ export const MobileControlsUI: React.FC = () => {
         </button>
         <button 
           className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 mobile-button pointer-events-auto target-stats-btn portrait:hidden"
-          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(!showLeaderboard); }}
-          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(!showLeaderboard); }}
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(true); }}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(true); }}
         >
           <BarChart2 size={20} />
         </button>
