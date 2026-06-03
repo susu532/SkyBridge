@@ -249,7 +249,7 @@ export class NetworkManager {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), 2000);
             try {
-              await fetch(`${getSecureBackendUrl(url)}/api/matchmake?mode=ping`, { signal: controller.signal });
+              await fetch(`${getSecureBackendUrl(url)}/api/matchmake?mode=ping`, { signal: controller.signal, mode: 'no-cors' });
             } catch(err) {}
             clearTimeout(id);
             return { url, time: performance.now() - start };

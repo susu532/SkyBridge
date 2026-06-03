@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { settingsManager, GameSettings, DEFAULT_SETTINGS } from '../game/Settings';
+import { networkManager } from '../game/NetworkManager';
+import { useGameStore } from '../store/gameStore';
 import { X, Settings as SettingsIcon, Monitor, MousePointer2, Volume2, Bug, Zap, Keyboard, Globe } from 'lucide-react';
 
 interface SettingsUIProps {
@@ -109,6 +111,7 @@ const translations: Record<string, Record<string, string>> = {
 
 export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<GameSettings>(settingsManager.getSettings());
+  const [initialRegion] = useState(settings.serverRegion);
   const [rebindingKey, setRebindingKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,6 +149,13 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
     settingsManager.updateSettings({ [key]: value });
   };
 
+  const handleClose = () => {
+    if (initialRegion !== settingsManager.getSettings().serverRegion) {
+      networkManager.initMatchmaking(useGameStore.getState().currentMode);
+    }
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const currentLang = settings.language || 'en';
@@ -161,7 +171,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
         onPointerDown={(e) => {
           e.stopPropagation();
           if (e.target === e.currentTarget && !rebindingKey) {
-             onClose();
+             handleClose();
           }
         }}
       >
@@ -187,7 +197,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <button 
               onClick={() => {
                 if (rebindingKey) setRebindingKey(null);
-                else onClose();
+                else handleClose();
               }}
               className="p-1 hover:bg-white/20 transition-colors rounded"
             >
@@ -449,7 +459,7 @@ export const SettingsUI: React.FC<SettingsUIProps> = ({ isOpen, onClose }) => {
             <button 
               onClick={() => {
                 if (rebindingKey) setRebindingKey(null);
-                else onClose();
+                else handleClose();
               }}
               className="px-8 py-2 bg-[#C6C6C6] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555555] font-bold text-[#555555] hover:bg-white transition-colors uppercase tracking-widest shadow-lg"
             >
