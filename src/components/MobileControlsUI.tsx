@@ -43,7 +43,7 @@ window.mobileInputs = window.mobileInputs || {
   zoomJoystickY: 0,
 };
 
-import { Menu, Backpack, MessageSquare, Camera, ScanEye, Sword, ArrowDown, ChevronsUp, Trophy, BarChart2 } from 'lucide-react';
+import { Menu, Backpack, MessageSquare, Camera, ScanEye, Sword, ArrowDown, ChevronsUp, Trophy } from 'lucide-react';
 
 export const MobileControlsUI: React.FC = () => {
   const isInventoryOpen = useUI(state => state.isInventoryOpen);
@@ -61,7 +61,7 @@ export const MobileControlsUI: React.FC = () => {
   const showLeaderboard = useGameStore(state => state.showLeaderboard);
   const setShowLeaderboard = useGameStore(state => state.setShowLeaderboard);
 
-  const isAnyMenuOpen = isInventoryOpen || isShopOpen || isSettingsOpen || isPauseMenuOpen || isServerJoinOpen || isLaunchMenuOpen || isTyping;
+  const isAnyMenuOpen = isInventoryOpen || isShopOpen || isSettingsOpen || isPauseMenuOpen || isServerJoinOpen || isLaunchMenuOpen || isTyping || showLeaderboard;
 
 
   const baseRef = useRef<HTMLDivElement>(null);
@@ -89,10 +89,10 @@ export const MobileControlsUI: React.FC = () => {
 
   useEffect(() => {
     const isTablet = window.innerWidth >= 768;
-    maxRadius.current = isTablet ? 96 : 56;
+    maxRadius.current = isTablet ? 140 : 90;
 
     const handleResize = () => {
-      maxRadius.current = window.innerWidth >= 768 ? 96 : 56;
+      maxRadius.current = window.innerWidth >= 768 ? 140 : 90;
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -200,7 +200,7 @@ export const MobileControlsUI: React.FC = () => {
           const dy = touch.clientY - lastLookPos.current.y;
           
           const isLandscape = window.innerWidth > window.innerHeight;
-          const scale = window.innerWidth >= 768 ? 1.0 : (isLandscape ? 6.0 : 1.5);
+          const scale = window.innerWidth >= 768 ? 1.0 : (isLandscape ? 2.5 : 1.5);
           window.mobileInputs.lookDeltaX += dx * scale;
           window.mobileInputs.lookDeltaY += dy * scale;
           lastLookPos.current = { x: touch.clientX, y: touch.clientY };
@@ -334,11 +334,11 @@ export const MobileControlsUI: React.FC = () => {
           <Camera size={20} />
         </button>
         <button 
-          className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 mobile-button pointer-events-auto target-stats-btn portrait:hidden"
-          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(true); }}
-          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(true); }}
+          className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 mobile-button pointer-events-auto target-stats-btn"
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(!showLeaderboard); }}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setShowLeaderboard(!showLeaderboard); }}
         >
-          <BarChart2 size={20} />
+          <Trophy size={20} />
         </button>
         <button 
           className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white active:bg-white/40 mobile-button pointer-events-auto"
@@ -380,18 +380,18 @@ export const MobileControlsUI: React.FC = () => {
       >
         {!joystickOrigin && (
           <div 
-            className="absolute w-32 h-32 md:w-36 md:h-36 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center pointer-events-none -translate-x-1/2 -translate-y-1/2 left-[30%] top-[60%] landscape:left-[25%] landscape:top-[75%]"
+            className="absolute w-48 h-48 md:w-56 md:h-56 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center pointer-events-none -translate-x-1/2 -translate-y-1/2 left-[30%] top-[60%] landscape:left-[25%] landscape:top-[75%]"
           >
-             <div className="w-12 h-12 md:w-16 md:h-16 border-2 border-white/20 bg-white/10 rounded-full shadow-lg pointer-events-none" />
+             <div className="w-18 h-18 md:w-22 md:h-22 border-2 border-white/20 bg-white/10 rounded-full shadow-lg pointer-events-none" />
           </div>
         )}
         {joystickOrigin && (
           <div 
-            className="absolute w-32 h-32 md:w-36 md:h-36 bg-black/20 border border-white/20 rounded-full flex items-center justify-center p-2 pointer-events-none -translate-x-1/2 -translate-y-1/2"
+            className="absolute w-48 h-48 md:w-56 md:h-56 bg-black/20 border border-white/20 rounded-full flex items-center justify-center p-2 pointer-events-none -translate-x-1/2 -translate-y-1/2"
             style={{ left: joystickOrigin.x, top: joystickOrigin.y }}
           >
              <div 
-                className={`w-12 h-12 md:w-16 md:h-16 border-2 rounded-full shadow-lg pointer-events-none flex items-center justify-center transition-colors ${window.mobileInputs.isSprinting ? 'bg-white/60 border-white/80' : 'bg-white/40 border-white/60'}`}
+                className={`w-18 h-18 md:w-22 md:h-22 border-2 rounded-full shadow-lg pointer-events-none flex items-center justify-center transition-colors ${window.mobileInputs.isSprinting ? 'bg-white/60 border-white/80' : 'bg-white/40 border-white/60'}`}
                 style={{ 
                    transform: `translate(${joystick.x * 125}%, ${joystick.y * 125}%)`,
                    transition: joystickPointerId.current === null ? 'transform 0.15s ease-out' : 'none'
@@ -409,7 +409,7 @@ export const MobileControlsUI: React.FC = () => {
 
       {/* Action Buttons (Right side - Diamond layout for thumbs) */}
       <div 
-        className="absolute pointer-events-none w-44 h-44 landscape:w-36 landscape:h-36 transform origin-bottom-right scale-[0.75] sm:scale-90 landscape:scale-[0.65] md:landscape:scale-[0.8] lg:landscape:scale-[0.75]"
+        className="absolute pointer-events-none w-64 h-64 landscape:w-56 landscape:h-56 transform origin-bottom-right scale-[1.12] sm:scale-[1.3] landscape:scale-[1.05] md:landscape:scale-[1.25] lg:landscape:scale-[1.2]"
         style={{
           bottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
           right: 'calc(0.5rem + env(safe-area-inset-right))'
@@ -417,7 +417,7 @@ export const MobileControlsUI: React.FC = () => {
       >
         {/* Jump Button (Top) */}
         <button 
-          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-14 h-14 landscape:w-12 landscape:h-12 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
+          className="absolute top-0 left-1/2 -translate-x-1/2 mobile-button w-18 h-18 landscape:w-15 landscape:h-15 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isJumping = true; e.currentTarget.setPointerCapture?.(e.pointerId); }}
           onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isJumping = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
           onPointerCancel={(e) => { e.stopPropagation(); window.mobileInputs.isJumping = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
@@ -425,12 +425,12 @@ export const MobileControlsUI: React.FC = () => {
           onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isJumping = false; }}
           onTouchCancel={(e) => { e.stopPropagation(); window.mobileInputs.isJumping = false; }}
         >
-          <ArrowUp size={24} className="text-white drop-shadow-md" />
+          <ArrowUp size={30} className="text-white drop-shadow-md" />
         </button>
 
         {/* Interact Button (Left) */}
         <button 
-          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-14 h-14 landscape:w-12 landscape:h-12 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
+          className="absolute top-1/2 left-0 -translate-y-1/2 mobile-button w-18 h-18 landscape:w-15 landscape:h-15 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
           onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isInteracting = true; e.currentTarget.setPointerCapture?.(e.pointerId); }}
           onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isInteracting = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
           onPointerCancel={(e) => { e.stopPropagation(); window.mobileInputs.isInteracting = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
@@ -438,12 +438,12 @@ export const MobileControlsUI: React.FC = () => {
           onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isInteracting = false; }}
           onTouchCancel={(e) => { e.stopPropagation(); window.mobileInputs.isInteracting = false; }}
         >
-          <Hand size={24} className="text-white drop-shadow-md" />
+          <Hand size={30} className="text-white drop-shadow-md" />
         </button>
         
         {/* Attack/Mine Button (Right) */}
         <button 
-          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-16 h-16 landscape:w-14 landscape:h-14 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
+          className="absolute top-1/2 right-0 -translate-y-1/2 mobile-button w-22 h-22 landscape:w-19 landscape:h-19 rounded-full bg-white/20 border-[3px] border-white/50 flex items-center justify-center active:bg-white/40 pointer-events-auto shadow-lg"
           onPointerDown={(e) => { 
             e.preventDefault(); 
             e.stopPropagation();
@@ -493,12 +493,12 @@ export const MobileControlsUI: React.FC = () => {
             window.mobileInputs.isAttacking = isButtonAttacking.current || anyHolding;
           }}
         >
-          <Sword size={28} className="text-white drop-shadow-md" />
+          <Sword size={36} className="text-white drop-shadow-md" />
         </button>
 
         {/* Crouch Button (Bottom) */}
         <button 
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-12 h-12 landscape:w-10 landscape:h-10 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto shadow-md"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 mobile-button w-16 h-16 landscape:w-13 landscape:h-13 rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center active:bg-white/40 opacity-80 pointer-events-auto shadow-md"
           onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isCrouching = true; e.currentTarget.setPointerCapture?.(e.pointerId); }}
           onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isCrouching = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
           onPointerCancel={(e) => { e.stopPropagation(); window.mobileInputs.isCrouching = false; e.currentTarget.releasePointerCapture?.(e.pointerId); }}
@@ -506,7 +506,7 @@ export const MobileControlsUI: React.FC = () => {
           onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); window.mobileInputs.isCrouching = false; }}
           onTouchCancel={(e) => { e.stopPropagation(); window.mobileInputs.isCrouching = false; }}
         >
-          <ArrowDown size={20} className="text-white drop-shadow-md" />
+          <ArrowDown size={26} className="text-white drop-shadow-md" />
         </button>
       </div>
     </div>
